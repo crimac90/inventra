@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>INVENTRA — Prototipo de interfaz</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+ --navy:#1F3864;--navy2:#2E5496;--cta:#12B76A;--bg:#F5F8FC;--surface:#FFFFFF;--border:#E4E9F2;
+ --text:#1A2233;--muted:#6B7280;--warn:#F79009;--danger:#F04438;--chip:#EEF3FB;
+}
+.dark{--bg:#0F1522;--surface:#182234;--border:#263247;--text:#E6EAF2;--muted:#9AA5B8;--navy2:#3E6DB5;--chip:#20304A;--cta:#2CD98A;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,Arial,sans-serif}
+body{background:#E9EEF5;color:var(--text);padding:26px;line-height:1.45}
+.wrap{max-width:1120px;margin:0 auto}
+h1.title{font-size:24px;font-weight:700;color:#1F3864;margin-bottom:4px}
+.psub{color:#64748b;font-size:14px;margin-bottom:8px}
+.lbl{font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin:30px 0 10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 6px 22px rgba(31,56,100,.07)}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:19px;letter-spacing:-.01em;color:var(--text)}
+.logo .mk{width:25px;height:25px;border-radius:7px;background:var(--cta);position:relative;flex:none}
+.logo .mk::after{content:"";position:absolute;inset:7px 6px auto 6px;height:4px;background:#fff;border-radius:2px;box-shadow:0 5px 0 #fff}
+.btn{border:0;border-radius:10px;font-weight:600;font-size:15px;cursor:pointer}
+.btn-cta{background:var(--cta);color:#fff;padding:12px 18px}
+.btn-out{background:transparent;border:1px solid var(--border);color:var(--text);padding:11px 16px}
+.btn-navy{background:var(--navy);color:#fff;padding:12px 18px}
+.full{width:100%}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--text);opacity:.85;margin-bottom:5px}
+.field input,.field select{width:100%;height:42px;border:1px solid var(--border);border-radius:10px;padding:0 12px;font-size:14px;background:var(--surface);color:var(--text)}
+.field input:focus{outline:none;border-color:var(--navy2);box-shadow:0 0 0 3px rgba(46,84,150,.15)}
+
+/* app shell */
+.app{display:grid;grid-template-columns:210px 1fr;min-height:520px}
+.side{background:var(--navy);color:#fff;padding:20px 14px;display:flex;flex-direction:column;gap:4px}
+.side .logo{color:#fff;margin:2px 6px 18px}
+.nav{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;color:#C6D2E6;font-size:14px;font-weight:500;cursor:pointer}
+.nav svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
+.nav.on{background:rgba(255,255,255,.13);color:#fff}
+.side .grow{flex:1}
+.main{display:flex;flex-direction:column;background:var(--bg)}
+.tb{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--surface)}
+.tb .h{font-size:17px;font-weight:700}
+.tb .r{display:flex;align-items:center;gap:12px}
+.pill{background:var(--chip);color:var(--navy2);font-weight:600;font-size:13px;padding:6px 12px;border-radius:20px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--navy2);color:#fff;display:grid;place-items:center;font-weight:600;font-size:13px}
+.content{padding:22px;overflow:auto}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:15px}
+.kpi .k{font-size:13px;color:var(--muted);font-weight:600}
+.kpi .v{font-size:24px;font-weight:700;margin-top:6px}
+.kpi .d{font-size:12px;margin-top:4px;font-weight:600}
+.up{color:#0E9E5B}.down{color:var(--danger)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:16px}
+.panel h4{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.li{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px}
+.li:last-child{border-bottom:0}
+.stock{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px}
+.st-ok{background:#E7F7EF;color:#0E9E5B}.st-low{background:#FEF2E2;color:#B26206}.st-out{background:#FDECEC;color:#B42318}
+.dark .st-ok{background:#123024;color:#4ADE9B}.dark .st-low{background:#3A2A10;color:#F5B44E}.dark .st-out{background:#3A1717;color:#F58A82}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:10px 8px;border-bottom:1px solid var(--border)}
+td{padding:11px 8px;border-bottom:1px solid var(--border)}
+.tag{font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--chip);color:var(--navy2)}
+.link{color:var(--navy2);font-weight:600;text-decoration:none;font-size:13px;cursor:pointer}
+.bars{display:flex;align-items:flex-end;gap:10px;height:150px;padding-top:10px}
+.bars .b{flex:1;background:var(--navy2);border-radius:6px 6px 0 0;position:relative}
+.bars .b span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted)}
+.search{width:100%;height:42px;border:1px solid var(--border);border-radius:10px;padding:0 14px;font-size:14px;background:var(--surface);color:var(--text)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:7px 13px;border-radius:20px;font-size:13px;font-weight:600;background:var(--chip);color:var(--navy2);cursor:pointer}
+.chip.on{background:var(--navy);color:#fff}
+
+/* landing */
+.land .hero{background:var(--navy);color:#fff;padding:40px}
+.land .nav2{display:flex;justify-content:space-between;align-items:center;margin-bottom:34px}
+.land .nav2 .m{display:flex;gap:22px;color:#C6D2E6;font-size:14px;align-items:center}
+.land h2{font-size:34px;font-weight:700;line-height:1.15;max-width:560px}
+.land .hs{color:#C6D2E6;font-size:16px;margin:14px 0 22px;max-width:520px}
+.land .cta2{display:flex;gap:12px}
+.land .feats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:30px 40px}
+.land .ft{padding:6px}
+.land .ft .ic{width:38px;height:38px;border-radius:10px;background:#E7F7EF;color:#0E9E5B;display:grid;place-items:center;font-weight:700;margin-bottom:10px}
+.land .ft h5{font-size:15px;font-weight:700}
+.land .ft p{font-size:13px;color:var(--muted);margin-top:5px}
+
+/* login */
+.login{display:grid;grid-template-columns:1fr 1fr;min-height:440px}
+.brandp{background:var(--navy);color:#fff;padding:36px 32px;display:flex;flex-direction:column;justify-content:space-between}
+.brandp .tg{font-size:24px;font-weight:700;line-height:1.2;margin-top:22px}
+.brandp .sb{color:#B9C6DE;margin-top:10px;font-size:14px}
+.feat{margin-top:24px;display:flex;flex-direction:column;gap:11px}
+.feat div{display:flex;align-items:center;gap:10px;font-size:14px;color:#DCE5F2}
+.feat b{width:21px;height:21px;border-radius:6px;background:rgba(255,255,255,.14);display:grid;place-items:center;color:var(--cta);font-weight:700;font-size:12px}
+.formp{padding:38px;display:flex;flex-direction:column;justify-content:center}
+.formp h3{font-size:22px;font-weight:700}.formp .hs{color:var(--muted);font-size:14px;margin:6px 0 20px}
+.rowb{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:2px 0 18px;color:var(--muted)}
+.foot{text-align:center;color:var(--muted);font-size:13px;margin-top:16px}
+.msg{font-size:12px;font-weight:600;margin-top:6px}.msg.err{color:var(--danger)}
+
+/* pos */
+.posbody{display:grid;grid-template-columns:1fr 320px}
+.products{padding:18px 20px;border-right:1px solid var(--border)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.prod{border:1px solid var(--border);border-radius:12px;padding:12px;cursor:pointer;background:var(--surface)}
+.prod:hover{border-color:var(--navy2)}.prod .nm{font-weight:600;font-size:14px}.prod .pr{color:var(--navy2);font-weight:700;font-size:15px;margin:8px 0}
+.sale{padding:18px;display:flex;flex-direction:column}
+.sale h4{font-size:15px;font-weight:700;margin-bottom:10px}
+.item{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)}
+.item .in{font-size:14px;font-weight:600}.item .iq{font-size:12px;color:var(--muted)}.item .ip{font-weight:700;font-size:14px}
+.tot{display:flex;justify-content:space-between;font-size:14px;color:var(--muted);padding:3px 0}
+.tot.big{color:var(--text);font-weight:700;font-size:19px;border-top:1px solid var(--border);margin-top:6px;padding-top:10px}
+.pays{display:flex;gap:8px;margin:14px 0}
+.pay{flex:1;text-align:center;padding:9px 0;border:1px solid var(--border);border-radius:10px;font-size:13px;font-weight:600;cursor:pointer}
+.pay.on{border-color:var(--navy);background:var(--navy);color:#fff}
+
+/* phone */
+.phones{display:flex;gap:22px;flex-wrap:wrap}
+.phone{width:300px;border:10px solid #10182A;border-radius:34px;overflow:hidden;background:var(--surface);box-shadow:0 10px 30px rgba(16,24,42,.2)}
+.phone .st{height:26px;background:var(--navy)}
+.ph-c{padding:16px}
+.mkpi{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mkpi .kpi{padding:12px}.mkpi .v{font-size:19px}
+.mtop{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.bnav{display:flex;justify-content:space-around;border-top:1px solid var(--border);padding:10px 0}
+.bnav div{font-size:11px;color:var(--muted);text-align:center}
+.bnav div.on{color:var(--navy2);font-weight:700}
+/* toast */
+.toast{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:11px;font-size:14px;font-weight:600;margin-bottom:12px}
+.toast.err{background:#FDECEC;color:#B42318}.toast.ok{background:#E7F7EF;color:#0E7A4E}
+.empty{text-align:center;padding:34px;color:var(--muted)}
+.empty .e{width:52px;height:52px;border-radius:14px;background:var(--chip);margin:0 auto 12px}
+.wrap-dark{background:#0B0F18;border-radius:16px;padding:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1 class="title">INVENTRA — Prototipo de interfaz</h1>
+<div style="color:#64748b;font-size:14px">Cada bloque es una pantalla. Web y móvil, modo claro y oscuro. Paleta y componentes del sistema de diseño de INVENTRA.</div>
+
+<!-- 1 LANDING -->
+<div class="lbl">1 · Landing page</div>
+<div class="card land">
+ <div class="hero">
+   <div class="nav2"><div class="logo" style="color:#fff"><span class="mk"></span> INVENTRA</div>
+     <div class="m"><span>Funciones</span><span>Precios</span><span>Contacto</span><span class="btn btn-cta" style="padding:9px 16px">Probar gratis</span></div></div>
+   <h2>El control de tu licorera, simple y en tiempo real.</h2>
+   <div class="hs">Registra tus ventas, controla el inventario y conoce tu utilidad. Hecho para licoreras y tiendas de barrio, con soporte local.</div>
+   <div class="cta2"><span class="btn btn-cta">Empieza gratis</span><span class="btn btn-out" style="color:#fff;border-color:#3a557f">Ver demostración</span></div>
+ </div>
+ <div class="feats">
+   <div class="ft"><div class="ic">1</div><h5>Inventario en tiempo real</h5><p>Existencias siempre al día, con alertas de stock bajo y control por lote (PEPS).</p></div>
+   <div class="ft"><div class="ic">2</div><h5>Punto de venta rápido</h5><p>Cobra en segundos, con varios medios de pago y comprobante al instante.</p></div>
+   <div class="ft"><div class="ic">3</div><h5>Reportes que sirven</h5><p>Ventas, rotación y utilidad real para tomar mejores decisiones.</p></div>
+ </div>
+</div>
+
+<!-- 2 LOGIN -->
+<div class="lbl">2 · Inicio de sesión</div>
+<div class="card login">
+ <div class="brandp"><div class="logo" style="color:#fff"><span class="mk"></span> INVENTRA</div>
+   <div><div class="tg">Controla tu inventario y tus ventas, sin complicarte.</div><div class="sb">El punto de venta especializado para licoreras.</div>
+     <div class="feat"><div><b>✓</b> Ventas e inventario en tiempo real</div><div><b>✓</b> Alertas de stock y reportes de utilidad</div><div><b>✓</b> Soporte local en español</div></div></div>
+   <div class="sb" style="font-size:12px">© 2026 INVENTRA</div></div>
+ <div class="formp"><h3>Iniciar sesión</h3><div class="hs">Ingresa a tu cuenta para gestionar tu licorera.</div>
+   <div class="field"><label>Correo electrónico</label><input type="email" placeholder="nombre@correo.com"></div>
+   <div class="field"><label>Contraseña</label><input type="password" placeholder="••••••••"></div>
+   <div class="rowb"><label style="display:flex;gap:7px;align-items:center"><input type="checkbox" style="width:auto;height:auto"> Recordarme</label><a class="link" >¿Olvidaste tu contraseña?</a></div>
+   <button class="btn btn-cta full">Ingresar</button>
+   <div class="foot">¿No tienes cuenta? <a class="link">Regístrate</a></div></div>
+</div>
+
+<!-- 3 REGISTRO -->
+<div class="lbl">3 · Registro</div>
+<div class="card login">
+ <div class="brandp"><div class="logo" style="color:#fff"><span class="mk"></span> INVENTRA</div>
+   <div><div class="tg">Crea tu cuenta en minutos.</div><div class="sb">Empieza con el plan Básico y crece cuando quieras.</div>
+   <div class="feat"><div><b>1</b> Registra tu negocio</div><div><b>2</b> Carga tus productos</div><div><b>3</b> Empieza a vender</div></div></div>
+   <div class="sb" style="font-size:12px">© 2026 INVENTRA</div></div>
+ <div class="formp"><h3>Crear cuenta</h3><div class="hs">Registra tu licorera y tu usuario administrador.</div>
+   <div class="field"><label>Nombre del negocio</label><input placeholder="Licorera La Esquina"></div>
+   <div class="field"><label>Nombre y apellido</label><input placeholder="Cristian Macías"></div>
+   <div class="field"><label>Correo electrónico</label><input type="email" placeholder="nombre@correo.com"></div>
+   <div class="field"><label>Contraseña</label><input type="password" placeholder="Mínimo 8 caracteres"></div>
+   <button class="btn btn-cta full">Crear cuenta</button>
+   <div class="foot">¿Ya tienes cuenta? <a class="link">Inicia sesión</a></div></div>
+</div>
+
+<!-- 4 DASHBOARD -->
+<div class="lbl">4 · Panel principal (dashboard)</div>
+<div class="card app">
+ <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
+   <div class="nav on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg> Inventario</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 12h11l1.6-8H6"/></svg> Ventas</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg> Reportes</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12z"/><path d="M9 21v-6h6v6"/></svg> Sedes</div>
+   <div class="grow"></div>
+   <div class="nav"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.3 1a7 7 0 0 0-1.7-1L14.5 2h-5l-.4 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.5L3 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.3-1a7 7 0 0 0 1.7 1l.4 2.5h5l.4-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg> Configuración</div>
+ </div>
+ <div class="main">
+   <div class="tb"><div class="h">Panel principal</div><div class="r"><span class="pill">Sede: Centro</span><span class="avatar">CM</span></div></div>
+   <div class="content">
+     <div class="kpis">
+       <div class="kpi"><div class="k">Ventas de hoy</div><div class="v">$1.240.000</div><div class="d up">▲ 12% vs. ayer</div></div>
+       <div class="kpi"><div class="k">Productos activos</div><div class="v">318</div><div class="d" style="color:var(--muted)">en catálogo</div></div>
+       <div class="kpi"><div class="k">Stock bajo</div><div class="v" style="color:var(--warn)">7</div><div class="d" style="color:var(--warn)">requieren reabastecer</div></div>
+       <div class="kpi"><div class="k">Utilidad del mes</div><div class="v">$6.980.000</div><div class="d up">▲ 8%</div></div>
+     </div>
+     <div class="two">
+       <div class="panel"><h4>Alertas de stock bajo <a class="link">Ver todo</a></h4>
+         <div class="li"><span>Cerveza Águila 330ml</span><span class="stock st-low">4 uds</span></div>
+         <div class="li"><span>Cerveza Poker 330ml</span><span class="stock st-low">6 uds</span></div>
+         <div class="li"><span>Ron Viejo de Caldas 750ml</span><span class="stock st-out">Agotado</span></div>
+         <div class="li"><span>Vino Gato Negro 750ml</span><span class="stock st-low">5 uds</span></div></div>
+       <div class="panel"><h4>Ventas de la semana</h4>
+         <div class="bars"><div class="b" style="height:55%"><span>Lun</span></div><div class="b" style="height:70%"><span>Mar</span></div><div class="b" style="height:45%"><span>Mié</span></div><div class="b" style="height:80%"><span>Jue</span></div><div class="b" style="height:95%"><span>Vie</span></div><div class="b" style="height:100%"><span>Sáb</span></div><div class="b" style="height:60%"><span>Dom</span></div></div>
+         <div style="height:16px"></div></div>
+     </div>
+   </div>
+ </div>
+</div>
+
+<!-- 5 INVENTARIO LISTA -->
+<div class="lbl">5 · Inventario — lista de productos</div>
+<div class="card app">
+ <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
+   <div class="nav on"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg> Inventario</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 12h11l1.6-8H6"/></svg> Ventas</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg> Reportes</div>
+   <div class="grow"></div></div>
+ <div class="main">
+   <div class="tb"><div class="h">Inventario</div><div class="r"><span class="btn btn-cta" style="padding:9px 15px">+ Nuevo producto</span><span class="avatar">CM</span></div></div>
+   <div class="content">
+     <div style="display:flex;gap:12px;margin-bottom:16px"><input class="search" placeholder="Buscar por nombre o código…" style="flex:1"><div class="chips"><span class="chip on">Todos</span><span class="chip">Bajo stock</span><span class="chip">Agotados</span></div></div>
+     <div class="panel" style="padding:6px 16px">
+     <table><thead><tr><th>Producto</th><th>Categoría</th><th>Precio venta</th><th>Existencias</th><th>Estado</th><th></th></tr></thead><tbody>
+       <tr><td>Aguardiente Antioqueño 750ml</td><td><span class="tag">Aguardientes</span></td><td>$52.000</td><td>24</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Ron Medellín Añejo 750ml</td><td><span class="tag">Rones</span></td><td>$48.500</td><td>15</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Cerveza Águila 330ml</td><td><span class="tag">Cervezas</span></td><td>$3.500</td><td>4</td><td><span class="stock st-low">Stock bajo</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Whisky Buchanan's 750ml</td><td><span class="tag">Whiskies</span></td><td>$185.000</td><td>9</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Ron Viejo de Caldas 750ml</td><td><span class="tag">Rones</span></td><td>$46.000</td><td>0</td><td><span class="stock st-out">Agotado</span></td><td><a class="link">Editar</a></td></tr>
+     </tbody></table></div>
+   </div>
+ </div>
+</div>
+
+<!-- 6 FORM PRODUCTO -->
+<div class="lbl">6 · Inventario — nuevo / editar producto</div>
+<div class="card" style="padding:26px 28px;max-width:640px">
+ <h3 style="font-size:19px;font-weight:700;margin-bottom:4px">Nuevo producto</h3>
+ <div style="color:var(--muted);font-size:14px;margin-bottom:20px">Completa la información del producto.</div>
+ <div class="field"><label>Nombre del producto</label><input placeholder="Aguardiente Antioqueño 750ml"></div>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+   <div class="field"><label>Categoría</label><select><option>Aguardientes</option><option>Rones</option><option>Cervezas</option><option>Whiskies</option><option>Vinos</option></select></div>
+   <div class="field"><label>Presentación</label><input placeholder="Botella 750ml"></div>
+   <div class="field"><label>Precio de compra</label><input placeholder="$0"></div>
+   <div class="field"><label>Precio de venta</label><input placeholder="$0"></div>
+   <div class="field"><label>Stock inicial</label><input placeholder="0"></div>
+   <div class="field"><label>Stock mínimo (alerta)</label><input placeholder="5"></div>
+ </div>
+ <div class="field"><label>Código de barras</label><input placeholder="7701234567890"></div>
+ <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px"><button class="btn btn-out">Cancelar</button><button class="btn btn-cta">Guardar producto</button></div>
+</div>
+
+<!-- 7 POS -->
+<div class="lbl">7 · Punto de venta (POS)</div>
+<div class="card">
+ <div class="tb"><div class="logo"><span class="mk"></span> INVENTRA</div><div class="r"><span class="pill">Sede: Centro</span><span>Caja 1</span><span class="avatar">CM</span></div></div>
+ <div class="posbody">
+   <div class="products"><input class="search" placeholder="Buscar producto o escanear código…">
+     <div class="chips" style="margin-top:12px"><span class="chip on">Todos</span><span class="chip">Cervezas</span><span class="chip">Aguardientes</span><span class="chip">Rones</span><span class="chip">Whiskies</span></div>
+     <div class="grid">
+       <div class="prod"><div class="nm">Aguardiente Antioqueño 750ml</div><div class="pr">$52.000</div><span class="stock st-ok">Stock: 24</span></div>
+       <div class="prod"><div class="nm">Ron Medellín Añejo 750ml</div><div class="pr">$48.500</div><span class="stock st-ok">Stock: 15</span></div>
+       <div class="prod"><div class="nm">Cerveza Águila 330ml</div><div class="pr">$3.500</div><span class="stock st-low">Stock: 4</span></div>
+       <div class="prod"><div class="nm">Whisky Buchanan's 750ml</div><div class="pr">$185.000</div><span class="stock st-ok">Stock: 9</span></div>
+       <div class="prod"><div class="nm">Vino Casillero 750ml</div><div class="pr">$42.000</div><span class="stock st-ok">Stock: 12</span></div>
+       <div class="prod"><div class="nm">Cerveza Poker 330ml</div><div class="pr">$3.200</div><span class="stock st-low">Stock: 6</span></div>
+     </div></div>
+   <div class="sale"><h4>Venta actual</h4>
+     <div class="item"><div><div class="in">Aguardiente Antioqueño</div><div class="iq">2 × $52.000</div></div><div class="ip">$104.000</div></div>
+     <div class="item"><div><div class="in">Cerveza Águila</div><div class="iq">6 × $3.500</div></div><div class="ip">$21.000</div></div>
+     <div class="item"><div><div class="in">Ron Medellín Añejo</div><div class="iq">1 × $48.500</div></div><div class="ip">$48.500</div></div>
+     <div class="tot" style="margin-top:12px"><span>Subtotal</span><span>$173.500</span></div>
+     <div class="tot"><span>Descuento</span><span>$0</span></div>
+     <div class="tot big"><span>Total</span><span>$173.500</span></div>
+     <div class="pays"><span class="pay on">Efectivo</span><span class="pay">Transfer.</span><span class="pay">Tarjeta</span></div>
+     <button class="btn btn-cta full">Cobrar $173.500</button></div>
+ </div>
+</div>
+
+<!-- 8 REPORTES -->
+<div class="lbl">8 · Reportes</div>
+<div class="card app">
+ <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg> Inventario</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 12h11l1.6-8H6"/></svg> Ventas</div>
+   <div class="nav on"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg> Reportes</div>
+   <div class="grow"></div></div>
+ <div class="main">
+   <div class="tb"><div class="h">Reportes</div><div class="r"><span class="pill">Julio 2026</span><span class="btn btn-out" style="padding:8px 13px">Exportar</span></div></div>
+   <div class="content">
+     <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+       <div class="kpi"><div class="k">Ventas del mes</div><div class="v">$38.4M</div><div class="d up">▲ 14%</div></div>
+       <div class="kpi"><div class="k">Utilidad</div><div class="v">$6.98M</div><div class="d up">▲ 8%</div></div>
+       <div class="kpi"><div class="k">Ticket promedio</div><div class="v">$64.500</div><div class="d" style="color:var(--muted)">por venta</div></div>
+     </div>
+     <div class="two">
+       <div class="panel"><h4>Ventas por día</h4><div class="bars"><div class="b" style="height:60%"></div><div class="b" style="height:75%"></div><div class="b" style="height:50%"></div><div class="b" style="height:85%"></div><div class="b" style="height:70%"></div><div class="b" style="height:95%"></div><div class="b" style="height:65%"></div></div><div style="height:6px"></div></div>
+       <div class="panel"><h4>Más vendidos</h4>
+         <div class="li"><span>Aguardiente Antioqueño 750ml</span><b>182 uds</b></div>
+         <div class="li"><span>Cerveza Águila 330ml</span><b>1.240 uds</b></div>
+         <div class="li"><span>Ron Medellín Añejo 750ml</span><b>96 uds</b></div>
+         <div class="li"><span>Whisky Buchanan's 750ml</span><b>28 uds</b></div></div>
+     </div>
+   </div>
+ </div>
+</div>
+
+<!-- 9 ESTADOS -->
+<div class="lbl">9 · Mensajes y estados</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+ <div class="card" style="padding:22px">
+   <div style="font-weight:700;margin-bottom:12px">Mensajes del sistema</div>
+   <div class="toast ok">✓ Venta registrada correctamente.</div>
+   <div class="toast err">✕ No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.</div>
+   <div class="field" style="margin-top:6px"><label>Correo electrónico</label><input value="correo-invalido" style="border-color:var(--danger)"><div class="msg err">Ingresa un correo electrónico válido.</div></div>
+   <div class="field"><label>Contraseña</label><input type="password" value="" style="border-color:var(--danger)"><div class="msg err">La contraseña es obligatoria.</div></div>
+ </div>
+ <div class="card" style="padding:22px">
+   <div style="font-weight:700;margin-bottom:12px">Estado vacío</div>
+   <div class="empty"><div class="e"></div><div style="font-weight:600;color:var(--text)">No se encontraron productos</div><div style="margin-top:6px;font-size:13px">Prueba con otra búsqueda o registra un producto nuevo.</div><div style="margin-top:14px"><span class="btn btn-cta" style="padding:9px 16px">+ Nuevo producto</span></div></div>
+ </div>
+</div>
+
+<!-- MOBILE -->
+<div class="lbl">10 · Versión móvil (login, panel, punto de venta)</div>
+<div class="phones">
+ <div class="phone"><div class="st"></div><div class="ph-c">
+   <div style="text-align:center;margin:18px 0 22px"><div class="logo" style="justify-content:center"><span class="mk"></span> INVENTRA</div></div>
+   <h3 style="font-size:19px;font-weight:700">Iniciar sesión</h3><div style="color:var(--muted);font-size:13px;margin:5px 0 16px">Gestiona tu licorera.</div>
+   <div class="field"><label>Correo</label><input placeholder="nombre@correo.com"></div>
+   <div class="field"><label>Contraseña</label><input type="password" placeholder="••••••••"></div>
+   <button class="btn btn-cta full" style="margin-top:4px">Ingresar</button>
+   <div class="foot">¿Olvidaste tu contraseña?</div>
+ </div></div>
+ <div class="phone"><div class="st"></div><div class="ph-c">
+   <div class="mtop"><div style="font-weight:700">Panel</div><span class="avatar" style="width:30px;height:30px">CM</span></div>
+   <div class="mkpi"><div class="kpi"><div class="k">Ventas hoy</div><div class="v">$1.24M</div></div><div class="kpi"><div class="k">Stock bajo</div><div class="v" style="color:var(--warn)">7</div></div><div class="kpi"><div class="k">Productos</div><div class="v">318</div></div><div class="kpi"><div class="k">Utilidad</div><div class="v">$6.9M</div></div></div>
+   <div class="panel" style="margin-top:12px;padding:12px"><h4 style="margin-bottom:8px">Stock bajo</h4>
+     <div class="li"><span style="font-size:13px">Cerveza Águila</span><span class="stock st-low">4</span></div>
+     <div class="li"><span style="font-size:13px">Ron Viejo Caldas</span><span class="stock st-out">0</span></div></div>
+   <div class="bnav" style="margin-top:14px"><div class="on">Panel</div><div>Inventario</div><div>Vender</div><div>Reportes</div></div>
+ </div></div>
+ <div class="phone"><div class="st"></div><div class="ph-c">
+   <div class="mtop"><div style="font-weight:700">Punto de venta</div><span class="pill" style="font-size:11px">Centro</span></div>
+   <input class="search" placeholder="Buscar producto…" style="height:38px">
+   <div class="item" style="margin-top:6px"><div><div class="in" style="font-size:13px">Aguardiente Antioqueño</div><div class="iq">2 × $52.000</div></div><div class="ip">$104.000</div></div>
+   <div class="item"><div><div class="in" style="font-size:13px">Cerveza Águila</div><div class="iq">6 × $3.500</div></div><div class="ip">$21.000</div></div>
+   <div class="tot big" style="font-size:17px"><span>Total</span><span>$125.000</span></div>
+   <div class="pays"><span class="pay on">Efectivo</span><span class="pay">Transf.</span></div>
+   <button class="btn btn-cta full">Cobrar $125.000</button>
+ </div></div>
+</div>
+
+<!-- DARK -->
+<div class="lbl">11 · Modo oscuro (panel y punto de venta)</div>
+<div class="wrap-dark dark">
+ <div class="card app" style="box-shadow:none">
+  <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
+    <div class="nav on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
+    <div class="nav"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg> Inventario</div>
+    <div class="nav"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 12h11l1.6-8H6"/></svg> Ventas</div>
+    <div class="grow"></div></div>
+  <div class="main"><div class="tb"><div class="h">Panel principal</div><div class="r"><span class="pill">Sede: Centro</span><span class="avatar">CM</span></div></div>
+    <div class="content"><div class="kpis">
+      <div class="kpi"><div class="k">Ventas de hoy</div><div class="v">$1.240.000</div><div class="d up">▲ 12%</div></div>
+      <div class="kpi"><div class="k">Productos</div><div class="v">318</div></div>
+      <div class="kpi"><div class="k">Stock bajo</div><div class="v" style="color:var(--warn)">7</div></div>
+      <div class="kpi"><div class="k">Utilidad del mes</div><div class="v">$6.98M</div><div class="d up">▲ 8%</div></div></div>
+     <div class="two"><div class="panel"><h4>Alertas de stock bajo</h4>
+       <div class="li"><span>Cerveza Águila 330ml</span><span class="stock st-low">4 uds</span></div>
+       <div class="li"><span>Ron Viejo de Caldas 750ml</span><span class="stock st-out">Agotado</span></div>
+       <div class="li"><span>Vino Gato Negro 750ml</span><span class="stock st-low">5 uds</span></div></div>
+      <div class="panel"><h4>Ventas de la semana</h4><div class="bars"><div class="b" style="height:55%"></div><div class="b" style="height:70%"></div><div class="b" style="height:45%"></div><div class="b" style="height:80%"></div><div class="b" style="height:95%"></div><div class="b" style="height:100%"></div><div class="b" style="height:60%"></div></div></div></div>
+    </div></div>
+ </div>
+</div>
+
+</div>
+</body>
+</html>

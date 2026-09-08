@@ -1,0 +1,15 @@
+# Archivos temporales de Office y del sistema operativo
+~$*
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Editores e IDE
+.vscode/
+.idea/
+
+# Dependencias y entorno (fase de construcción)
+node_modules/
+__pycache__/
+*.pyc
+.env
