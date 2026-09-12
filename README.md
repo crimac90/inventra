@@ -18,10 +18,12 @@ Fase de análisis y diseño. La construcción del software (backend, frontend y 
 
 ## Estructura del repositorio
 
+Los archivos se nombran sin espacios, con las palabras separadas por guiones bajos.
+
 - `docs/analisis`: requisitos (IEEE 830), historias de usuario, product backlog, y mapa de empatía con lean canvas.
-- `docs/diseno`: análisis y diseño en UML, y diseño de la base de datos (MER, modelo relacional y diccionario de datos).
+- `docs/diseno`: análisis y diseño en UML, diseño de la base de datos (MER, modelo relacional y diccionario de datos) y documento técnico de diseño de la interfaz.
 - `docs/proyecto-de-grado`: documento del proyecto de grado (norma ICONTEC).
-- `docs/gestion`: hoja de ruta del proyecto y guía del tablero SCRUM.
+- `docs/gestion`: hoja de ruta del proyecto, guía del tablero SCRUM y propuesta técnica y económica.
 - `Diagramas`: diagramas en formato editable (SVG) y de imagen (PNG).
 - `prototipo`: prototipo de la interfaz (HTML).
 - `negocio`: modelo de negocio (formato Fondo Emprender).
