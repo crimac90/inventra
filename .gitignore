@@ -13,3 +13,16 @@ node_modules/
 __pycache__/
 *.pyc
 .env
+.venv/
+venv/
+env/
+
+# Django
+*.log
+db.sqlite3
+staticfiles/
+media/
+
+# Compilación del frontend
+dist/
+build/
