@@ -124,7 +124,19 @@ Qué hace cada línea:
 La aplicación se conecta con `inventra_app`, nunca con `root`: si esas credenciales se
 filtran, el daño queda limitado a esta base de datos.
 
-### 3.3 Comprobar y salir
+### 3.3 Permisos para la base de datos de pruebas
+
+Las pruebas automáticas se ejecutan sobre una base de datos temporal llamada
+`test_inventra`, que el sistema crea y borra en cada corrida. El usuario de la
+aplicación necesita permiso para crearla:
+
+```sql
+GRANT ALL PRIVILEGES ON test_inventra.* TO 'inventra_app'@'localhost';
+GRANT ALL PRIVILEGES ON test_inventra.* TO 'inventra_app'@'127.0.0.1';
+FLUSH PRIVILEGES;
+```
+
+### 3.4 Comprobar y salir
 
 ```sql
 SHOW DATABASES;

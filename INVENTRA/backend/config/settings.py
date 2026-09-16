@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     # De terceros
     "rest_framework",                # publicación de la API REST
     "corsheaders",                   # permite que el frontend consuma la API
+    "rest_framework_simplejwt.token_blacklist",  # invalida los tokens al cerrar sesión
 
     # Del proyecto, una por módulo funcional
     "suscripciones",                 # SUS: licoreras, planes y suscripciones
@@ -157,6 +158,9 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "usuario_id",
+    # Al renovar, el token anterior deja de servir: si alguien lo robó, caduca pronto
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 

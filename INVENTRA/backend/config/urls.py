@@ -10,7 +10,7 @@ propia interfaz en React, que consume esta API.
 """
 
 from django.http import JsonResponse
-from django.urls import path
+from django.urls import include, path
 
 
 def estado(request):
@@ -29,8 +29,7 @@ def estado(request):
 
 urlpatterns = [
     path("api/estado/", estado, name="estado"),
+    path("api/seguridad/", include("seguridad.urls")),
 
-    # Las direcciones de cada módulo se agregan aquí:
-    # path("api/seguridad/", include("seguridad.urls")),
-    # path("api/suscripciones/", include("suscripciones.urls")),
+    # Las direcciones de los demás módulos se agregan aquí a medida que se construyen.
 ]

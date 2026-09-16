@@ -9,8 +9,11 @@ intentos fallidos y bloqueo. Corresponde a las tablas rol y usuario del
 diccionario de datos.
 """
 
+from datetime import timedelta
+
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.db import models
+from django.utils import timezone
 
 
 class Rol(models.Model):
@@ -120,6 +123,12 @@ class Usuario(AbstractBaseUser):
     def __str__(self):
         return f"{self.nombre_completo} ({self.correo})"
 
+    # Política de bloqueo por intentos fallidos (RF-SEG-02). La especificación
+    # exige bloquear tras cinco intentos; la duración se fija aquí, en un solo
+    # lugar, para poder ajustarla sin tocar el resto del código.
+    MAXIMO_INTENTOS = 5
+    MINUTOS_DE_BLOQUEO = 15
+
     @property
     def is_active(self):
         """Django consulta este nombre para decidir si la cuenta puede entrar."""
@@ -128,3 +137,26 @@ class Usuario(AbstractBaseUser):
     @property
     def es_administrador_inventra(self):
         return self.rol_id is not None and self.rol.nombre == Rol.ADMINISTRADOR_INVENTRA
+
+    def esta_bloqueado(self):
+        """Indica si la cuenta está en período de bloqueo en este momento."""
+        return self.bloqueado_hasta is not None and self.bloqueado_hasta > timezone.now()
+
+    def registrar_intento_fallido(self):
+        """
+        Suma un intento fallido y, al llegar al máximo, bloquea la cuenta por el
+        tiempo definido. El contador se guarda en la base para que el bloqueo
+        funcione aunque el usuario cambie de equipo o de navegador.
+        """
+        self.intentos_fallidos += 1
+        if self.intentos_fallidos >= self.MAXIMO_INTENTOS:
+            self.bloqueado_hasta = timezone.now() + timedelta(minutes=self.MINUTOS_DE_BLOQUEO)
+            self.intentos_fallidos = 0
+        self.save(update_fields=["intentos_fallidos", "bloqueado_hasta"])
+
+    def registrar_ingreso_exitoso(self):
+        """Limpia el contador y el bloqueo, y deja registrada la fecha de ingreso."""
+        self.intentos_fallidos = 0
+        self.bloqueado_hasta = None
+        self.last_login = timezone.now()
+        self.save(update_fields=["intentos_fallidos", "bloqueado_hasta", "last_login"])
