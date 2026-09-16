@@ -1,13 +1,23 @@
 """Direcciones del módulo de seguridad."""
 
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .views import CierreSesionView, InicioSesionView, PerfilView
+from .views import CierreSesionView, InicioSesionView, PerfilView, RolesView, UsuarioViewSet
+
+# El enrutador genera automáticamente las direcciones del conjunto de vistas:
+#   /usuarios/           listar y crear
+#   /usuarios/<id>/      consultar, modificar e inactivar
+#   /usuarios/<id>/reactivar/
+enrutador = DefaultRouter()
+enrutador.register(r"usuarios", UsuarioViewSet, basename="usuario")
 
 urlpatterns = [
     path("ingresar/", InicioSesionView.as_view(), name="ingresar"),
     path("salir/", CierreSesionView.as_view(), name="salir"),
     path("renovar/", TokenRefreshView.as_view(), name="renovar"),
     path("perfil/", PerfilView.as_view(), name="perfil"),
+    path("roles/", RolesView.as_view(), name="roles"),
+    path("", include(enrutador.urls)),
 ]

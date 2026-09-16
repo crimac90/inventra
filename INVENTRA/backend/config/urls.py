@@ -30,6 +30,7 @@ def estado(request):
 urlpatterns = [
     path("api/estado/", estado, name="estado"),
     path("api/seguridad/", include("seguridad.urls")),
+    path("api/suscripciones/", include("suscripciones.urls")),
 
     # Las direcciones de los demás módulos se agregan aquí a medida que se construyen.
 ]

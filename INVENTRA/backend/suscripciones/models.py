@@ -82,6 +82,36 @@ class Licorera(models.Model):
     def __str__(self):
         return self.nombre
 
+    def suscripcion_vigente(self):
+        """
+        Devuelve la suscripción activa del negocio, que es la que define qué
+        puede hacer. Si hay varias filas históricas, la vigente es la más
+        reciente sin fecha de fin.
+        """
+        return (
+            self.suscripciones
+            .filter(estado=Suscripcion.Estado.ACTIVA, fecha_fin__isnull=True)
+            .select_related("plan")
+            .order_by("-fecha_inicio")
+            .first()
+        )
+
+    def plan_vigente(self):
+        suscripcion = self.suscripcion_vigente()
+        return suscripcion.plan if suscripcion else None
+
+    def puede_agregar_usuario(self):
+        """
+        Indica si el plan contratado admite un usuario más (RF-SUS-04).
+
+        El plan Básico permite uno solo; el Pro no tiene límite. Los usuarios
+        inactivos no cuentan: quien fue dado de baja no ocupa un cupo.
+        """
+        plan = self.plan_vigente()
+        if plan is None or plan.maximo_usuarios is None:
+            return True
+        return self.usuarios.filter(activo=True).count() < plan.maximo_usuarios
+
 
 class Suscripcion(models.Model):
     """
