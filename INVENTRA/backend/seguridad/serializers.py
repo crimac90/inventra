@@ -7,7 +7,9 @@ que toquen la base de datos.
 """
 
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError as ErrorDeValidacion
+from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -19,6 +21,11 @@ from .models import Rol, Usuario
 # dijera «el correo no existe», cualquiera podría averiguar qué cuentas hay
 # registradas probando correos (RF-SEG-02).
 CREDENCIALES_INVALIDAS = "El correo o la contraseña no son correctos."
+
+# Mensaje único para cualquier problema del enlace de recuperación: vencido, ya
+# usado, manipulado o de una cuenta que no existe. Distinguirlos ayudaría a quien
+# estuviera probando enlaces al azar (RF-SEG-04).
+ENLACE_INVALIDO = "El enlace no es válido o ya venció. Solicita uno nuevo."
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
@@ -169,11 +176,12 @@ class UsuarioCrearSerializer(serializers.ModelSerializer):
 
 class UsuarioActualizarSerializer(serializers.ModelSerializer):
     """
-    Modificación de un usuario (RF-SEG-05 y RF-SEG-06).
+    Modificación de un usuario por parte del administrador (RF-SEG-05 y RF-SEG-06).
 
-    El correo no se edita: identifica la cuenta en toda la plataforma y cambiarlo
-    equivaldría a suplantar a otra persona. La contraseña se cambia por su propio
-    procedimiento, no desde aquí.
+    El correo sí se puede editar aquí, porque la especificación reserva ese cambio
+    al administrador de la licorera: es el identificador de acceso, así que el
+    propio usuario no puede alterarlo desde su perfil. La contraseña no se toca
+    desde aquí; tiene su propio procedimiento.
     """
 
     rol = serializers.PrimaryKeyRelatedField(
@@ -183,4 +191,143 @@ class UsuarioActualizarSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Usuario
-        fields = ["id", "nombre_completo", "telefono", "rol", "activo"]
+        fields = ["id", "nombre_completo", "correo", "telefono", "rol", "activo"]
+
+    def validate_correo(self, valor):
+        """El correo identifica la cuenta en toda la plataforma, así que sigue siendo único."""
+        correo = valor.strip().lower()
+        if Usuario.objects.filter(correo=correo).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError("Ya existe una cuenta registrada con este correo.")
+        return correo
+
+
+# ---------------------------------------------------------------------------
+# Recuperación de contraseña (RF-SEG-04)
+# ---------------------------------------------------------------------------
+
+class SolicitarRecuperacionSerializer(serializers.Serializer):
+    """
+    Primer paso: el usuario escribe su correo y pide el enlace.
+
+    Aquí solo se valida que el dato tenga forma de correo. Si la cuenta existe o
+    no, y si se envía o no el mensaje, lo decide la vista, porque la respuesta al
+    cliente debe ser idéntica en ambos casos.
+    """
+
+    correo = serializers.EmailField()
+
+    def validate_correo(self, valor):
+        return valor.strip().lower()
+
+
+class RestablecerContrasenaSerializer(serializers.Serializer):
+    """
+    Segundo paso: el usuario abre el enlace y define la contraseña nueva.
+
+    El enlace lleva dos datos: el identificador del usuario codificado y el token.
+    El token NO se guarda en ninguna tabla; es un valor firmado que se calcula a
+    partir del identificador, la contraseña actual, el último acceso y el momento
+    en que se generó. De ahí salen gratis las dos condiciones que exige la
+    especificación: vence a los treinta minutos, porque el momento va dentro del
+    cálculo, y solo sirve una vez, porque al cambiar la contraseña cambia también
+    el valor con el que se comprobaría.
+    """
+
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        usuario = self._buscar_usuario(attrs["uid"])
+
+        if usuario is None or not usuario.activo:
+            raise serializers.ValidationError({"token": ENLACE_INVALIDO})
+
+        if not default_token_generator.check_token(usuario, attrs["token"]):
+            raise serializers.ValidationError({"token": ENLACE_INVALIDO})
+
+        try:
+            validate_password(attrs["password"], usuario)
+        except ErrorDeValidacion as error:
+            raise serializers.ValidationError({"password": list(error.messages)})
+
+        attrs["usuario"] = usuario
+        return attrs
+
+    @staticmethod
+    def _buscar_usuario(uid):
+        """Deshace la codificación del enlace y busca la cuenta. Devuelve None si algo no cuadra."""
+        try:
+            identificador = urlsafe_base64_decode(uid).decode()
+            return Usuario.objects.select_related("rol", "licorera").get(pk=identificador)
+        except (TypeError, ValueError, OverflowError, Usuario.DoesNotExist):
+            return None
+
+    def guardar(self):
+        """
+        Asigna la contraseña nueva y libera el bloqueo por intentos fallidos: quien
+        olvidó su contraseña y agotó los intentos debe poder volver a entrar.
+        """
+        usuario = self.validated_data["usuario"]
+        usuario.set_password(self.validated_data["password"])
+        usuario.intentos_fallidos = 0
+        usuario.bloqueado_hasta = None
+        usuario.save(update_fields=["password", "intentos_fallidos", "bloqueado_hasta"])
+        return usuario
+
+
+# ---------------------------------------------------------------------------
+# Perfil propio (RF-SEG-06)
+# ---------------------------------------------------------------------------
+
+class PerfilActualizarSerializer(serializers.ModelSerializer):
+    """
+    Datos que cada usuario puede cambiarse a sí mismo.
+
+    Ni el correo, ni el rol, ni el estado de la cuenta: eso lo administra el
+    dueño de la licorera. Si cualquiera pudiera cambiarse el rol, los permisos
+    del sistema no valdrían nada.
+    """
+
+    class Meta:
+        model = Usuario
+        fields = ["nombre_completo", "telefono"]
+
+
+class CambiarContrasenaSerializer(serializers.Serializer):
+    """
+    Cambio de contraseña con la sesión abierta.
+
+    Se pide la contraseña actual aunque el usuario ya esté autenticado. El motivo
+    es el equipo desatendido: si alguien encuentra una sesión abierta, no debe
+    poder apropiarse de la cuenta cambiando la contraseña.
+    """
+
+    contrasena_actual = serializers.CharField(write_only=True)
+    contrasena_nueva = serializers.CharField(write_only=True)
+
+    def validate_contrasena_actual(self, valor):
+        usuario = self.context["request"].user
+        if not usuario.check_password(valor):
+            raise serializers.ValidationError("La contraseña actual no es correcta.")
+        return valor
+
+    def validate_contrasena_nueva(self, valor):
+        try:
+            validate_password(valor, self.context["request"].user)
+        except ErrorDeValidacion as error:
+            raise serializers.ValidationError(list(error.messages))
+        return valor
+
+    def validate(self, attrs):
+        if attrs["contrasena_actual"] == attrs["contrasena_nueva"]:
+            raise serializers.ValidationError(
+                {"contrasena_nueva": "La contraseña nueva debe ser distinta de la actual."}
+            )
+        return attrs
+
+    def guardar(self):
+        usuario = self.context["request"].user
+        usuario.set_password(self.validated_data["contrasena_nueva"])
+        usuario.save(update_fields=["password"])
+        return usuario

@@ -5,6 +5,8 @@ Una vista recibe la petición que llega por una dirección de la API, decide qu�
 hacer con ella y devuelve la respuesta.
 """
 
+import logging
+
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -12,16 +14,23 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from .correo import enviar_correo_recuperacion
 from .models import Rol, Usuario
 from .permissions import EsAdministradorDeLicorera
 from .serializers import (
+    CambiarContrasenaSerializer,
     CierreSesionSerializer,
     InicioSesionSerializer,
+    PerfilActualizarSerializer,
+    RestablecerContrasenaSerializer,
     RolSerializer,
+    SolicitarRecuperacionSerializer,
     UsuarioActualizarSerializer,
     UsuarioCrearSerializer,
     UsuarioSerializer,
 )
+
+registro = logging.getLogger(__name__)
 
 
 class InicioSesionView(TokenObtainPairView):
@@ -58,15 +67,31 @@ class CierreSesionView(APIView):
 
 class PerfilView(APIView):
     """
-    Datos del usuario que tiene la sesión abierta.
+    Perfil del usuario que tiene la sesión abierta (RF-SEG-06).
 
     El frontend la consulta al arrancar para saber quién entró, con qué rol y a
-    qué licorera pertenece.
+    qué licorera pertenece, y la usa también para que cada quien corrija sus
+    propios datos.
     """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        return Response(UsuarioSerializer(request.user).data)
+
+    def patch(self, request):
+        """
+        Actualización parcial: solo llegan los campos que cambiaron.
+
+        No hace falta comprobar de quién es el perfil: se toma siempre del usuario
+        de la petición, así que nadie puede editar el de otra persona aunque envíe
+        un identificador ajeno.
+        """
+        serializador = PerfilActualizarSerializer(
+            request.user, data=request.data, partial=True
+        )
+        serializador.is_valid(raise_exception=True)
+        serializador.save()
         return Response(UsuarioSerializer(request.user).data)
 
 
@@ -164,3 +189,78 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         usuario.bloqueado_hasta = None
         usuario.save(update_fields=["activo", "intentos_fallidos", "bloqueado_hasta"])
         return Response(UsuarioSerializer(usuario).data, status=status.HTTP_200_OK)
+
+
+class CambiarContrasenaView(APIView):
+    """Cambio de contraseña con la sesión abierta (RF-SEG-06)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializador = CambiarContrasenaSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializador.is_valid(raise_exception=True)
+        serializador.guardar()
+        return Response(
+            {"detalle": "Contraseña actualizada. Vuelve a ingresar con la nueva."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class SolicitarRecuperacionView(APIView):
+    """
+    Solicitud del enlace de recuperación (RF-SEG-04).
+
+    Responde siempre lo mismo, exista o no la cuenta. Si el mensaje cambiara según
+    el caso, cualquiera podría averiguar qué correos están registrados enviando
+    direcciones al azar y mirando la respuesta.
+    """
+
+    permission_classes = [AllowAny]
+
+    RESPUESTA = {
+        "detalle": (
+            "Si el correo corresponde a una cuenta registrada, "
+            "enviamos un enlace para restablecer la contraseña."
+        )
+    }
+
+    def post(self, request):
+        serializador = SolicitarRecuperacionSerializer(data=request.data)
+        serializador.is_valid(raise_exception=True)
+
+        usuario = Usuario.objects.filter(
+            correo=serializador.validated_data["correo"], activo=True
+        ).first()
+
+        if usuario is not None:
+            try:
+                enviar_correo_recuperacion(usuario)
+            except Exception:
+                # Un fallo del servicio de correo no debe revelarle nada al cliente
+                # ni tumbar la petición: queda en el registro del servidor.
+                registro.exception("No se pudo enviar el correo de recuperación")
+
+        return Response(self.RESPUESTA, status=status.HTTP_200_OK)
+
+
+class RestablecerContrasenaView(APIView):
+    """
+    Definición de la contraseña nueva desde el enlace recibido (RF-SEG-04).
+
+    Es pública por necesidad: quien la usa no puede iniciar sesión, que es
+    precisamente el problema que viene a resolver. Lo que hace las veces de
+    credencial es el token del enlace.
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializador = RestablecerContrasenaSerializer(data=request.data)
+        serializador.is_valid(raise_exception=True)
+        serializador.guardar()
+        return Response(
+            {"detalle": "Contraseña actualizada. Ya puedes ingresar con la nueva."},
+            status=status.HTTP_200_OK,
+        )

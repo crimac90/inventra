@@ -4,7 +4,16 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .views import CierreSesionView, InicioSesionView, PerfilView, RolesView, UsuarioViewSet
+from .views import (
+    CambiarContrasenaView,
+    CierreSesionView,
+    InicioSesionView,
+    PerfilView,
+    RestablecerContrasenaView,
+    RolesView,
+    SolicitarRecuperacionView,
+    UsuarioViewSet,
+)
 
 # El enrutador genera automáticamente las direcciones del conjunto de vistas:
 #   /usuarios/           listar y crear
@@ -18,6 +27,9 @@ urlpatterns = [
     path("salir/", CierreSesionView.as_view(), name="salir"),
     path("renovar/", TokenRefreshView.as_view(), name="renovar"),
     path("perfil/", PerfilView.as_view(), name="perfil"),
+    path("cambiar-contrasena/", CambiarContrasenaView.as_view(), name="cambiar-contrasena"),
+    path("recuperar/", SolicitarRecuperacionView.as_view(), name="recuperar"),
+    path("restablecer/", RestablecerContrasenaView.as_view(), name="restablecer"),
     path("roles/", RolesView.as_view(), name="roles"),
     path("", include(enrutador.urls)),
 ]

@@ -319,6 +319,13 @@ copy .env.example .env
 | `DJANGO_ALLOWED_HOSTS` | Direcciones desde las que se permite servir la aplicación |
 | `DB_NOMBRE`, `DB_USUARIO`, `DB_CONTRASENA`, `DB_HOST`, `DB_PUERTO` | Conexión con MySQL |
 | `CORS_ORIGENES` | Dirección del frontend autorizada a consumir la API |
+| `FRONTEND_URL` | Dirección base del frontend; el enlace de recuperación de contraseña apunta allí |
+| `EMAIL_BACKEND` | Forma de envío del correo saliente: consola en desarrollo, SMTP en el servidor |
+| `EMAIL_SERVIDOR`, `EMAIL_PUERTO`, `EMAIL_TLS`, `EMAIL_USUARIO`, `EMAIL_CONTRASENA` | Datos del proveedor de correo; solo se completan cuando se usa SMTP |
+| `EMAIL_REMITENTE` | Dirección que aparece como remitente de los mensajes |
+
+Todas las variables de correo tienen un valor por defecto pensado para desarrollo, así que
+un equipo recién preparado funciona sin completarlas.
 
 La clave de Django se genera con:
 
@@ -327,3 +334,58 @@ py -c "from django.core.management.utils import get_random_secret_key; print(get
 ```
 
 El resultado se copia como valor de `DJANGO_SECRET_KEY` en el archivo `.env`.
+
+---
+
+## 8. Correo saliente y recuperación de contraseña
+
+El módulo de seguridad envía un correo cuando un usuario olvida su contraseña (RF-SEG-04).
+Para trabajar en local no hace falta contratar ni configurar un servidor de correo.
+
+### 8.1 En desarrollo: el correo se imprime en la terminal
+
+Con el valor por defecto de `EMAIL_BACKEND`, Django no envía nada a internet: escribe el
+mensaje completo en la terminal donde está corriendo `py manage.py runserver`. Al solicitar
+la recuperación aparece algo así:
+
+```
+Content-Type: text/plain; charset="utf-8"
+Subject: Restablecimiento de contraseña en INVENTRA
+From: INVENTRA <no-responder@inventra.co>
+To: usuario@licorera.com
+
+Hola, Nombre del Usuario:
+
+Recibimos una solicitud para restablecer la contraseña de tu cuenta en INVENTRA.
+
+Para definir una contraseña nueva, abre el siguiente enlace:
+
+http://localhost:5173/restablecer-contrasena?uid=Mg&token=cs1a2b-...
+
+El enlace vence en 30 minutos y solo puede usarse una vez.
+```
+
+De ahí se copia el enlace para continuar la prueba. Esa salida sirve además como evidencia
+en el informe de resultados de pruebas.
+
+### 8.2 En el servidor publicado: envío real
+
+Se cambian estos valores en el `.env` del servidor y se reinicia la aplicación:
+
+```
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_SERVIDOR=smtp.proveedor.com
+EMAIL_PUERTO=587
+EMAIL_TLS=True
+EMAIL_USUARIO=la-cuenta-del-proveedor
+EMAIL_CONTRASENA=la-clave-del-proveedor
+EMAIL_REMITENTE=INVENTRA <no-responder@tu-dominio.com>
+FRONTEND_URL=https://la-direccion-publica-del-frontend
+```
+
+### 8.3 Vigencia del enlace
+
+Los treinta minutos que exige la especificación se configuran en `config/settings.py`, en
+`PASSWORD_RESET_TIMEOUT`. No hay ninguna tabla que almacene los enlaces: el token es un
+valor firmado que se comprueba con los datos de la propia cuenta, de modo que vence solo y
+deja de servir en cuanto la contraseña cambia.

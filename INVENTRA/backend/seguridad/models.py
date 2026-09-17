@@ -114,6 +114,10 @@ class Usuario(AbstractBaseUser):
     # Campo con el que se inicia sesión y datos que pide createsuperuser
     USERNAME_FIELD = "correo"
     REQUIRED_FIELDS = ["nombre_completo"]
+    # Django busca la dirección de correo bajo este nombre; en este modelo el
+    # campo se llama «correo». Lo usa, entre otras cosas, el generador de los
+    # enlaces de recuperación (RF-SEG-04).
+    EMAIL_FIELD = "correo"
 
     class Meta:
         db_table = "usuario"

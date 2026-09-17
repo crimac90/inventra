@@ -118,6 +118,31 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # ---------------------------------------------------------------------------
+# Correo electrónico y recuperación de contraseña
+# ---------------------------------------------------------------------------
+
+# Vigencia del enlace de recuperación, en segundos. La especificación fija treinta
+# minutos (RF-SEG-04). Django usa este valor al comprobar el token, de modo que el
+# vencimiento no hay que programarlo ni guardarlo en ninguna tabla.
+PASSWORD_RESET_TIMEOUT = 30 * 60
+
+# Dirección del frontend: el enlace del correo lleva a una pantalla, no a la API.
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+# En desarrollo los correos no salen a internet: se imprimen en la terminal donde
+# corre el servidor, así se puede copiar el enlace y probar el flujo completo sin
+# contratar un servicio de correo. En el servidor publicado se cambia en el .env a
+# django.core.mail.backends.smtp.EmailBackend y se completan los datos del proveedor.
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_SERVIDOR", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PUERTO", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_TLS", "True") == "True"
+EMAIL_HOST_USER = os.getenv("EMAIL_USUARIO", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_CONTRASENA", "")
+DEFAULT_FROM_EMAIL = os.getenv("EMAIL_REMITENTE", "INVENTRA <no-responder@inventra.co>")
+
+
+# ---------------------------------------------------------------------------
 # Idioma y zona horaria
 # ---------------------------------------------------------------------------
 
