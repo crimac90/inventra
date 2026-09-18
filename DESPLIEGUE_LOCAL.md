@@ -389,3 +389,92 @@ Los treinta minutos que exige la especificación se configuran en `config/settin
 `PASSWORD_RESET_TIMEOUT`. No hay ninguna tabla que almacene los enlaces: el token es un
 valor firmado que se comprueba con los datos de la propia cuenta, de modo que vence solo y
 deja de servir en cuanto la contraseña cambia.
+
+---
+
+## 9. Frontend (React)
+
+La interfaz vive en `INVENTRA/frontend/` y se construye con React sobre Vite. Es una
+aplicación independiente del backend: se levanta en su propio puerto y consume la API por
+HTTP.
+
+### 9.1 Instalación de las librerías
+
+Con el proyecto abierto en Visual Studio Code, en una terminal situada en la carpeta del
+frontend:
+
+```
+cd INVENTRA\frontend
+npm install
+```
+
+El archivo `package.json` ya está en el repositorio con las versiones fijadas, así que
+`npm install` reproduce exactamente el mismo conjunto de librerías en cualquier equipo. Se
+crea la carpeta `node_modules`, que no se sube al repositorio porque se puede regenerar.
+
+| Librería | Versión | Para qué sirve |
+|---|---|---|
+| react y react-dom | 19.3 | Construcción de la interfaz por componentes |
+| react-router-dom | 7.18 | Traduce la dirección del navegador a una pantalla |
+| vite | 8.3 | Servidor de desarrollo y empaquetado para publicar |
+| @vitejs/plugin-react | 6.1 | Permite que Vite entienda la sintaxis de React |
+
+No se usa ninguna librería de estilos ni de peticiones HTTP: los estilos son propios, con los
+colores del manual de marca, y las peticiones se hacen con `fetch`, que ya viene en el
+navegador.
+
+### 9.2 Variables de entorno del frontend
+
+```
+copy .env.example .env
+```
+
+| Variable | Para qué sirve |
+|---|---|
+| `VITE_API_URL` | Dirección base de la API. En local, `http://127.0.0.1:8000/api` |
+
+Vite solo expone al navegador las variables cuyo nombre empieza por `VITE_`; es una
+protección para no publicar por descuido una credencial del servidor.
+
+### 9.3 Puesta en marcha
+
+Hacen falta **dos terminales abiertas al mismo tiempo**:
+
+| Terminal | Carpeta | Comando | Resultado |
+|---|---|---|---|
+| 1 | `INVENTRA\backend` | `py manage.py runserver` | API en `http://127.0.0.1:8000` |
+| 2 | `INVENTRA\frontend` | `npm run dev` | Interfaz en `http://localhost:5173` |
+
+La primera con el entorno virtual activado.
+
+**Importante: la interfaz se abre en `http://localhost:5173`, no en `http://127.0.0.1:5173`.**
+Aunque las dos direcciones lleven al mismo sitio, el navegador las considera orígenes
+distintos, y el backend solo autoriza la primera en `CORS_ORIGENES`. Si se entra por la
+segunda, las peticiones se rechazan antes de salir del navegador.
+
+### 9.4 Empaquetado para publicar
+
+```
+npm run build
+```
+
+Genera la carpeta `dist` con los archivos estáticos ya optimizados, que es lo que se sube al
+servidor. `npm run preview` permite revisar ese resultado en local antes de publicarlo.
+
+### 9.5 Estructura de la interfaz
+
+```
+INVENTRA/frontend/
+  index.html                 página que carga la aplicación
+  vite.config.js             configuración del servidor y del empaquetado
+  src/
+    main.jsx                 punto de entrada: monta React
+    App.jsx                  mapa de rutas
+    api/cliente.js           peticiones, token y errores, en un solo sitio
+    api/seguridad.js         una función por dirección del módulo de seguridad
+    sesion/                  estado de la sesión y guardia de rutas privadas
+    componentes/             piezas reutilizables (campo de formulario, panel de marca)
+    paginas/                 una pantalla por archivo
+    estilos/                 colores del manual de marca y estilos de las pantallas
+```
+

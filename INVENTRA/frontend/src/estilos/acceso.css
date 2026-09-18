@@ -1,0 +1,163 @@
+/*
+  Pantallas de acceso y registro.
+
+  Las dos comparten la misma composicion descrita en el punto 7 del documento
+  tecnico de diseno: panel de marca a la izquierda, con la propuesta de valor, y
+  el formulario a la derecha, con los campos estrictamente necesarios.
+*/
+
+.acceso {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--e6);
+}
+
+.acceso-caja {
+  width: 100%;
+  max-width: 900px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radio-grande);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 440px;
+}
+
+.marca {
+  background: var(--navy);
+  color: #fff;
+  padding: 36px 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.marca .tg {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 22px;
+}
+
+.marca .sb {
+  color: #b9c6de;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+.marca .pie {
+  color: #b9c6de;
+  font-size: 12px;
+}
+
+.marca .feat {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.marca .feat div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #dce5f2;
+}
+
+.marca .feat b {
+  width: 21px;
+  height: 21px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  display: grid;
+  place-items: center;
+  color: #2cd98a;
+  font-weight: 700;
+  font-size: 12px;
+  flex: none;
+}
+
+.formulario {
+  padding: 38px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.formulario h1 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.formulario .hs {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 6px 0 20px;
+}
+
+.rowb {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  margin: 2px 0 18px;
+  color: var(--muted);
+}
+
+.rowb label {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.rowb input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  cursor: pointer;
+}
+
+.foot {
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 16px;
+}
+
+/*
+  Movil: el panel de marca no desaparece, se reduce. El punto de quiebre de 480
+  pixeles es el que fija el documento de diseno.
+*/
+@media (max-width: 760px) {
+  .acceso {
+    padding: 0;
+  }
+
+  .acceso-caja {
+    grid-template-columns: 1fr;
+    border: 0;
+    border-radius: 0;
+    min-height: 100vh;
+  }
+
+  .marca {
+    padding: var(--e6) var(--e4);
+  }
+
+  .marca .tg {
+    font-size: 20px;
+    margin-top: var(--e4);
+  }
+
+  .marca .feat,
+  .marca .pie {
+    display: none;
+  }
+
+  .formulario {
+    padding: var(--e6) var(--e4);
+  }
+}

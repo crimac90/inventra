@@ -1,0 +1,207 @@
+/*
+  Fundamentos visuales de INVENTRA.
+
+  Los colores NO se escriben sueltos en cada pantalla: se declaran una sola vez
+  aqui como variables y el resto de la hoja los usa por su nombre. Son los mismos
+  valores del documento tecnico de diseno y del manual de marca, incluida la
+  regla del verde de accion: el verde de marca (#12B76A) no alcanza el contraste
+  4,5:1 con texto blanco, asi que los botones usan #0D804A.
+*/
+
+:root {
+  --navy: #1f3864;
+  --navy2: #2e5496;
+  --cta: #12b76a;
+  --cta-accion: #0d804a;
+  --cta-texto: #ffffff;
+  --bg: #f5f8fc;
+  --surface: #ffffff;
+  --border: #e4e9f2;
+  --text: #1a2233;
+  --muted: #6b7280;
+  --warn: #f79009;
+  --danger: #f04438;
+  --danger-accion: #d92d20;
+  --chip: #eef3fb;
+
+  /* Escala de espaciado de cuatro, como en el documento de diseno. */
+  --e1: 4px;
+  --e2: 8px;
+  --e3: 12px;
+  --e4: 16px;
+  --e6: 24px;
+  --e8: 32px;
+
+  --radio: 10px;
+  --radio-grande: 16px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: "Inter", system-ui, Arial, sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.45;
+}
+
+/* --- Marca ------------------------------------------------------------- */
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.logo .mk {
+  width: 25px;
+  height: 25px;
+  border-radius: 7px;
+  background: var(--cta);
+  position: relative;
+  flex: none;
+}
+
+.logo .mk::after {
+  content: "";
+  position: absolute;
+  inset: 7px 6px auto 6px;
+  height: 4px;
+  background: #fff;
+  border-radius: 2px;
+  box-shadow: 0 5px 0 #fff;
+}
+
+.logo-claro {
+  color: #fff;
+}
+
+/* --- Botones ----------------------------------------------------------- */
+
+.btn {
+  border: 0;
+  border-radius: var(--radio);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-cta {
+  background: var(--cta-accion);
+  color: var(--cta-texto);
+  padding: 12px 18px;
+}
+
+.btn-out {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 11px 16px;
+}
+
+.btn.full {
+  width: 100%;
+}
+
+/* --- Campos de formulario ---------------------------------------------- */
+
+.field {
+  margin-bottom: 13px;
+}
+
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.85;
+  margin-bottom: 5px;
+}
+
+.field input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: var(--radio);
+  padding: 0 12px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--navy2);
+  box-shadow: 0 0 0 3px rgba(46, 84, 150, 0.15);
+}
+
+.field input[aria-invalid="true"] {
+  border-color: var(--danger-accion);
+}
+
+.ayuda {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+/* --- Mensajes ---------------------------------------------------------- */
+
+.msg {
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 6px;
+}
+
+.msg.err {
+  color: #b42318;
+}
+
+/* El aviso de bloque se usa para los errores que no pertenecen a un campo
+   concreto, como unas credenciales incorrectas. */
+.aviso {
+  border-radius: 11px;
+  padding: 11px 13px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.aviso.err {
+  background: #fdecec;
+  color: #b42318;
+}
+
+.aviso.ok {
+  background: #e7f7ef;
+  color: #0e7a4e;
+}
+
+.link {
+  color: var(--navy2);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 13px;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
