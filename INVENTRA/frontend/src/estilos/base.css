@@ -94,6 +94,14 @@ body {
   cursor: pointer;
 }
 
+/* Un enlace puede tener aspecto de boton; necesita estas tres reglas que un
+   <button> ya trae de fabrica. */
+a.btn {
+  display: inline-block;
+  text-decoration: none;
+  text-align: center;
+}
+
 .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;

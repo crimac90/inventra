@@ -1,0 +1,126 @@
+/*
+  Pantallas internas, las que se ven con la sesion abierta.
+
+  En este bloque solo hay dos —el panel y el perfil— y comparten una composicion
+  simple: cabecera fija arriba y contenido centrado debajo, organizado en
+  tarjetas. La barra lateral y los indicadores del punto 8.2 del documento de
+  diseno llegan en el bloque SEG-4c y se apoyaran en estas mismas clases.
+*/
+
+.pagina {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Cabecera ----------------------------------------------------------- */
+
+.cabecera {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: var(--e3) var(--e6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e4);
+}
+
+.cabecera nav {
+  display: flex;
+  gap: var(--e4);
+  margin-left: auto;
+  margin-right: var(--e4);
+}
+
+.cabecera nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  padding: var(--e1) 0;
+  border-bottom: 2px solid transparent;
+}
+
+.cabecera nav a.activo {
+  color: var(--text);
+  border-bottom-color: var(--cta-accion);
+}
+
+/* --- Contenido ---------------------------------------------------------- */
+
+.contenido {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--e8) var(--e6);
+}
+
+.contenido > h1 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.contenido > .hs {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 6px 0 var(--e6);
+}
+
+/* --- Tarjetas ----------------------------------------------------------- */
+
+.tarjeta {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radio-grande);
+  padding: var(--e6);
+  margin-bottom: var(--e4);
+}
+
+.tarjeta h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: var(--e1);
+}
+
+.tarjeta .hs {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: var(--e4);
+}
+
+/* Lista de datos que solo se consultan, no se editan. */
+.datos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--e2) var(--e4);
+  font-size: 14px;
+}
+
+.datos dt {
+  color: var(--muted);
+}
+
+.acciones {
+  display: flex;
+  gap: var(--e3);
+  align-items: center;
+  margin-top: var(--e4);
+}
+
+@media (max-width: 600px) {
+  .cabecera {
+    padding: var(--e3) var(--e4);
+    flex-wrap: wrap;
+  }
+
+  .cabecera nav {
+    order: 3;
+    width: 100%;
+    margin: var(--e2) 0 0;
+  }
+
+  .contenido {
+    padding: var(--e6) var(--e4);
+  }
+}

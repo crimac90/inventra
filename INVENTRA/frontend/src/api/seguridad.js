@@ -25,6 +25,15 @@ export function consultarPerfil() {
   return api.get("/seguridad/perfil/");
 }
 
+/* Actualización parcial: solo viajan los campos que el usuario puede cambiarse. */
+export function actualizarPerfil(datos) {
+  return api.patch("/seguridad/perfil/", datos);
+}
+
+export function cambiarContrasena({ contrasena_actual, contrasena_nueva }) {
+  return api.post("/seguridad/cambiar-contrasena/", { contrasena_actual, contrasena_nueva });
+}
+
 export function consultarPlanes() {
   return api.publico.get("/suscripciones/planes/");
 }

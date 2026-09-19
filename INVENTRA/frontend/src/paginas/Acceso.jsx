@@ -7,7 +7,7 @@
 */
 
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import PanelMarca from "../componentes/PanelMarca";
@@ -23,6 +23,14 @@ const VINETAS = [
 export default function Acceso() {
   const { entrar } = useSesion();
   const navegar = useNavigate();
+  const ubicacion = useLocation();
+
+  /*
+    Cuando se llega desde el restablecimiento o desde el cambio de contrasena,
+    esa pantalla deja un mensaje de exito en el estado de la navegacion. Se
+    muestra aqui para que el usuario sepa que su cambio si se guardo.
+  */
+  const confirmacion = ubicacion.state?.mensaje;
 
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
@@ -66,6 +74,12 @@ export default function Acceso() {
         <form className="formulario" onSubmit={enviar} noValidate>
           <h1>Iniciar sesión</h1>
           <div className="hs">Ingresa a tu cuenta para gestionar tu licorera.</div>
+
+          {confirmacion && !aviso && (
+            <div className="aviso ok" role="status">
+              {confirmacion}
+            </div>
+          )}
 
           {aviso && (
             <div className="aviso err" role="alert">

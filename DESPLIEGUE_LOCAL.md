@@ -478,3 +478,23 @@ INVENTRA/frontend/
     estilos/                 colores del manual de marca y estilos de las pantallas
 ```
 
+### 9.6 Una dirección que comparten el backend y el frontend
+
+El enlace de recuperación de contraseña que envía el backend apunta a una pantalla concreta
+del frontend:
+
+```
+{FRONTEND_URL}/restablecer-contrasena?uid=...&token=...
+```
+
+Esa dirección aparece en dos sitios y **tiene que coincidir en los dos**:
+
+| Dónde | Archivo |
+|---|---|
+| Backend, al construir el enlace | `INVENTRA/backend/seguridad/correo.py` |
+| Frontend, al declarar la ruta | `INVENTRA/frontend/src/App.jsx` |
+
+Si se cambia en uno y no en el otro, los correos de recuperación llevan a una pantalla que no
+existe. Conviene tenerlo presente al publicar, cuando `FRONTEND_URL` deja de ser
+`http://localhost:5173` y pasa a ser el dominio real.
+

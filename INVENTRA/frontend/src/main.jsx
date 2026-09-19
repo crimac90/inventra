@@ -15,6 +15,7 @@ import { ProveedorSesion } from "./sesion/ContextoSesion";
 
 import "./estilos/base.css";
 import "./estilos/acceso.css";
+import "./estilos/interno.css";
 
 createRoot(document.getElementById("raiz")).render(
   <StrictMode>
