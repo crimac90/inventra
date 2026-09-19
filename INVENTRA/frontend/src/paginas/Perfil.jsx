@@ -15,7 +15,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import Cabecera from "../componentes/Cabecera";
+import Disposicion from "../componentes/Disposicion";
 import Campo from "../componentes/Campo";
 import { ErrorApi } from "../api/cliente";
 import { actualizarPerfil, cambiarContrasena } from "../api/seguridad";
@@ -32,36 +32,32 @@ export default function Perfil() {
   const navegar = useNavigate();
 
   return (
-    <div className="pagina">
-      <Cabecera />
+    <Disposicion titulo="Mi perfil">
+      <h1>Mi perfil</h1>
+      <div className="hs">Consulta y actualiza tus datos de acceso.</div>
 
-      <main className="contenido">
-        <h1>Mi perfil</h1>
-        <div className="hs">Consulta y actualiza tus datos de acceso.</div>
+      <DatosPersonales usuario={usuario} setUsuario={setUsuario} />
+      <CambioDeContrasena salir={salir} navegar={navegar} />
 
-        <DatosPersonales usuario={usuario} setUsuario={setUsuario} />
-        <CambioDeContrasena salir={salir} navegar={navegar} />
-
-        <div className="tarjeta">
-          <h2>Datos de tu cuenta</h2>
-          <div className="hs">
-            Estos datos solo los puede modificar el administrador de tu licorera, porque el
-            correo es tu identificador de acceso y el rol define lo que puedes hacer.
-          </div>
-
-          <dl className="datos">
-            <dt>Correo</dt>
-            <dd>{usuario.correo}</dd>
-
-            <dt>Rol</dt>
-            <dd>{ROLES[usuario.rol] || usuario.rol}</dd>
-
-            <dt>Licorera</dt>
-            <dd>{usuario.licorera_nombre || "Sin licorera asignada"}</dd>
-          </dl>
+      <div className="tarjeta">
+        <h2>Datos de tu cuenta</h2>
+        <div className="hs">
+          Estos datos solo los puede modificar el administrador de tu licorera, porque el
+          correo es tu identificador de acceso y el rol define lo que puedes hacer.
         </div>
-      </main>
-    </div>
+
+        <dl className="datos">
+          <dt>Correo</dt>
+          <dd>{usuario.correo}</dd>
+
+          <dt>Rol</dt>
+          <dd>{ROLES[usuario.rol] || usuario.rol}</dd>
+
+          <dt>Licorera</dt>
+          <dd>{usuario.licorera_nombre || "Sin licorera asignada"}</dd>
+        </dl>
+      </div>
+    </Disposicion>
   );
 }
 

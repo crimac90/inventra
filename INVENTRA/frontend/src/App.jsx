@@ -13,6 +13,7 @@ import Panel from "./paginas/Panel";
 import Perfil from "./paginas/Perfil";
 import Recuperar from "./paginas/Recuperar";
 import Registro from "./paginas/Registro";
+import Usuarios from "./paginas/Usuarios";
 import Restablecer from "./paginas/Restablecer";
 import RutaPrivada from "./sesion/RutaPrivada";
 
@@ -38,6 +39,14 @@ export default function App() {
         element={
           <RutaPrivada>
             <Panel />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/usuarios"
+        element={
+          <RutaPrivada>
+            <Usuarios />
           </RutaPrivada>
         }
       />

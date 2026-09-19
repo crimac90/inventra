@@ -56,3 +56,40 @@ export async function salir() {
     limpiarTokens();
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Gestión de usuarios (RF-SEG-01, 05 y 07)
+   Todas exigen sesión y rol de administrador; el backend responde 403 si no.
+--------------------------------------------------------------------------- */
+
+/*
+  La API entrega los listados por páginas de veinticinco. Se devuelve el objeto
+  completo, con `count` y `results`, para no perder ese dato: cuando una licorera
+  tenga más usuarios que una página habrá que recorrerlas, y conviene que la
+  pantalla sepa desde ya cuántos hay en total.
+*/
+export function listarUsuarios() {
+  return api.get("/seguridad/usuarios/");
+}
+
+export function consultarRoles() {
+  return api.get("/seguridad/roles/");
+}
+
+export function crearUsuario(datos) {
+  return api.post("/seguridad/usuarios/", datos);
+}
+
+export function actualizarUsuario(id, datos) {
+  return api.patch(`/seguridad/usuarios/${id}/`, datos);
+}
+
+/* Baja lógica: el usuario no se borra, se marca como inactivo. */
+export function inactivarUsuario(id) {
+  return api.delete(`/seguridad/usuarios/${id}/`);
+}
+
+export function reactivarUsuario(id) {
+  return api.post(`/seguridad/usuarios/${id}/reactivar/`, {});
+}
+

@@ -1,84 +1,211 @@
 /*
   Pantallas internas, las que se ven con la sesion abierta.
 
-  En este bloque solo hay dos —el panel y el perfil— y comparten una composicion
-  simple: cabecera fija arriba y contenido centrado debajo, organizado en
-  tarjetas. La barra lateral y los indicadores del punto 8.2 del documento de
-  diseno llegan en el bloque SEG-4c y se apoyaran en estas mismas clases.
+  La composicion es la del punto 8.2 del documento tecnico de diseno y del
+  prototipo: barra lateral azul fija a la izquierda, barra superior con el titulo
+  y la identificacion del usuario, y el contenido debajo. Las medidas, los
+  colores y los radios son los mismos del prototipo.
 */
 
-.pagina {
+.app {
+  display: grid;
+  grid-template-columns: 210px 1fr;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
-/* --- Cabecera ----------------------------------------------------------- */
+/* --- Barra lateral ------------------------------------------------------ */
 
-.cabecera {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: var(--e3) var(--e6);
+.side {
+  background: var(--navy);
+  color: #fff;
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.side .logo {
+  color: #fff;
+  margin: 2px 6px 18px;
+}
+
+.side .grow {
+  flex: 1;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  color: #c6d2e6;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  background: none;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.nav svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  flex: none;
+}
+
+.nav:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.nav.on {
+  background: rgba(255, 255, 255, 0.13);
+  color: #fff;
+}
+
+/*
+  Los modulos que todavia no existen se muestran, porque forman parte del diseno
+  aprobado y dan a entender el alcance, pero NO se pueden pulsar y se anuncian
+  como tales a los lectores de pantalla. Fingir un enlace que no lleva a ninguna
+  parte seria peor que mostrarlo apagado.
+*/
+.nav.pendiente {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nav.pendiente:hover {
+  background: none;
+}
+
+.nav .proximamente {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+/* --- Zona principal ----------------------------------------------------- */
+
+.main {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  min-width: 0;
+}
+
+.tb {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--e4);
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }
 
-.cabecera nav {
-  display: flex;
-  gap: var(--e4);
-  margin-left: auto;
-  margin-right: var(--e4);
-}
-
-.cabecera nav a {
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 600;
-  padding: var(--e1) 0;
-  border-bottom: 2px solid transparent;
-}
-
-.cabecera nav a.activo {
-  color: var(--text);
-  border-bottom-color: var(--cta-accion);
-}
-
-/* --- Contenido ---------------------------------------------------------- */
-
-.contenido {
-  flex: 1;
-  width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
-  padding: var(--e8) var(--e6);
-}
-
-.contenido > h1 {
-  font-size: 22px;
+.tb .h {
+  font-size: 17px;
   font-weight: 700;
 }
 
-.contenido > .hs {
+.tb .r {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pill {
+  background: var(--chip);
+  color: var(--navy2);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--navy2);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 13px;
+  flex: none;
+}
+
+.content {
+  padding: 22px;
+  flex: 1;
+}
+
+.content > h1 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.content > .hs {
   color: var(--muted);
   font-size: 14px;
   margin: 6px 0 var(--e6);
 }
 
-/* --- Tarjetas ----------------------------------------------------------- */
+/* --- Tarjetas e indicadores --------------------------------------------- */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 15px;
+}
+
+.kpi .k {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.kpi .v {
+  font-size: 24px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.kpi .d {
+  font-size: 12px;
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--muted);
+}
 
 .tarjeta {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radio-grande);
+  border-radius: 13px;
   padding: var(--e6);
   margin-bottom: var(--e4);
 }
 
 .tarjeta h2 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   margin-bottom: var(--e1);
 }
@@ -89,7 +216,6 @@
   margin-bottom: var(--e4);
 }
 
-/* Lista de datos que solo se consultan, no se editan. */
 .datos {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -105,22 +231,183 @@
   display: flex;
   gap: var(--e3);
   align-items: center;
+  flex-wrap: wrap;
   margin-top: var(--e4);
 }
 
-@media (max-width: 600px) {
-  .cabecera {
+/* --- Tablas ------------------------------------------------------------- */
+
+.barra-herramientas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e4);
+  margin-bottom: var(--e4);
+  flex-wrap: wrap;
+}
+
+.tabla-caja {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+td.acciones-fila {
+  white-space: nowrap;
+  text-align: right;
+}
+
+td.acciones-fila button {
+  margin-left: var(--e2);
+}
+
+.btn-pequeno {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* Etiquetas de estado, con los colores del punto 6.4 del documento de diseno. */
+.estado {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+}
+
+.estado.activo {
+  background: #e7f7ef;
+  color: #0d804a;
+}
+
+.estado.inactivo {
+  background: #fdecec;
+  color: #b42318;
+}
+
+.tag {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: var(--chip);
+  color: var(--navy2);
+}
+
+.vacio {
+  text-align: center;
+  padding: 34px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* --- Ventana de confirmacion (punto 6.6 del documento de diseno) --------- */
+
+.modal-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 21, 34, 0.45);
+  display: grid;
+  place-items: center;
+  padding: var(--e4);
+  z-index: 10;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: var(--e6);
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+}
+
+.modal h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modal p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: var(--e2);
+}
+
+.modal .acciones {
+  justify-content: center;
+  margin-top: var(--e6);
+}
+
+.btn-peligro {
+  background: var(--danger-accion);
+  color: #fff;
+  padding: 12px 18px;
+}
+
+/* --- Movil -------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  /* La barra lateral pasa arriba y se desplaza en horizontal. */
+  .side {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--e2);
+    padding: var(--e3);
+    overflow-x: auto;
+  }
+
+  .side .logo,
+  .side .grow,
+  .nav .proximamente {
+    display: none;
+  }
+
+  .nav {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .tb {
     padding: var(--e3) var(--e4);
-    flex-wrap: wrap;
   }
 
-  .cabecera nav {
-    order: 3;
-    width: 100%;
-    margin: var(--e2) 0 0;
+  .tb .pill {
+    display: none;
   }
 
-  .contenido {
-    padding: var(--e6) var(--e4);
+  .content {
+    padding: var(--e4);
   }
 }

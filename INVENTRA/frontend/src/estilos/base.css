@@ -139,7 +139,8 @@ a.btn {
   margin-bottom: 5px;
 }
 
-.field input {
+.field input,
+.field select {
   width: 100%;
   height: 42px;
   border: 1px solid var(--border);
@@ -150,13 +151,25 @@ a.btn {
   color: var(--text);
 }
 
-.field input:focus {
+.field select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 19px, calc(100% - 13px) 19px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+
+.field input:focus,
+.field select:focus {
   outline: none;
   border-color: var(--navy2);
   box-shadow: 0 0 0 3px rgba(46, 84, 150, 0.15);
 }
 
-.field input[aria-invalid="true"] {
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"] {
   border-color: var(--danger-accion);
 }
 

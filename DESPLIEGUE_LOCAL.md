@@ -498,3 +498,83 @@ Si se cambia en uno y no en el otro, los correos de recuperación llevan a una p
 existe. Conviene tenerlo presente al publicar, cuando `FRONTEND_URL` deja de ser
 `http://localhost:5173` y pasa a ser el dominio real.
 
+---
+
+## 10. Cuentas del sistema
+
+### 10.1 Los tres roles
+
+INVENTRA distingue tres roles, cargados por una migración de datos al crear la base:
+
+| Rol | ¿Pertenece a una licorera? | Alcance |
+|---|---|---|
+| Administrador de licorera | Sí | Administra su negocio: usuarios, inventario, ventas y reportes |
+| Vendedor | Sí | Opera el punto de venta y consulta; no gestiona cuentas |
+| Administrador de INVENTRA | **No** | Personal de la plataforma: administra licoreras y planes |
+
+La diferencia importante es la segunda columna. Los permisos del sistema no preguntan solo
+por el rol, también por la licorera: quien no pertenece a ninguna no puede administrar los
+usuarios de ninguna, y eso incluye al administrador de la plataforma.
+
+### 10.2 Crear el administrador de INVENTRA
+
+Se crea desde la consola, porque es la primera cuenta del sistema y no hay quien la dé de
+alta. Desde `INVENTRA\backend`, con el entorno virtual activado:
+
+```
+py manage.py createsuperuser
+```
+
+Pide el correo, el nombre y la contraseña dos veces. La contraseña cumple la misma política
+que las demás: mínimo ocho caracteres, combinando letras y números.
+
+La cuenta queda con el rol de administrador de INVENTRA y **sin licorera asociada**, que es
+lo correcto: administra la plataforma, no un negocio.
+
+> **Nota.** En un proyecto Django corriente este comando sirve para entrar al panel de
+> administración incorporado. INVENTRA no lo tiene: se retiró a propósito, porque la interfaz
+> es React y un segundo punto de entrada con su propia autenticación habría que proteger y
+> auditar aparte. Así que este comando no abre ninguna puerta oculta; solo crea la cuenta del
+> operador de la plataforma.
+
+### 10.3 Registrar una licorera
+
+Desde la pantalla de registro de la aplicación. En una sola operación se crea la licorera, su
+suscripción al plan Básico y su usuario administrador, que entra directamente al panel.
+
+### 10.4 Preparar datos para probar
+
+Algunas reglas dependen de datos que todavía no se pueden producir desde la interfaz, porque
+su pantalla pertenece a un módulo posterior. En esos casos los datos se preparan desde la
+consola de Django. No es un atajo indebido: es la forma habitual de dejar el sistema en el
+estado que una prueba necesita.
+
+**Ver las suscripciones existentes:**
+
+```
+py manage.py shell -c "from suscripciones.models import Suscripcion; [print(s.id, '|', s.licorera.nombre, '|', s.licorera.correo, '|', s.plan.nombre, '|', s.estado) for s in Suscripcion.objects.select_related('licorera','plan')]"
+```
+
+**Pasar una licorera al plan Pro** (para comprobar el tope de usuarios), usando el
+identificador de la suscripción que devolvió el comando anterior:
+
+```
+py manage.py shell -c "from suscripciones.models import Suscripcion, Plan; s=Suscripcion.objects.get(id=1); s.plan=Plan.objects.get(nombre__startswith='Pro'); s.save(); print(s.licorera.nombre, '->', s.plan.nombre, '| maximo_usuarios:', s.plan.maximo_usuarios)"
+```
+
+**Devolverla al plan Básico:**
+
+```
+py manage.py shell -c "from suscripciones.models import Suscripcion, Plan; s=Suscripcion.objects.get(id=1); s.plan=Plan.objects.get(nombre__startswith='B'); s.save(); print(s.licorera.nombre, '->', s.plan.nombre, '| maximo_usuarios:', s.plan.maximo_usuarios)"
+```
+
+> Los nombres de plan se buscan por `startswith` y no por su texto completo para evitar la
+> tilde de «Básico», que según la configuración de la consola de Windows puede llegar mal al
+> intérprete.
+
+> **Advertencia sobre este atajo.** Cambiar el plan de una suscripción existente deja el
+> `precio_pactado` congelado del plan anterior, que es una incoherencia aceptable en datos de
+> prueba pero no en producción. El cambio de plan real (RF-SUS-02) no modifica la fila: cierra
+> la suscripción vigente y crea una nueva con el plan y el precio del momento, de modo que el
+> histórico de facturación quede correcto.
+
