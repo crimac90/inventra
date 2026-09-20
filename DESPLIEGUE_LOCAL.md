@@ -578,3 +578,51 @@ py manage.py shell -c "from suscripciones.models import Suscripcion, Plan; s=Sus
 > la suscripción vigente y crea una nueva con el plan y el precio del momento, de modo que el
 > histórico de facturación quede correcto.
 
+---
+
+## 11. Límite de peticiones
+
+Las tres direcciones públicas de la API están limitadas por origen, para que nadie pueda
+crear cuentas en masa, probar contraseñas en serie ni usar el sistema para bombardear a un
+tercero con correos.
+
+| Dirección | Límite | Qué previene |
+|---|---|---|
+| `POST /api/suscripciones/registrar/` | 5 por hora | Creación de cuentas en masa |
+| `POST /api/seguridad/ingresar/` | 20 por hora | Prueba de contraseñas por fuerza bruta |
+| `POST /api/seguridad/recuperar/` | 5 por hora | Envío repetido de correos a un tercero |
+| `POST /api/seguridad/restablecer/` | 10 por hora | Insistencia sobre el enlace de recuperación |
+
+Superado el límite, la API responde **429 Too Many Requests** con la cabecera `Retry-After`,
+que dice cuántos segundos faltan.
+
+Los valores se configuran en `config/settings.py`, en `DEFAULT_THROTTLE_RATES`. El mecanismo
+se declara «con ámbito»: solo afecta a las vistas que piden un `throttle_scope`, de modo que
+el resto de la API no se ve afectado.
+
+### 11.1 Poner los contadores a cero durante las pruebas
+
+Los contadores viven en la caché, no en la base de datos. Probando a fondo es fácil llegar a
+veinte ingresos en una hora, y entonces la aplicación empieza a responder 429. Para seguir
+trabajando:
+
+```
+py manage.py shell -c "from django.core.cache import cache; cache.clear(); print('contadores a cero')"
+```
+
+No altera ningún dato: solo borra los contadores. El guion de prueba manual lo hace solo al
+arrancar, por eso se puede repetir tantas veces como haga falta.
+
+### 11.2 Qué hay que cambiar al publicar
+
+- **La caché.** En desarrollo los contadores viven en la memoria del propio proceso. Si el
+  servidor publicado corre varios procesos, cada uno lleva su cuenta y el límite real se
+  multiplica; y al reiniciar, los contadores se ponen en cero. Se resuelve apuntando `CACHES`
+  a una caché compartida, sin tocar ninguna otra línea del proyecto.
+- **La dirección de origen.** Detrás de un proxy o un balanceador, todas las peticiones
+  llegan con la dirección del proxy, así que sin configurarlo todos los usuarios contarían
+  como uno solo.
+- **Los usuarios que comparten salida a internet.** Varias personas tras una misma conexión
+  —una oficina, una red móvil— comparten contador. Los valores elegidos dejan margen
+  suficiente para una licorera, pero conviene revisarlos con tráfico real.
+

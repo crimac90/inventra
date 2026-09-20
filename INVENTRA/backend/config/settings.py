@@ -143,6 +143,26 @@ DEFAULT_FROM_EMAIL = os.getenv("EMAIL_REMITENTE", "INVENTRA <no-responder@invent
 
 
 # ---------------------------------------------------------------------------
+# Almacén temporal
+# ---------------------------------------------------------------------------
+
+# Aquí lleva la cuenta el límite de peticiones. En desarrollo basta con la
+# memoria del propio proceso.
+#
+# LIMITACIÓN QUE HAY QUE CONOCER: si el servidor publicado corre varios procesos,
+# cada uno lleva su propio contador, así que el límite real se multiplica por el
+# número de procesos; y al reiniciar el servidor los contadores se ponen en cero.
+# En producción esto se cambia por una caché compartida (Redis o la propia base
+# de datos) sin tocar ninguna otra línea del proyecto.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "inventra-contadores",
+    }
+}
+
+
+# ---------------------------------------------------------------------------
 # Idioma y zona horaria
 # ---------------------------------------------------------------------------
 
@@ -175,6 +195,17 @@ REST_FRAMEWORK = {
     # Los listados se entregan por páginas
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
+
+    # Límite de peticiones por origen. Se declara «con ámbito»: solo se aplica a
+    # las vistas que declaran un `throttle_scope`, y las demás no se tocan. Así
+    # el límite queda en las tres puertas públicas y no estorba en el resto.
+    "DEFAULT_THROTTLE_CLASSES": ("rest_framework.throttling.ScopedRateThrottle",),
+    "DEFAULT_THROTTLE_RATES": {
+        "registro": "5/hour",          # nadie abre cinco licoreras en una hora
+        "ingreso": "20/hour",          # frena la prueba de contraseñas por fuerza bruta
+        "recuperacion": "5/hour",      # evita usar el sistema para bombardear a un tercero
+        "restablecimiento": "10/hour",
+    },
 }
 
 from datetime import timedelta  # noqa: E402

@@ -33,6 +33,9 @@ class RegistroLicoreraView(APIView):
     """
 
     permission_classes = [AllowAny]
+    # Límite de peticiones por origen (D-11): sin él, esta dirección permite
+    # crear cuentas en masa.
+    throttle_scope = "registro"
 
     def post(self, request):
         serializador = RegistroLicoreraSerializer(data=request.data)

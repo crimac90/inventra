@@ -4,6 +4,7 @@ Pruebas del registro de licoreras (CU-SUS-01 y RF-SEG-01).
 Se ejecutan con `py manage.py test suscripciones`.
 """
 
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -23,6 +24,7 @@ class RegistroLicoreraTests(TestCase):
     }
 
     def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
         self.url = reverse("registrar-licorera")
 
     def registrar(self, **cambios):
@@ -96,3 +98,36 @@ class PlanesTests(TestCase):
         planes = {p["nombre"]: p for p in self.client.get(reverse("planes")).json()}
         self.assertFalse(planes["Básico"]["permite_facturacion"])
         self.assertTrue(planes["Pro"]["permite_facturacion"])
+
+
+class LimiteDeRegistroTests(TestCase):
+    """
+    El registro es público, así que sin límite admitiría la creación de cuentas
+    en masa (decisión D-11). Cinco por hora y origen: nadie abre cinco licorerías
+    en una hora.
+    """
+
+    def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
+        self.url = reverse("registrar-licorera")
+
+    def registrar(self, numero):
+        return self.client.post(
+            self.url,
+            {
+                "nombre_negocio": f"Licorera {numero}",
+                "nombre_completo": "Persona de Prueba",
+                "correo": f"negocio{numero}@ejemplo.com",
+                "password": "ClaveSegura2026",
+            },
+            content_type="application/json",
+        )
+
+    def test_el_registro_se_limita_por_origen(self):
+        for numero in range(5):
+            self.assertEqual(self.registrar(numero).status_code, status.HTTP_201_CREATED)
+
+        respuesta = self.registrar(99)
+        self.assertEqual(respuesta.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        # Y no quedó creada a medias
+        self.assertEqual(Licorera.objects.filter(nombre="Licorera 99").count(), 0)

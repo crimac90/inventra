@@ -11,6 +11,7 @@ Se ejecutan con `py manage.py test seguridad`.
 
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -40,6 +41,7 @@ class AutenticacionTests(TestCase):
     CONTRASENA = "ClaveSegura2026"
 
     def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
         """Prepara un usuario válido antes de cada prueba."""
         self.rol = Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA)
         self.usuario = Usuario.objects.create_user(
@@ -111,6 +113,7 @@ class SesionTests(TestCase):
     CONTRASENA = "ClaveSegura2026"
 
     def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
         self.usuario = Usuario.objects.create_user(
             correo="admin@licorera.com",
             nombre_completo="Administrador de prueba",
@@ -158,6 +161,7 @@ class GestionUsuariosTests(TestCase):
     CLAVE = "Licorera2026"
 
     def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
         self.licorera = crear_licorera("Aurora", plan_nombre="Pro")
         self.administrador = Usuario.objects.create_user(
             correo="admin@aurora.com", nombre_completo="Administradora Aurora",
@@ -260,6 +264,7 @@ class LimitePorPlanTests(TestCase):
     CLAVE = "Licorera2026"
 
     def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
         self.licorera = crear_licorera("Basica")   # plan Básico: un solo usuario
         self.administrador = Usuario.objects.create_user(
             correo="admin@basica.com", nombre_completo="Administrador", password=self.CLAVE,
@@ -302,6 +307,7 @@ class RecuperacionContrasenaTests(TestCase):
     NUEVA = "OtraClave2026"
 
     def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
         self.licorera = crear_licorera("Recuperacion")
         self.usuario = Usuario.objects.create_user(
             correo="olvidadizo@licorera.com",
@@ -433,6 +439,7 @@ class PerfilPropioTests(TestCase):
     NUEVA = "OtraClave2026"
 
     def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
         self.licorera = crear_licorera("Perfil")
         self.usuario = Usuario.objects.create_user(
             correo="vendedor@perfil.com",
@@ -514,3 +521,98 @@ class PerfilPropioTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class LimiteDePeticionesTests(TestCase):
+    """
+    Comprueba el límite de peticiones por origen (decisión D-11).
+
+    Conviene tener clara la diferencia con el bloqueo de RF-SEG-02, porque
+    parecen lo mismo y protegen de cosas distintas:
+
+    | Defensa | Cuenta por | De qué protege |
+    |---|---|---|
+    | Bloqueo de cinco intentos | Cuenta | Insistir contra UNA cuenta |
+    | Límite de peticiones | Origen | Probar una contraseña contra MUCHAS cuentas |
+
+    El segundo ataque se llama «password spraying» y el bloqueo por cuenta no lo
+    ve: si se prueban tres contraseñas contra mil correos, ninguna cuenta llega a
+    cinco fallos y ninguna se bloquea.
+    """
+
+    CONTRASENA = "ClaveSegura2026"
+
+    def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
+        self.rol = Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA)
+        self.url_ingresar = reverse("ingresar")
+
+    def crear(self, numero):
+        return Usuario.objects.create_user(
+            correo=f"usuario{numero}@licorera.com",
+            nombre_completo=f"Usuario {numero}",
+            password=self.CONTRASENA,
+            rol=self.rol,
+        )
+
+    def intentar(self, correo):
+        return self.client.post(
+            self.url_ingresar,
+            {"correo": correo, "password": "claveEquivocada"},
+            content_type="application/json",
+        )
+
+    def test_el_ingreso_se_limita_por_origen(self):
+        """Veinte intentos pasan; el veintiuno recibe 429."""
+        for _ in range(20):
+            self.intentar("cualquiera@ejemplo.com")
+
+        respuesta = self.intentar("cualquiera@ejemplo.com")
+        self.assertEqual(respuesta.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_el_limite_es_por_origen_y_no_por_cuenta(self):
+        """
+        Siete cuentas, tres intentos cada una: ninguna llega a los cinco fallos
+        que exige el bloqueo, así que ninguna queda bloqueada. Aun así, la
+        petición número veintiuno se corta por origen.
+        """
+        usuarios = [self.crear(n) for n in range(7)]
+
+        codigos = []
+        for usuario in usuarios:
+            for _ in range(3):
+                codigos.append(self.intentar(usuario.correo).status_code)
+
+        # Las veinte primeras llegan al servidor y se rechazan por credenciales
+        self.assertEqual(codigos[:20], [status.HTTP_401_UNAUTHORIZED] * 20)
+        # La veintiuna ni siquiera llega a comprobar la contraseña
+        self.assertEqual(codigos[20], status.HTTP_429_TOO_MANY_REQUESTS)
+
+        # Y, en efecto, el bloqueo por cuenta no habría detenido nada de esto
+        for usuario in usuarios:
+            usuario.refresh_from_db()
+            self.assertFalse(usuario.esta_bloqueado())
+
+    def test_la_recuperacion_se_limita_por_origen(self):
+        """Cinco solicitudes pasan; la sexta recibe 429."""
+        url = reverse("recuperar")
+        for _ in range(5):
+            self.client.post(
+                url, {"correo": "alguien@ejemplo.com"}, content_type="application/json"
+            )
+
+        respuesta = self.client.post(
+            url, {"correo": "alguien@ejemplo.com"}, content_type="application/json"
+        )
+        self.assertEqual(respuesta.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_las_direcciones_sin_ambito_no_se_limitan(self):
+        """
+        El límite se declara «con ámbito»: solo afecta a las vistas que lo
+        piden. El catálogo de planes no lo pide, así que aguanta las peticiones
+        que hagan falta.
+        """
+        url = reverse("planes")
+        for _ in range(30):
+            respuesta = self.client.get(url)
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)

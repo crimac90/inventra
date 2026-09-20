@@ -45,6 +45,11 @@ class InicioSesionView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = InicioSesionSerializer
 
+    # Límite de peticiones por origen (D-11). Es distinto del bloqueo de cinco
+    # intentos: aquel es POR CUENTA, y no impide probar una misma contraseña
+    # contra miles de correos sin bloquear ninguna. Este cuenta por origen.
+    throttle_scope = "ingreso"
+
 
 class CierreSesionView(APIView):
     """
@@ -218,6 +223,8 @@ class SolicitarRecuperacionView(APIView):
     """
 
     permission_classes = [AllowAny]
+    # Sin límite, esta dirección sirve para bombardear de correos a un tercero.
+    throttle_scope = "recuperacion"
 
     RESPUESTA = {
         "detalle": (
@@ -255,6 +262,7 @@ class RestablecerContrasenaView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_scope = "restablecimiento"
 
     def post(self, request):
         serializador = RestablecerContrasenaSerializer(data=request.data)
