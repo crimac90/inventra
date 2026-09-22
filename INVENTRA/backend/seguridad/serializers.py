@@ -12,7 +12,9 @@ from django.core.exceptions import ValidationError as ErrorDeValidacion
 from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Rol, Usuario
@@ -108,6 +110,52 @@ class InicioSesionSerializer(TokenObtainPairSerializer):
             "refresco": str(refresh),
             "usuario": UsuarioSerializer(usuario).data,
         }
+
+
+
+class RenovacionSerializer(serializers.Serializer):
+    """
+    Renovación del token de acceso (RF-SEG-02).
+
+    La librería trae una vista lista para esto, y durante los primeros bloques
+    se usó tal cual. El problema es que hablaba en otro idioma: recibía
+    `refresh` y devolvía `access` y `refresh`, mientras el resto de la API del
+    proyecto usa `refresco` y `acceso`. Una API que se contradice a sí misma
+    obliga a quien la consume a recordar la excepción, y las excepciones se
+    olvidan.
+
+    Así que se reescribe la lógica —que es corta— con los nombres del proyecto.
+    Lo que hace por dentro es lo mismo que hacía la librería.
+    """
+
+    refresco = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        try:
+            refresco = RefreshToken(attrs["refresco"])
+        except TokenError:
+            # Vencido, mal formado o en la lista negra por un cierre de sesión.
+            raise AuthenticationFailed("La sesión ya no es válida. Vuelve a ingresar.")
+
+        # El token de acceso se saca ANTES de rotar: después, el refresco ya es otro.
+        datos = {"acceso": str(refresco.access_token)}
+
+        if api_settings.ROTATE_REFRESH_TOKENS:
+            # Rotación: el refresco usado deja de servir y se entrega uno nuevo.
+            # Si alguien copió el anterior, le queda inservible.
+            if api_settings.BLACKLIST_AFTER_ROTATION:
+                try:
+                    refresco.blacklist()
+                except AttributeError:
+                    # Ocurre si la lista negra no está instalada; no es un error.
+                    pass
+
+            refresco.set_jti()   # identificador nuevo
+            refresco.set_exp()   # vencimiento nuevo
+            refresco.set_iat()   # momento de emisión nuevo
+            datos["refresco"] = str(refresco)
+
+        return datos
 
 
 class CierreSesionSerializer(serializers.Serializer):

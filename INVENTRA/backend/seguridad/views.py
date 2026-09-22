@@ -22,6 +22,7 @@ from .serializers import (
     CierreSesionSerializer,
     InicioSesionSerializer,
     PerfilActualizarSerializer,
+    RenovacionSerializer,
     RestablecerContrasenaSerializer,
     RolSerializer,
     SolicitarRecuperacionSerializer,
@@ -68,6 +69,22 @@ class CierreSesionView(APIView):
         serializador.is_valid(raise_exception=True)
         serializador.guardar()
         return Response({"detalle": "Sesión cerrada."}, status=status.HTTP_200_OK)
+
+
+class RenovacionView(APIView):
+    """
+    Entrega un token de acceso nuevo a partir del de refresco (RF-SEG-02).
+
+    No exige sesión, y tiene que ser así: quien la llama es justamente alguien
+    cuyo token de acceso venció. Lo que hace de credencial es el refresco.
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializador = RenovacionSerializer(data=request.data)
+        serializador.is_valid(raise_exception=True)
+        return Response(serializador.validated_data, status=status.HTTP_200_OK)
 
 
 class PerfilView(APIView):

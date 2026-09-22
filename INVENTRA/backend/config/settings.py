@@ -95,8 +95,19 @@ DATABASES = {
     }
 }
 
-# Tipo de llave primaria por defecto para los modelos
-DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+# Tipo de llave primaria por defecto para los modelos.
+#
+# OJO CON ESTA LÍNEA. Cada aplicación puede declarar su propio
+# `default_auto_field` en su archivo apps.py, y el de la aplicación PREVALECE
+# sobre este. `startapp` genera ese archivo con BigAutoField, que es el valor por
+# defecto de Django, así que durante los primeros bloques aquí decía AutoField
+# mientras las tablas se creaban con BIGINT: la línea no hacía nada y engañaba a
+# quien la leyera.
+#
+# Se adopta BigAutoField, que es lo que ya tienen las migraciones y el valor que
+# recomienda Django para no agotar el rango de identificadores en tablas que
+# crecen, como el kardex y las ventas. Ahora configuración y realidad coinciden.
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Modelo de usuario propio del proyecto, en lugar del que trae Django
 AUTH_USER_MODEL = "seguridad.Usuario"

@@ -2,13 +2,13 @@
 
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
     CambiarContrasenaView,
     CierreSesionView,
     InicioSesionView,
     PerfilView,
+    RenovacionView,
     RestablecerContrasenaView,
     RolesView,
     SolicitarRecuperacionView,
@@ -25,7 +25,7 @@ enrutador.register(r"usuarios", UsuarioViewSet, basename="usuario")
 urlpatterns = [
     path("ingresar/", InicioSesionView.as_view(), name="ingresar"),
     path("salir/", CierreSesionView.as_view(), name="salir"),
-    path("renovar/", TokenRefreshView.as_view(), name="renovar"),
+    path("renovar/", RenovacionView.as_view(), name="renovar"),
     path("perfil/", PerfilView.as_view(), name="perfil"),
     path("cambiar-contrasena/", CambiarContrasenaView.as_view(), name="cambiar-contrasena"),
     path("recuperar/", SolicitarRecuperacionView.as_view(), name="recuperar"),

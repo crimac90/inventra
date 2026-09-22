@@ -150,9 +150,56 @@ class SesionTests(TestCase):
 
         # Con el token ya invalidado, la renovación debe fallar
         renovacion = self.client.post(
-            reverse("renovar"), {"refresh": self.refresco}, content_type="application/json"
+            reverse("renovar"), {"refresco": self.refresco}, content_type="application/json"
         )
         self.assertEqual(renovacion.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def renovar(self, refresco):
+        return self.client.post(
+            reverse("renovar"), {"refresco": refresco}, content_type="application/json"
+        )
+
+    def test_la_renovacion_entrega_un_acceso_nuevo_que_funciona(self):
+        respuesta = self.renovar(self.refresco)
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+        acceso = respuesta.json()["acceso"]
+        perfil = self.client.get(
+            reverse("perfil"), headers={"Authorization": f"Bearer {acceso}"}
+        )
+        self.assertEqual(perfil.status_code, status.HTTP_200_OK)
+
+    def test_la_renovacion_habla_el_idioma_del_proyecto(self):
+        """
+        Toda la API usa `acceso` y `refresco`. La vista que trae la librería
+        devolvía `access` y `refresh`, y esa excepción obligaba al frontend a
+        recordarla. Ahora no hay excepción.
+        """
+        datos = self.renovar(self.refresco).json()
+
+        self.assertIn("acceso", datos)
+        self.assertIn("refresco", datos)
+        self.assertNotIn("access", datos)
+        self.assertNotIn("refresh", datos)
+
+    def test_el_refresco_usado_deja_de_servir(self):
+        """
+        Rotación con lista negra: al renovar se entrega un refresco nuevo y el
+        anterior queda inservible. Si alguien copió el viejo, no le sirve.
+        """
+        primera = self.renovar(self.refresco)
+        self.assertEqual(primera.status_code, status.HTTP_200_OK)
+
+        segunda = self.renovar(self.refresco)
+        self.assertEqual(segunda.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        # Pero el refresco nuevo sí sirve
+        tercera = self.renovar(primera.json()["refresco"])
+        self.assertEqual(tercera.status_code, status.HTTP_200_OK)
+
+    def test_un_refresco_inventado_se_rechaza(self):
+        respuesta = self.renovar("esto-no-es-un-token")
+        self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
 

@@ -119,10 +119,8 @@ async function ejecutar(ruta, opciones, conToken) {
   Renueva el token de acceso con el de refresco.
 
   El backend rota el refresco en cada renovacion y deja el anterior en la lista
-  negra, asi que hay que guardar el nuevo. Ojo al detalle: la vista de renovacion
-  es la que trae la libreria y devuelve las claves en ingles (`access` y
-  `refresh`), mientras el ingreso propio del proyecto las devuelve en espanol
-  (`acceso` y `refresco`). Se aceptan las dos formas.
+  negra, asi que hay que guardar el nuevo. Toda la API usa los mismos nombres,
+  `acceso` y `refresco`, incluida esta direccion.
 */
 async function renovar() {
   const refresco = tokenDeRefresco();
@@ -131,11 +129,11 @@ async function renovar() {
   try {
     const datos = await ejecutar(
       "/seguridad/renovar/",
-      { method: "POST", body: JSON.stringify({ refresh: refresco }) },
+      { method: "POST", body: JSON.stringify({ refresco }) },
       false,
     );
-    const nuevoAcceso = datos.access || datos.acceso;
-    const nuevoRefresco = datos.refresh || datos.refresco || refresco;
+    const nuevoAcceso = datos.acceso;
+    const nuevoRefresco = datos.refresco || refresco;
     if (!nuevoAcceso) return false;
 
     const destino = localStorage.getItem(CLAVE_REFRESCO) !== null ? localStorage : sessionStorage;

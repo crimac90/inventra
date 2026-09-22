@@ -1,11 +1,21 @@
 """
-Pruebas del registro de licoreras (CU-SUS-01 y RF-SEG-01).
+Pruebas del módulo de suscripciones.
+
+Cubren el registro de licoreras (CU-SUS-01 y RF-SEG-01), el catálogo de planes,
+el límite de peticiones del registro y el comando que carga las cuentas de
+demostración.
 
 Se ejecutan con `py manage.py test suscripciones`.
 """
 
+from io import StringIO
+from tempfile import TemporaryDirectory
+from pathlib import Path
+
 from django.core.cache import cache
-from django.test import TestCase
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 
@@ -131,3 +141,163 @@ class LimiteDeRegistroTests(TestCase):
         self.assertEqual(respuesta.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         # Y no quedó creada a medias
         self.assertEqual(Licorera.objects.filter(nombre="Licorera 99").count(), 0)
+
+
+@override_settings(DEBUG=True)
+class DatosDeDemostracionTests(TestCase):
+    """
+    Comprueba el comando que carga las cuentas de demostración.
+
+    El SENA lo va a ejecutar para poder entrar al sistema, así que tiene que
+    funcionar a la primera y poder repetirse sin estropear nada.
+
+    OJO CON `override_settings(DEBUG=True)`. Django pone DEBUG en False durante
+    las pruebas, siempre, para que el código se comporte como en producción y no
+    con las facilidades del modo de depuración. Como el comando se niega a correr
+    fuera del modo de depuración —esa es su red de seguridad—, aquí hay que
+    simular un equipo de desarrollo. La negativa se comprueba aparte, en
+    `ProteccionDatosDemoTests`.
+    """
+
+    def setUp(self):
+        cache.clear()   # el contador del límite de peticiones parte de cero
+        self.salida = StringIO()   # el comando escribe en pantalla; aquí no estorba
+
+    def cargar(self, *argumentos):
+        call_command("cargar_datos_demo", *argumentos, stdout=self.salida)
+
+    def test_el_comando_crea_las_cuentas(self):
+        self.cargar()
+
+        self.assertEqual(Licorera.objects.count(), 2)
+        self.assertEqual(Usuario.objects.count(), 4)
+
+        # Una licorera con plan Pro y otra con Básico, para poder comprobar
+        # tanto el aislamiento como el tope de usuarios.
+        planes = [licorera.plan_vigente().nombre for licorera in Licorera.objects.all()]
+        self.assertIn("Pro", planes)
+        self.assertIn("Básico", planes)
+
+        # El operador de la plataforma no pertenece a ninguna licorera
+        operador = Usuario.objects.get(correo="plataforma@demo.inventra.co")
+        self.assertIsNone(operador.licorera)
+        self.assertTrue(operador.es_administrador_inventra)
+
+    def test_se_puede_ejecutar_dos_veces_sin_duplicar(self):
+        self.cargar()
+        self.cargar()
+
+        self.assertEqual(Licorera.objects.count(), 2)
+        self.assertEqual(Usuario.objects.count(), 4)
+
+    def test_las_cuentas_sirven_para_entrar(self):
+        self.cargar()
+
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": "admin@demo.inventra.co", "password": "Inventra2026"},
+            content_type="application/json",
+        )
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+    def test_limpiar_retira_todo_lo_que_cargo(self):
+        self.cargar()
+        self.cargar("--limpiar")
+
+        self.assertEqual(Licorera.objects.count(), 0)
+        self.assertEqual(Usuario.objects.count(), 0)
+
+
+class ProteccionDatosDemoTests(TestCase):
+    """
+    Comprueba la red de seguridad del comando.
+
+    Esta clase NO lleva `override_settings(DEBUG=True)`, justamente porque
+    necesita el comportamiento que Django impone durante las pruebas: DEBUG en
+    False, como en un servidor publicado.
+    """
+
+    def test_se_niega_a_correr_fuera_del_modo_de_depuracion(self):
+        with self.assertRaises(CommandError):
+            call_command("cargar_datos_demo", stdout=StringIO())
+
+        self.assertEqual(Licorera.objects.count(), 0)
+        self.assertEqual(Usuario.objects.count(), 0)
+
+    def test_con_la_confirmacion_expresa_si_corre(self):
+        call_command("cargar_datos_demo", "--si-estoy-seguro", stdout=StringIO())
+        self.assertEqual(Licorera.objects.count(), 2)
+
+
+class ScriptsSqlTests(TestCase):
+    """
+    Comprueba el comando que genera los scripts SQL.
+
+    Son entregables del proyecto, así que tienen que poder regenerarse en
+    cualquier momento. Se escriben en una carpeta temporal para no tocar los del
+    repositorio durante las pruebas.
+    """
+
+    def generar(self):
+        self.carpeta = TemporaryDirectory()
+        call_command(
+            "generar_scripts_sql", carpeta=self.carpeta.name, stdout=StringIO()
+        )
+        return Path(self.carpeta.name)
+
+    def test_genera_los_dos_archivos(self):
+        carpeta = self.generar()
+
+        self.assertTrue((carpeta / "01_estructura.sql").exists())
+        self.assertTrue((carpeta / "02_carga_inicial.sql").exists())
+
+    @staticmethod
+    def sentencias(ruta):
+        """
+        El contenido del archivo SIN los comentarios.
+
+        No es un detalle: la primera versión de esta prueba buscaba la palabra
+        «suscripcion» en el archivo entero, y la encontraba dentro del comentario
+        «-- suscripciones.0001_initial». La prueba pasaba con un archivo que no
+        tenía una sola línea de SQL. Una comprobación tiene que mirar lo que
+        importa, no lo que está cerca.
+        """
+        return "\n".join(
+            linea
+            for linea in ruta.read_text(encoding="utf-8").splitlines()
+            if linea.strip() and not linea.strip().startswith("--")
+        )
+
+    def test_la_estructura_crea_las_tablas_del_proyecto(self):
+        sql = self.sentencias(self.generar() / "01_estructura.sql")
+
+        for tabla in ("licorera", "plan", "suscripcion", "rol", "usuario"):
+            self.assertIn(f"CREATE TABLE `{tabla}`", sql)
+
+    def test_la_estructura_trae_las_llaves_foraneas(self):
+        """
+        Sin las llaves foráneas el script crearía tablas sueltas, sin las
+        reglas que impiden borrar una licorera con usuarios colgando.
+        """
+        sql = self.sentencias(self.generar() / "01_estructura.sql")
+
+        self.assertIn("FOREIGN KEY", sql.upper())
+        self.assertIn("licorera_id", sql)
+
+    def test_la_carga_inicial_trae_los_roles_y_los_planes(self):
+        contenido = self.sentencias(self.generar() / "02_carga_inicial.sql")
+
+        self.assertIn("INSERT INTO rol", contenido)
+        self.assertIn("INSERT INTO plan", contenido)
+        self.assertIn("administrador_licorera", contenido)
+        self.assertIn("Básico", contenido)
+
+    def test_la_carga_inicial_no_incluye_cuentas(self):
+        """
+        Las cuentas de demostración tienen contraseña publicada: no pueden
+        viajar en el script que se ejecuta para preparar una base nueva.
+        """
+        contenido = self.sentencias(self.generar() / "02_carga_inicial.sql")
+
+        self.assertNotIn("INSERT INTO usuario", contenido)
+        self.assertNotIn("demo.inventra.co", contenido)

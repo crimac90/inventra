@@ -542,7 +542,46 @@ lo correcto: administra la plataforma, no un negocio.
 Desde la pantalla de registro de la aplicación. En una sola operación se crea la licorera, su
 suscripción al plan Básico y su usuario administrador, que entra directamente al panel.
 
-### 10.4 Preparar datos para probar
+### 10.4 Usuarios de prueba
+
+El proyecto trae un juego de cuentas de demostración, con contraseñas conocidas, para que
+cualquiera pueda entrar y recorrer el sistema sin registrar nada. Desde `INVENTRA\backend`:
+
+```
+py manage.py cargar_datos_demo
+```
+
+| Rol | Correo | Dónde |
+|---|---|---|
+| Administrador de licorera | `admin@demo.inventra.co` | Licorera La Esquina — plan Pro |
+| Vendedor | `vendedor@demo.inventra.co` | Licorera La Esquina — plan Pro |
+| Administrador de licorera | `vecino@demo.inventra.co` | Licorera El Vecino — plan Básico |
+| Administrador de INVENTRA | `plataforma@demo.inventra.co` | Sin licorera |
+
+**Contraseña de todas: `Inventra2026`**
+
+Hay dos licoreras a propósito, y no una: con dos negocios distintos se puede comprobar que
+uno no ve los datos del otro. Y una está en plan Básico para poder ver el aviso del tope de
+usuarios al intentar crear un segundo.
+
+Para retirarlas:
+
+```
+py manage.py cargar_datos_demo --limpiar
+```
+
+El comando se puede ejecutar las veces que haga falta: si algo ya existe, lo respeta y no lo
+duplica.
+
+> **Por qué es un comando y no una migración.** Los planes y los roles sí se cargan con
+> migraciones, porque el sistema no funciona sin ellos. Estas cuentas son otra cosa: sus
+> contraseñas están publicadas en este documento, así que una migración las crearía también
+> en el servidor publicado, el día del despliegue, sin que nadie lo pidiera — una puerta
+> conocida abierta en producción. Siendo un comando, se ejecuta cuando alguien lo decide.
+> Además, si el proyecto no está en modo de depuración el comando se niega a correr salvo
+> que se le insista con `--si-estoy-seguro`.
+
+### 10.5 Preparar datos para probar
 
 Algunas reglas dependen de datos que todavía no se pueden producir desde la interfaz, porque
 su pantalla pertenece a un módulo posterior. En esos casos los datos se preparan desde la
@@ -625,4 +664,60 @@ arrancar, por eso se puede repetir tantas veces como haga falta.
 - **Los usuarios que comparten salida a internet.** Varias personas tras una misma conexión
   —una oficina, una red móvil— comparten contador. Los valores elegidos dejan margen
   suficiente para una licorera, pero conviene revisarlos con tráfico real.
+
+---
+
+## 12. Scripts de base de datos
+
+En `INVENTRA/scripts_bd/` hay dos archivos:
+
+| Archivo | Qué contiene | Cuándo se usa |
+|---|---|---|
+| `01_estructura.sql` | Las tablas, llaves foráneas e índices | Para crear la base desde cero sin Django |
+| `02_carga_inicial.sql` | Los roles y los dos planes | Después de la estructura, para dejarla utilizable |
+
+Son dos y no uno porque responden a preguntas distintas: el primero crea la base vacía, el
+segundo la deja funcional. Al restaurar una copia de seguridad hace falta el primero; al
+preparar un entorno nuevo, los dos.
+
+### 12.1 Cómo se generan
+
+**No se escriben a mano.** Se generan desde las migraciones, que es de donde Django crea las
+tablas de verdad:
+
+```
+py manage.py generar_scripts_sql
+```
+
+El motivo es simple: un script escrito a mano desde el modelo entidad-relación se queda atrás
+en cuanto cambia una tabla, y nadie se entera hasta que alguien lo ejecuta y obtiene una base
+distinta de la que la aplicación espera. Generándolo desde la misma fuente, no puede
+contradecirla.
+
+**Hay que volver a generarlos cada vez que se crea una migración de estructura.** Es el paso
+que se olvida; si el script y los modelos se separan, el entregable deja de servir.
+
+### 12.2 Por qué la carga inicial se genera aparte
+
+`sqlmigrate` traduce a SQL las migraciones de estructura, pero los roles y los planes se
+cargan con código Python (`RunPython`), no con sentencias SQL, así que de esas migraciones no
+sale nada. Por eso el segundo archivo se construye leyendo las filas de la base y escribiendo
+sus `INSERT`.
+
+Las **cuentas de prueba no están en ese archivo**, y es deliberado: tienen contraseña
+publicada, así que no pueden viajar en un script que se ejecuta para preparar cualquier base.
+Se cargan aparte, con `cargar_datos_demo` (punto 10.4). Hay una prueba automática que vigila
+esa separación.
+
+### 12.3 Ejecutarlos a mano
+
+Si hiciera falta crear la base sin Django, desde el cliente de MySQL:
+
+```
+mysql -u root -p inventra < scripts_bd/01_estructura.sql
+mysql -u root -p inventra < scripts_bd/02_carga_inicial.sql
+```
+
+En el trabajo diario no hace falta: `py manage.py migrate` hace lo mismo y además registra
+qué migraciones se aplicaron.
 
