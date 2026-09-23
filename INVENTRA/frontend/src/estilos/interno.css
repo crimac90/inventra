@@ -84,8 +84,17 @@
   background: none;
 }
 
+/*
+  La etiqueta de «pendiente» va en una sola palabra corta. La primera versión
+  decía «Próximamente» y no cabía: entre el icono, el nombre del módulo y la
+  etiqueta se pasaba de los 210 px de la barra, de modo que el texto quedaba
+  cortado contra el borde, y además de forma desigual según lo largo que fuera
+  el nombre. `flex: none` y `nowrap` evitan que vuelva a encogerse o partirse.
+*/
 .nav .proximamente {
   margin-left: auto;
+  flex: none;
+  white-space: nowrap;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;

@@ -92,7 +92,7 @@ export default function BarraLateral({ esAdministrador }) {
           modulo.pendiente ? (
             <span key={modulo.clave} className="nav pendiente" aria-disabled="true">
               {ICONOS[modulo.clave]} {modulo.texto}
-              <span className="proximamente">Próximamente</span>
+              <span className="proximamente">Pronto</span>
             </span>
           ) : (
             <NavLink key={modulo.clave} to={modulo.ruta} className={clase}>
