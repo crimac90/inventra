@@ -76,12 +76,28 @@ class Command(BaseCommand):
         parser.add_argument("--destino", help="Ruta del archivo a escribir.")
 
     def handle(self, *args, **opciones):
+        # Columnas cuya descripción no está escrita en el modelo y hubo que
+        # rellenar. Se acumulan mientras se arma el documento y se avisan al final.
+        self.sin_descripcion = []
+
         destino = Path(opciones["destino"]) if opciones["destino"] else DESTINO
         destino.parent.mkdir(parents=True, exist_ok=True)
         destino.write_text(self.documento(), encoding="utf-8")
 
         self.stdout.write(self.style.SUCCESS(f"  escrito {destino.name}"))
         self.stdout.write(f"  {destino}")
+
+        if self.sin_descripcion:
+            self.stdout.write(self.style.WARNING(
+                "  ATENCIÓN: %d columna(s) quedaron con una descripción de relleno, "
+                "porque su campo no declara help_text en el modelo:"
+                % len(self.sin_descripcion)
+            ))
+            for columna in self.sin_descripcion:
+                self.stdout.write(f"    - {columna}")
+            self.stdout.write(
+                "  Escribe su descripción en el modelo y vuelve a generar."
+            )
 
     # ----------------------------------------------------------------------
 
@@ -152,7 +168,22 @@ class Command(BaseCommand):
 
         descripcion = (campo.help_text or "").strip()
         if not descripcion:
-            descripcion = str(campo.verbose_name).capitalize()
+            if campo.primary_key:
+                # La llave primaria la crea Django sola y nunca lleva descripción
+                # escrita; se usa la misma redacción del MER para todas.
+                descripcion = "Identificador único interno de la fila."
+            else:
+                # Si la columna no trae descripción escrita, Django devuelve aquí
+                # el nombre del campo con la primera letra en mayúscula: «Telefono»,
+                # «Password», «Last login». Queda una descripción de relleno, en
+                # inglés y sin tildes, dentro de un documento entregable. Se usa,
+                # porque la tabla no puede quedar con un hueco, pero se anota para
+                # avisar al terminar: un valor de reserva que nadie ve es un error
+                # que nadie corrige.
+                descripcion = str(campo.verbose_name).capitalize()
+                self.sin_descripcion.append(
+                    "%s.%s" % (campo.model._meta.db_table, columna)
+                )
 
         # Si la columna tiene lista cerrada, se enumeran los valores admitidos:
         # es la información que el ENUM del diseño daba en el propio tipo.

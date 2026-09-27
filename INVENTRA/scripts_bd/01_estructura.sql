@@ -2,7 +2,7 @@
 --  INVENTRA — Inventario y ventas para licoreras
 --  Estructura de la base de datos (DDL)
 -- ============================================================
---  Generado el 2026-09-21 con py manage.py generar_scripts_sql
+--  Generado el 2026-09-26 con py manage.py generar_scripts_sql
 --  Django 5.2.17 · motor mysql · base «inventra»
 -- ============================================================
 
@@ -55,7 +55,7 @@ CREATE TABLE `auth_permission` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY
 -- Create model Group
 --
 CREATE TABLE `auth_group` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `name` varchar(80) NOT NULL UNIQUE);
-CREATE TABLE `auth_group_permissions` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `group_id` integer NOT NULL, `permission_id` integer NOT NULL);
+CREATE TABLE `auth_group_permissions` (`id` bigint AUTO_INCREMENT NOT NULL PRIMARY KEY, `group_id` integer NOT NULL, `permission_id` integer NOT NULL);
 --
 -- Create model User
 --
@@ -137,6 +137,40 @@ ALTER TABLE `usuario` ADD CONSTRAINT `usuario_licorera_id_01ee3245_fk_licorera_i
 ALTER TABLE `usuario` ADD CONSTRAINT `usuario_rol_id_ac58b608_fk_rol_id` FOREIGN KEY (`rol_id`) REFERENCES `rol` (`id`);
 
 -- seguridad.0002_datos_roles: migración de datos, sin estructura
+
+
+-- ----------------------------------------------------------
+-- seguridad.0003_usuario_correo_verificado_alter_rol_nombre_and_more
+-- ----------------------------------------------------------
+--
+-- Add field correo_verificado to usuario
+--
+ALTER TABLE `usuario` ADD COLUMN `correo_verificado` bool DEFAULT b'0' NOT NULL;
+ALTER TABLE `usuario` ALTER COLUMN `correo_verificado` DROP DEFAULT;
+--
+-- Alter field nombre on rol
+--
+-- (no-op)
+--
+-- Alter field fecha_creacion on usuario
+--
+-- (no-op)
+--
+-- Alter field last_login on usuario
+--
+-- (no-op)
+--
+-- Alter field nombre_completo on usuario
+--
+-- (no-op)
+--
+-- Alter field password on usuario
+--
+-- (no-op)
+--
+-- Alter field telefono on usuario
+--
+-- (no-op)
 
 -- suscripciones.0002_datos_planes: migración de datos, sin estructura
 

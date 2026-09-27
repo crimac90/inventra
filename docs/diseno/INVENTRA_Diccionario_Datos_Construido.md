@@ -1,6 +1,6 @@
 # INVENTRA — Diccionario de datos del sistema construido
 
-> Generado el 2026-09-21 con `py manage.py generar_diccionario_datos`  
+> Generado el 2026-09-26 con `py manage.py generar_diccionario_datos`  
 > Django 5.2.17 · motor mysql · base «inventra»  
 > **No se edita a mano:** se cambia el modelo y se vuelve a generar.
 
@@ -43,11 +43,11 @@ El cliente de INVENTRA.
 
 | Columna | Tipo (MySQL) | Nulo | Llave | Descripción |
 |---|---|---|---|---|
-| `id` | bigint AUTO_INCREMENT | No | PK | Id |
+| `id` | bigint AUTO_INCREMENT | No | PK | Identificador único interno de la fila. |
 | `nombre` | varchar(100) | No | — | Nombre comercial del negocio. |
 | `nit` | varchar(20) | Sí | UQ | NIT o cédula del propietario. Único si se registra. |
-| `direccion` | varchar(150) | Sí | — | Direccion |
-| `telefono` | varchar(20) | Sí | — | Telefono |
+| `direccion` | varchar(150) | Sí | — | Dirección principal del negocio. |
+| `telefono` | varchar(20) | Sí | — | Teléfono de contacto. |
 | `correo` | varchar(100) | No | — | Correo de contacto del negocio. |
 | `fecha_registro` | datetime(6) | No | — | Cuándo se creó la cuenta en la plataforma. |
 | `activo` | bool | No | — | Baja lógica: una licorera retirada conserva su historial. |
@@ -58,7 +58,7 @@ Catálogo de planes comerciales.
 
 | Columna | Tipo (MySQL) | Nulo | Llave | Descripción |
 |---|---|---|---|---|
-| `id` | bigint AUTO_INCREMENT | No | PK | Id |
+| `id` | bigint AUTO_INCREMENT | No | PK | Identificador único interno de la fila. |
 | `nombre` | varchar(30) | No | UQ | Nombre comercial del plan: Básico o Pro. |
 | `precio_mensual` | numeric(12, 2) | No | — | Precio de lista de la suscripción mensual. |
 | `maximo_sedes` | integer UNSIGNED | Sí | — | Límite de sedes. Vacío significa sin límite. |
@@ -73,9 +73,9 @@ Historial de contratación de planes.
 
 | Columna | Tipo (MySQL) | Nulo | Llave | Descripción |
 |---|---|---|---|---|
-| `id` | bigint AUTO_INCREMENT | No | PK | Id |
-| `licorera_id` | bigint | No | FK → `licorera` | Licorera |
-| `plan_id` | bigint | No | FK → `plan` | Plan |
+| `id` | bigint AUTO_INCREMENT | No | PK | Identificador único interno de la fila. |
+| `licorera_id` | bigint | No | FK → `licorera` | Licorera dueña del registro; sostiene el aislamiento entre negocios. |
+| `plan_id` | bigint | No | FK → `plan` | Plan contratado en este período. |
 | `estado` | varchar(12) | No | — | Estado actual de la suscripción. Valores admitidos: `activa`, `en_mora`, `suspendida`, `cancelada`. |
 | `fecha_inicio` | date | No | — | Inicio de la vigencia. |
 | `fecha_fin` | date | Sí | — | Fin de la vigencia. Vacío mientras esté vigente. |
@@ -91,8 +91,8 @@ Catálogo de roles del sistema (RF-SEG-05).
 
 | Columna | Tipo (MySQL) | Nulo | Llave | Descripción |
 |---|---|---|---|---|
-| `id` | bigint AUTO_INCREMENT | No | PK | Id |
-| `nombre` | varchar(30) | No | UQ | Nombre |
+| `id` | bigint AUTO_INCREMENT | No | PK | Identificador único interno de la fila. |
+| `nombre` | varchar(30) | No | UQ | «administrador_licorera», «vendedor» o «administrador_inventra». |
 | `descripcion` | varchar(150) | No | — | Qué puede hacer el rol, en lenguaje claro. |
 
 ### Tabla: `usuario`
@@ -101,16 +101,17 @@ Cuentas de acceso al sistema (RF-SEG-01, 02, 04, 06 y 07).
 
 | Columna | Tipo (MySQL) | Nulo | Llave | Descripción |
 |---|---|---|---|---|
-| `id` | bigint AUTO_INCREMENT | No | PK | Id |
+| `id` | bigint AUTO_INCREMENT | No | PK | Identificador único interno de la fila. |
 | `licorera_id` | bigint | Sí | FK → `licorera` | Licorera a la que pertenece. Vacío para el personal de INVENTRA. |
 | `rol_id` | bigint | No | FK → `rol` | Rol que define sus permisos. |
-| `nombre_completo` | varchar(100) | No | — | Nombre completo |
+| `nombre_completo` | varchar(100) | No | — | Nombre de la persona. |
 | `correo` | varchar(100) | No | UQ | Identificador de acceso; único en toda la plataforma. |
-| `telefono` | varchar(20) | Sí | — | Telefono |
-| `contrasena_hash` | varchar(255) | No | — | Password |
+| `correo_verificado` | bool | No | — | Si la persona confirmó su correo abriendo el enlace que se le envió. Una cuenta sin verificar entra al sistema, pero ve un aviso (D-10). |
+| `telefono` | varchar(20) | Sí | — | Teléfono de contacto. |
+| `contrasena_hash` | varchar(255) | No | — | Contraseña cifrada con hash adaptativo; nunca en texto plano (RNF-02). |
 | `intentos_fallidos` | smallint UNSIGNED | No | — | Contador para el bloqueo tras cinco intentos (RF-SEG-02). |
 | `bloqueado_hasta` | datetime(6) | Sí | — | Fin del bloqueo temporal. Vacío si no está bloqueado. |
 | `activo` | bool | No | — | Baja lógica: el inactivo no entra, su historial permanece. |
-| `fecha_creacion` | datetime(6) | No | — | Fecha creacion |
-| `ultimo_acceso` | datetime(6) | Sí | — | Last login |
+| `fecha_creacion` | datetime(6) | No | — | Cuándo se creó la cuenta. |
+| `ultimo_acceso` | datetime(6) | Sí | — | Última vez que la persona entró al sistema. |
 

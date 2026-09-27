@@ -2,7 +2,7 @@
 --  INVENTRA — Inventario y ventas para licoreras
 --  Carga inicial de datos
 -- ============================================================
---  Generado el 2026-09-21 con py manage.py generar_scripts_sql
+--  Generado el 2026-09-26 con py manage.py generar_scripts_sql
 --  Django 5.2.17 · motor mysql · base «inventra»
 -- ============================================================
 

@@ -62,8 +62,14 @@ class Licorera(models.Model):
         max_length=20, null=True, blank=True, unique=True,
         help_text="NIT o cédula del propietario. Único si se registra.",
     )
-    direccion = models.CharField(max_length=150, null=True, blank=True)
-    telefono = models.CharField(max_length=20, null=True, blank=True)
+    direccion = models.CharField(
+        max_length=150, null=True, blank=True,
+        help_text="Dirección principal del negocio.",
+    )
+    telefono = models.CharField(
+        max_length=20, null=True, blank=True,
+        help_text="Teléfono de contacto.",
+    )
     correo = models.EmailField(max_length=100, help_text="Correo de contacto del negocio.")
     fecha_registro = models.DateTimeField(
         auto_now_add=True,
@@ -128,10 +134,12 @@ class Suscripcion(models.Model):
     licorera = models.ForeignKey(
         Licorera, on_delete=models.PROTECT, related_name="suscripciones",
         db_column="licorera_id",
+        help_text="Licorera dueña del registro; sostiene el aislamiento entre negocios.",
     )
     plan = models.ForeignKey(
         Plan, on_delete=models.PROTECT, related_name="suscripciones",
         db_column="plan_id",
+        help_text="Plan contratado en este período.",
     )
     estado = models.CharField(
         max_length=12, choices=Estado.choices, default=Estado.ACTIVA,

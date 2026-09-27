@@ -23,7 +23,10 @@ class Rol(models.Model):
     VENDEDOR = "vendedor"
     ADMINISTRADOR_INVENTRA = "administrador_inventra"
 
-    nombre = models.CharField(max_length=30, unique=True)
+    nombre = models.CharField(
+        max_length=30, unique=True,
+        help_text="«administrador_licorera», «vendedor» o «administrador_inventra».",
+    )
     descripcion = models.CharField(
         max_length=150,
         help_text="Qué puede hacer el rol, en lenguaje claro.",
@@ -81,16 +84,32 @@ class Usuario(AbstractBaseUser):
         Rol, on_delete=models.PROTECT, related_name="usuarios", db_column="rol_id",
         help_text="Rol que define sus permisos.",
     )
-    nombre_completo = models.CharField(max_length=100)
+    nombre_completo = models.CharField(
+        max_length=100,
+        help_text="Nombre de la persona.",
+    )
     correo = models.EmailField(
         max_length=100, unique=True,
         help_text="Identificador de acceso; único en toda la plataforma.",
     )
-    telefono = models.CharField(max_length=20, null=True, blank=True)
+    correo_verificado = models.BooleanField(
+        default=False,
+        help_text=(
+            "Si la persona confirmó su correo abriendo el enlace que se le envió. "
+            "Una cuenta sin verificar entra al sistema, pero ve un aviso (D-10)."
+        ),
+    )
+    telefono = models.CharField(
+        max_length=20, null=True, blank=True,
+        help_text="Teléfono de contacto.",
+    )
 
     # Contraseña cifrada. Django la administra en el campo password; aquí se
     # guarda en la columna contrasena_hash, como está en el diccionario de datos.
-    password = models.CharField(max_length=255, db_column="contrasena_hash")
+    password = models.CharField(
+        max_length=255, db_column="contrasena_hash",
+        help_text="Contraseña cifrada con hash adaptativo; nunca en texto plano (RNF-02).",
+    )
 
     intentos_fallidos = models.PositiveSmallIntegerField(
         default=0,
@@ -104,10 +123,16 @@ class Usuario(AbstractBaseUser):
         default=True,
         help_text="Baja lógica: el inactivo no entra, su historial permanece.",
     )
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Cuándo se creó la cuenta.",
+    )
 
     # Django registra aquí la última entrada; en la base se llama ultimo_acceso.
-    last_login = models.DateTimeField(null=True, blank=True, db_column="ultimo_acceso")
+    last_login = models.DateTimeField(
+        null=True, blank=True, db_column="ultimo_acceso",
+        help_text="Última vez que la persona entró al sistema.",
+    )
 
     objects = UsuarioManager()
 
