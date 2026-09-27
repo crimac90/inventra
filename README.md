@@ -23,7 +23,7 @@ Los archivos se nombran sin espacios, con las palabras separadas por guiones baj
 - `docs/analisis`: requisitos (IEEE 830), historias de usuario, product backlog, y mapa de empatía con lean canvas.
 - `docs/diseno`: análisis y diseño en UML, diseño de la base de datos (MER, modelo relacional y diccionario de datos) y documento técnico de diseño de la interfaz.
 - `docs/proyecto-de-grado`: documento del proyecto de grado (norma ICONTEC).
-- `docs/gestion`: hoja de ruta del proyecto, guía del tablero SCRUM y propuesta técnica y económica.
+- `docs/gestion`: propuesta técnica y económica del proyecto.
 - `docs/manuales`: manuales dirigidos al usuario final.
 - `INVENTRA`: código fuente del sistema (`backend`, `frontend`) y scripts de creación de la base de datos (`scripts_bd`).
 - `DESPLIEGUE_LOCAL.md`: instalación y puesta en marcha del sistema en un equipo local.
