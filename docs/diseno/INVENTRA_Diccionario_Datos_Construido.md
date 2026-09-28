@@ -1,6 +1,6 @@
 # INVENTRA — Diccionario de datos del sistema construido
 
-> Generado el 2026-09-26 con `py manage.py generar_diccionario_datos`  
+> Generado el 2026-09-27 con `py manage.py generar_diccionario_datos`  
 > Django 5.2.17 · motor mysql · base «inventra»  
 > **No se edita a mano:** se cambia el modelo y se vuelve a generar.
 
@@ -76,7 +76,7 @@ Historial de contratación de planes.
 | `id` | bigint AUTO_INCREMENT | No | PK | Identificador único interno de la fila. |
 | `licorera_id` | bigint | No | FK → `licorera` | Licorera dueña del registro; sostiene el aislamiento entre negocios. |
 | `plan_id` | bigint | No | FK → `plan` | Plan contratado en este período. |
-| `estado` | varchar(12) | No | — | Estado actual de la suscripción. Valores admitidos: `activa`, `en_mora`, `suspendida`, `cancelada`. |
+| `estado` | varchar(12) | No | — | Estado actual de la suscripción. Valores admitidos: `en_prueba`, `activa`, `en_mora`, `suspendida`, `cancelada`. |
 | `fecha_inicio` | date | No | — | Inicio de la vigencia. |
 | `fecha_fin` | date | Sí | — | Fin de la vigencia. Vacío mientras esté vigente. |
 | `precio_pactado` | numeric(12, 2) | No | — | Precio congelado al contratar; los aumentos no cambian el histórico. |

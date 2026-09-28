@@ -12,16 +12,19 @@ from io import StringIO
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
+from datetime import timedelta
+
 from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 
 from seguridad.models import Rol, Usuario
 
-from .models import Licorera, Suscripcion
+from .models import Licorera, Plan, Suscripcion
 
 
 class RegistroLicoreraTests(TestCase):
@@ -301,3 +304,96 @@ class ScriptsSqlTests(TestCase):
 
         self.assertNotIn("INSERT INTO usuario", contenido)
         self.assertNotIn("demo.inventra.co", contenido)
+
+
+class SuscripcionVigenteTests(TestCase):
+    """
+    Qué suscripción manda hoy (RF-SUS-03).
+
+    POR QUÉ EXISTE ESTA CLASE
+    El 27/09/2026 se añadió el estado «en prueba» y se cambió la consulta que
+    decide cuál es la suscripción vigente. Las 64 pruebas de entonces siguieron
+    pasando, pero eso no probaba nada: ninguna creaba una suscripción en prueba ni
+    ponía una fecha de fin, así que ninguna ejecutaba la línea que había cambiado.
+    Es el mismo caso del 400 frente al 401 del módulo SEG: unas pruebas que pasan
+    solo dicen que no se rompió lo que ya miraban.
+    """
+
+    def setUp(self):
+        self.licorera = Licorera.objects.create(
+            nombre="Licorera de prueba", correo="contacto@prueba.com")
+        self.plan_basico = Plan.objects.get(nombre="Básico")
+        self.plan_pro = Plan.objects.get(nombre="Pro")
+        self.hoy = timezone.localdate()
+
+    def crear(self, estado, dias_hasta_el_fin=None, plan=None, dias_desde_el_inicio=0):
+        """Crea una suscripción con el estado y la vigencia que pida la prueba."""
+        return Suscripcion.objects.create(
+            licorera=self.licorera,
+            plan=plan or self.plan_basico,
+            estado=estado,
+            fecha_inicio=self.hoy - timedelta(days=dias_desde_el_inicio),
+            fecha_fin=(None if dias_hasta_el_fin is None
+                       else self.hoy + timedelta(days=dias_hasta_el_fin)),
+            precio_pactado=(plan or self.plan_basico).precio_mensual,
+        )
+
+    def test_una_prueba_vigente_es_la_suscripcion_que_manda(self):
+        suscripcion = self.crear(Suscripcion.Estado.EN_PRUEBA, dias_hasta_el_fin=15)
+        self.assertEqual(self.licorera.suscripcion_vigente(), suscripcion)
+        self.assertEqual(self.licorera.plan_vigente(), self.plan_basico)
+
+    def test_una_prueba_vencida_ayer_ya_no_vale(self):
+        self.crear(Suscripcion.Estado.EN_PRUEBA, dias_hasta_el_fin=-1)
+        self.assertIsNone(self.licorera.suscripcion_vigente())
+        self.assertIsNone(self.licorera.plan_vigente())
+
+    def test_una_prueba_que_termina_hoy_todavia_vale(self):
+        """El último día de la prueba es un día completo, no medio día."""
+        suscripcion = self.crear(Suscripcion.Estado.EN_PRUEBA, dias_hasta_el_fin=0)
+        self.assertEqual(self.licorera.suscripcion_vigente(), suscripcion)
+
+    def test_una_suscripcion_contratada_sin_fecha_de_fin_sigue_vigente(self):
+        """Comprobación de que el cambio no rompió el caso que ya funcionaba."""
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA)
+        self.assertEqual(self.licorera.suscripcion_vigente(), suscripcion)
+
+    def test_una_cuenta_en_mora_sigue_operando(self):
+        suscripcion = self.crear(Suscripcion.Estado.EN_MORA)
+        self.assertEqual(self.licorera.suscripcion_vigente(), suscripcion)
+
+    def test_una_suspendida_no_manda_aunque_no_tenga_fecha_de_fin(self):
+        """Suspendida deja consultar, pero no define un plan con el que operar."""
+        self.crear(Suscripcion.Estado.SUSPENDIDA)
+        self.assertIsNone(self.licorera.suscripcion_vigente())
+
+    def test_una_cancelada_no_manda(self):
+        self.crear(Suscripcion.Estado.CANCELADA)
+        self.assertIsNone(self.licorera.suscripcion_vigente())
+
+    def test_una_fila_historica_cerrada_no_desplaza_a_la_nueva(self):
+        """
+        Al cambiar de plan se cierra la fila anterior y se abre otra. La consulta
+        debe devolver la nueva, no la vieja, aunque la vieja siga en estado activa.
+        """
+        self.crear(Suscripcion.Estado.ACTIVA, dias_hasta_el_fin=-30,
+                   dias_desde_el_inicio=60)
+        nueva = self.crear(Suscripcion.Estado.ACTIVA, plan=self.plan_pro)
+        self.assertEqual(self.licorera.suscripcion_vigente(), nueva)
+        self.assertEqual(self.licorera.plan_vigente(), self.plan_pro)
+
+    def test_el_tope_de_usuarios_se_aplica_tambien_durante_la_prueba(self):
+        """
+        Una prueba no es una barra libre: entrega el plan Básico, con su tope de
+        un usuario. Si esto fallara, quince días bastarían para saltarse el límite.
+        """
+        self.crear(Suscripcion.Estado.EN_PRUEBA, dias_hasta_el_fin=15)
+        rol = Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA)
+        Usuario.objects.create_user(
+            correo="dueno@prueba.com", nombre_completo="Dueño",
+            password="Licorera2026", licorera=self.licorera, rol=rol)
+        self.assertFalse(self.licorera.puede_agregar_usuario())
+
+    def test_sin_ninguna_suscripcion_no_hay_plan(self):
+        self.assertIsNone(self.licorera.suscripcion_vigente())
+        self.assertIsNone(self.licorera.plan_vigente())

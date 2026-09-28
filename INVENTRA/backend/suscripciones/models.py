@@ -8,6 +8,8 @@ Corresponde a las tablas plan, licorera y suscripcion del diccionario de datos.
 """
 
 from django.db import models
+from django.db.models import Q
+from django.utils import timezone
 
 
 class Plan(models.Model):
@@ -90,13 +92,23 @@ class Licorera(models.Model):
 
     def suscripcion_vigente(self):
         """
-        Devuelve la suscripción activa del negocio, que es la que define qué
-        puede hacer. Si hay varias filas históricas, la vigente es la más
-        reciente sin fecha de fin.
+        Devuelve la suscripción que define hoy qué puede hacer el negocio.
+
+        Vigente significa dos cosas a la vez: que su estado permite operar
+        —en prueba, activa o en mora— y que no se le ha pasado la fecha.
+
+        La condición de la fecha tiene dos formas porque hay dos casos. Una
+        suscripción de plan contratado no tiene fecha de fin mientras esté vigente:
+        `fecha_fin` se rellena el día que se cierra, al cambiar de plan o al darse
+        de baja. Una suscripción de prueba nace con fecha de fin desde el primer
+        día. Si solo se mirara «sin fecha de fin», ninguna prueba sería vigente; si
+        solo se mirara la fecha, se colaría cualquier fila histórica ya cerrada.
         """
+        hoy = timezone.localdate()
         return (
             self.suscripciones
-            .filter(estado=Suscripcion.Estado.ACTIVA, fecha_fin__isnull=True)
+            .filter(estado__in=Suscripcion.ESTADOS_OPERATIVOS)
+            .filter(Q(fecha_fin__isnull=True) | Q(fecha_fin__gte=hoy))
             .select_related("plan")
             .order_by("-fecha_inicio")
             .first()
@@ -126,10 +138,27 @@ class Suscripcion(models.Model):
     """
 
     class Estado(models.TextChoices):
+        """
+        Los cinco estados por los que pasa una suscripción (RF-SUS-03).
+
+        El orden no es casual: es el ciclo de vida del cliente. Empieza en prueba,
+        pasa a activa cuando contrata, cae en mora si deja de pagar, se suspende si
+        la mora se prolonga, y se cancela si se va. Una prueba que vence sin contratar
+        pasa directamente a suspendida: el negocio conserva sus datos y puede
+        consultarlos, pero no registrar operaciones nuevas. Eso es lo que empuja a
+        contratar sin castigar a quien todavía no lo ha hecho.
+        """
+
+        EN_PRUEBA = "en_prueba", "En prueba"
         ACTIVA = "activa", "Activa"
         EN_MORA = "en_mora", "En mora"
         SUSPENDIDA = "suspendida", "Suspendida"
         CANCELADA = "cancelada", "Cancelada"
+
+    # Estados en los que la licorera puede registrar operaciones nuevas. Los demás
+    # dejan consultar, pero no escribir. Lo consultarán INV, VEN y los módulos que
+    # vengan, así que vive aquí y no repartido por cada vista.
+    ESTADOS_OPERATIVOS = ("en_prueba", "activa", "en_mora")
 
     licorera = models.ForeignKey(
         Licorera, on_delete=models.PROTECT, related_name="suscripciones",

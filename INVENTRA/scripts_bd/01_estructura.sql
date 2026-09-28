@@ -2,7 +2,7 @@
 --  INVENTRA — Inventario y ventas para licoreras
 --  Estructura de la base de datos (DDL)
 -- ============================================================
---  Generado el 2026-09-26 con py manage.py generar_scripts_sql
+--  Generado el 2026-09-27 con py manage.py generar_scripts_sql
 --  Django 5.2.17 · motor mysql · base «inventra»
 -- ============================================================
 
@@ -173,6 +173,8 @@ ALTER TABLE `usuario` ALTER COLUMN `correo_verificado` DROP DEFAULT;
 -- (no-op)
 
 -- suscripciones.0002_datos_planes: migración de datos, sin estructura
+
+-- suscripciones.0003_alter_licorera_direccion_alter_licorera_telefono_and_more: migración de datos, sin estructura
 
 
 -- ----------------------------------------------------------
