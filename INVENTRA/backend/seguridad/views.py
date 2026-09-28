@@ -163,8 +163,12 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             plan = request.user.licorera.plan_vigente()
             return Response(
                 {
+                    # «1 usuario(s)» es una cadena de programación, no español.
+                    # El documento de diseño prohíbe que el usuario vea rastros
+                    # técnicos, y el mensaje los tenía.
                     "detalle": (
-                        f"El plan {plan.nombre} permite {plan.maximo_usuarios} usuario(s). "
+                        f"El plan {plan.nombre} permite "
+                        f"{'un usuario' if plan.maximo_usuarios == 1 else f'{plan.maximo_usuarios} usuarios'}. "
                         "Para agregar más, cambia de plan."
                     )
                 },
