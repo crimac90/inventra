@@ -10,7 +10,7 @@
  --navy:#1F3864;--navy2:#2E5496;--cta:#12B76A;--cta-accion:#0D804A;--cta-texto:#FFFFFF;--bg:#F5F8FC;--surface:#FFFFFF;--border:#E4E9F2;
  --text:#1A2233;--muted:#6B7280;--warn:#F79009;--danger:#F04438;--danger-accion:#D92D20;--chip:#EEF3FB;
 }
-.dark{--bg:#0F1522;--surface:#182234;--border:#263247;--text:#E6EAF2;--muted:#9AA5B8;--navy2:#3E6DB5;--chip:#20304A;--cta:#2CD98A;--cta-accion:#2CD98A;--cta-texto:#0F1522;color:var(--text)}
+.dark{--bg:#0F1522;--surface:#182234;--border:#263247;--text:#E6EAF2;--muted:#9AA5B8;--navy2:#6E9BE0;--navy2-texto:#0F1522;--chip:#20304A;--cta:#2CD98A;--cta-accion:#2CD98A;--cta-texto:#0F1522;color:var(--text)}
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',system-ui,Arial,sans-serif}
 body{background:#E9EEF5;color:var(--text);padding:26px;line-height:1.45}
 .wrap{max-width:1120px;margin:0 auto}
@@ -44,7 +44,7 @@ h1.title{font-size:24px;font-weight:700;color:#1F3864;margin-bottom:4px}
 .tb .h{font-size:17px;font-weight:700}
 .tb .r{display:flex;align-items:center;gap:12px}
 .pill{background:var(--chip);color:var(--navy2);font-weight:600;font-size:13px;padding:6px 12px;border-radius:20px}
-.avatar{width:34px;height:34px;border-radius:50%;background:var(--navy2);color:#fff;display:grid;place-items:center;font-weight:600;font-size:13px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--navy2);color:var(--navy2-texto,#fff);display:grid;place-items:center;font-weight:600;font-size:13px}
 .content{padding:22px;overflow:auto}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:15px}
@@ -151,7 +151,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
    <div class="cta2"><span class="btn btn-cta">Empieza gratis</span><span class="btn btn-out" style="color:#fff;border-color:#3a557f">Ver demostración</span></div>
  </div>
  <div class="feats">
-   <div class="ft"><div class="ic">1</div><h5>Inventario en tiempo real</h5><p>Existencias siempre al día, con alertas de stock bajo y control por lote (PEPS).</p></div>
+   <div class="ft"><div class="ic">1</div><h5>Inventario en tiempo real</h5><p>Existencias siempre al día, con alertas de existencias bajas y control por lote (PEPS).</p></div>
    <div class="ft"><div class="ic">2</div><h5>Punto de venta rápido</h5><p>Cobra en segundos, con varios medios de pago y comprobante al instante.</p></div>
    <div class="ft"><div class="ic">3</div><h5>Reportes que sirven</h5><p>Ventas, rotación y utilidad real para tomar mejores decisiones.</p></div>
  </div>
@@ -162,7 +162,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 <div class="card login">
  <div class="brandp"><div class="logo" style="color:#fff"><span class="mk"></span> INVENTRA</div>
    <div><div class="tg">Controla tu inventario y tus ventas, sin complicarte.</div><div class="sb">El punto de venta especializado para licoreras.</div>
-     <div class="feat"><div><b>✓</b> Ventas e inventario en tiempo real</div><div><b>✓</b> Alertas de stock y reportes de utilidad</div><div><b>✓</b> Soporte local en español</div></div></div>
+     <div class="feat"><div><b>✓</b> Ventas e inventario en tiempo real</div><div><b>✓</b> Alertas de existencias y reportes de utilidad</div><div><b>✓</b> Soporte local en español</div></div></div>
    <div class="sb" style="font-size:12px">© 2026 INVENTRA</div></div>
  <div class="formp"><h3>Iniciar sesión</h3><div class="hs">Ingresa a tu cuenta para gestionar tu licorera.</div>
    <div class="field"><label>Correo electrónico</label><input type="email" placeholder="nombre@correo.com"></div>
@@ -206,11 +206,11 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
      <div class="kpis">
        <div class="kpi"><div class="k">Ventas de hoy</div><div class="v">$1.240.000</div><div class="d up">▲ 12% vs. ayer</div></div>
        <div class="kpi"><div class="k">Productos activos</div><div class="v">318</div><div class="d" style="color:var(--muted)">en catálogo</div></div>
-       <div class="kpi"><div class="k">Stock bajo</div><div class="v" style="color:var(--warn)">7</div><div class="d" style="color:var(--warn)">requieren reabastecer</div></div>
+       <div class="kpi"><div class="k">Existencias bajas</div><div class="v" style="color:var(--warn)">7</div><div class="d" style="color:var(--warn)">requieren reabastecer</div></div>
        <div class="kpi"><div class="k">Utilidad del mes</div><div class="v">$6.980.000</div><div class="d up">▲ 8%</div></div>
      </div>
      <div class="two">
-       <div class="panel"><h4>Alertas de stock bajo <a class="link">Ver todo</a></h4>
+       <div class="panel"><h4>Alertas de existencias bajas <a class="link">Ver todo</a></h4>
          <div class="li"><span>Cerveza Águila 330ml</span><span class="stock st-low">4 uds</span></div>
          <div class="li"><span>Cerveza Poker 330ml</span><span class="stock st-low">6 uds</span></div>
          <div class="li"><span>Ron Viejo de Caldas 750ml</span><span class="stock st-out">Agotado</span></div>
@@ -235,12 +235,12 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
  <div class="main">
    <div class="tb"><div class="h">Inventario</div><div class="r"><span class="btn btn-cta" style="padding:9px 15px">+ Nuevo producto</span><span class="avatar">CM</span></div></div>
    <div class="content">
-     <div style="display:flex;gap:12px;margin-bottom:16px"><input class="search" placeholder="Buscar por nombre o código…" style="flex:1"><div class="chips"><span class="chip on">Todos</span><span class="chip">Bajo stock</span><span class="chip">Agotados</span></div></div>
+     <div style="display:flex;gap:12px;margin-bottom:16px"><input class="search" placeholder="Buscar por nombre o código…" style="flex:1"><div class="chips"><span class="chip on">Todos</span><span class="chip">Existencias bajas</span><span class="chip">Agotados</span></div></div>
      <div class="panel" style="padding:6px 16px">
      <table><thead><tr><th>Producto</th><th>Categoría</th><th>Precio venta</th><th>Existencias</th><th>Estado</th><th></th></tr></thead><tbody>
        <tr><td>Aguardiente Antioqueño 750ml</td><td><span class="tag">Aguardientes</span></td><td>$52.000</td><td>24</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Ron Medellín Añejo 750ml</td><td><span class="tag">Rones</span></td><td>$48.500</td><td>15</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
-       <tr><td>Cerveza Águila 330ml</td><td><span class="tag">Cervezas</span></td><td>$3.500</td><td>4</td><td><span class="stock st-low">Stock bajo</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Cerveza Águila 330ml</td><td><span class="tag">Cervezas</span></td><td>$3.500</td><td>4</td><td><span class="stock st-low">Existencias bajas</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Whisky Buchanan's 750ml</td><td><span class="tag">Whiskies</span></td><td>$185.000</td><td>9</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Ron Viejo de Caldas 750ml</td><td><span class="tag">Rones</span></td><td>$46.000</td><td>0</td><td><span class="stock st-out">Agotado</span></td><td><a class="link">Editar</a></td></tr>
      </tbody></table></div>
@@ -259,8 +259,8 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
    <div class="field"><label>Presentación</label><input placeholder="Botella 750ml"></div>
    <div class="field"><label>Precio de compra</label><input placeholder="$0"></div>
    <div class="field"><label>Precio de venta</label><input placeholder="$0"></div>
-   <div class="field"><label>Stock inicial</label><input placeholder="0"></div>
-   <div class="field"><label>Stock mínimo (alerta)</label><input placeholder="5"></div>
+   <div class="field"><label>Existencias iniciales</label><input placeholder="0"></div>
+   <div class="field"><label>Existencias mínimas (alerta)</label><input placeholder="5"></div>
  </div>
  <div class="field"><label>Código de barras</label><input placeholder="7701234567890"></div>
  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px"><button class="btn btn-out">Cancelar</button><button class="btn btn-cta">Guardar producto</button></div>
@@ -274,12 +274,12 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
    <div class="products"><input class="search" placeholder="Buscar producto o escanear código…">
      <div class="chips" style="margin-top:12px"><span class="chip on">Todos</span><span class="chip">Cervezas</span><span class="chip">Aguardientes</span><span class="chip">Rones</span><span class="chip">Whiskies</span></div>
      <div class="grid">
-       <div class="prod"><div class="nm">Aguardiente Antioqueño 750ml</div><div class="pr">$52.000</div><span class="stock st-ok">Stock: 24</span></div>
-       <div class="prod"><div class="nm">Ron Medellín Añejo 750ml</div><div class="pr">$48.500</div><span class="stock st-ok">Stock: 15</span></div>
-       <div class="prod"><div class="nm">Cerveza Águila 330ml</div><div class="pr">$3.500</div><span class="stock st-low">Stock: 4</span></div>
-       <div class="prod"><div class="nm">Whisky Buchanan's 750ml</div><div class="pr">$185.000</div><span class="stock st-ok">Stock: 9</span></div>
-       <div class="prod"><div class="nm">Vino Casillero 750ml</div><div class="pr">$42.000</div><span class="stock st-ok">Stock: 12</span></div>
-       <div class="prod"><div class="nm">Cerveza Poker 330ml</div><div class="pr">$3.200</div><span class="stock st-low">Stock: 6</span></div>
+       <div class="prod"><div class="nm">Aguardiente Antioqueño 750ml</div><div class="pr">$52.000</div><span class="stock st-ok">Existencias: 24</span></div>
+       <div class="prod"><div class="nm">Ron Medellín Añejo 750ml</div><div class="pr">$48.500</div><span class="stock st-ok">Existencias: 15</span></div>
+       <div class="prod"><div class="nm">Cerveza Águila 330ml</div><div class="pr">$3.500</div><span class="stock st-low">Existencias: 4</span></div>
+       <div class="prod"><div class="nm">Whisky Buchanan's 750ml</div><div class="pr">$185.000</div><span class="stock st-ok">Existencias: 9</span></div>
+       <div class="prod"><div class="nm">Vino Casillero 750ml</div><div class="pr">$42.000</div><span class="stock st-ok">Existencias: 12</span></div>
+       <div class="prod"><div class="nm">Cerveza Poker 330ml</div><div class="pr">$3.200</div><span class="stock st-low">Existencias: 6</span></div>
      </div></div>
    <div class="sale"><h4>Venta actual</h4>
      <div class="item"><div><div class="in">Aguardiente Antioqueño</div><div class="iq">2 × $52.000</div></div><div class="ip">$104.000</div></div>
@@ -348,8 +348,8 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
  </div></div>
  <div class="phone"><div class="st"></div><div class="ph-c">
    <div class="mtop"><div style="font-weight:700">Panel</div><span class="avatar" style="width:30px;height:30px">CM</span></div>
-   <div class="mkpi"><div class="kpi"><div class="k">Ventas hoy</div><div class="v">$1.24M</div></div><div class="kpi"><div class="k">Stock bajo</div><div class="v" style="color:var(--warn)">7</div></div><div class="kpi"><div class="k">Productos</div><div class="v">318</div></div><div class="kpi"><div class="k">Utilidad</div><div class="v">$6.9M</div></div></div>
-   <div class="panel" style="margin-top:12px;padding:12px"><h4 style="margin-bottom:8px">Stock bajo</h4>
+   <div class="mkpi"><div class="kpi"><div class="k">Ventas hoy</div><div class="v">$1.24M</div></div><div class="kpi"><div class="k">Existencias bajas</div><div class="v" style="color:var(--warn)">7</div></div><div class="kpi"><div class="k">Productos</div><div class="v">318</div></div><div class="kpi"><div class="k">Utilidad</div><div class="v">$6.9M</div></div></div>
+   <div class="panel" style="margin-top:12px;padding:12px"><h4 style="margin-bottom:8px">Existencias bajas</h4>
      <div class="li"><span style="font-size:13px">Cerveza Águila</span><span class="stock st-low">4</span></div>
      <div class="li"><span style="font-size:13px">Ron Viejo Caldas</span><span class="stock st-out">0</span></div></div>
    <div class="bnav" style="margin-top:14px"><div class="on">Panel</div><div>Inventario</div><div>Vender</div><div>Reportes</div></div>
@@ -378,9 +378,9 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
     <div class="content"><div class="kpis">
       <div class="kpi"><div class="k">Ventas de hoy</div><div class="v">$1.240.000</div><div class="d up">▲ 12%</div></div>
       <div class="kpi"><div class="k">Productos</div><div class="v">318</div></div>
-      <div class="kpi"><div class="k">Stock bajo</div><div class="v" style="color:var(--warn)">7</div></div>
+      <div class="kpi"><div class="k">Existencias bajas</div><div class="v" style="color:var(--warn)">7</div></div>
       <div class="kpi"><div class="k">Utilidad del mes</div><div class="v">$6.98M</div><div class="d up">▲ 8%</div></div></div>
-     <div class="two"><div class="panel"><h4>Alertas de stock bajo</h4>
+     <div class="two"><div class="panel"><h4>Alertas de existencias bajas</h4>
        <div class="li"><span>Cerveza Águila 330ml</span><span class="stock st-low">4 uds</span></div>
        <div class="li"><span>Ron Viejo de Caldas 750ml</span><span class="stock st-out">Agotado</span></div>
        <div class="li"><span>Vino Gato Negro 750ml</span><span class="stock st-low">5 uds</span></div></div>
