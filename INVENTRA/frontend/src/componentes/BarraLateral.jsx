@@ -15,6 +15,8 @@
 
 import { NavLink } from "react-router-dom";
 
+import InterruptorTema from "./InterruptorTema";
+
 const ICONOS = {
   panel: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -103,6 +105,8 @@ export default function BarraLateral({ esAdministrador }) {
       </nav>
 
       <div className="grow"></div>
+
+      <InterruptorTema />
 
       <NavLink to="/perfil" className={clase}>
         {ICONOS.perfil} Mi perfil

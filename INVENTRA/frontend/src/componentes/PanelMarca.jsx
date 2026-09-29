@@ -8,11 +8,21 @@
   Los textos vienen del prototipo y del manual de marca; no se inventan.
 */
 
+import InterruptorTema from "./InterruptorTema";
+
 export default function PanelMarca({ titular, frase, vinetas }) {
   return (
     <div className="marca">
-      <div className="logo logo-claro">
-        <span className="mk" aria-hidden="true"></span> INVENTRA
+      {/*
+        El interruptor de modo vive aqui y no en cada pantalla porque este panel
+        es el unico bloque que comparten las cuatro pantallas de acceso. Quien
+        todavia no ha entrado tambien elige como quiere ver la aplicacion.
+      */}
+      <div className="marca-cabecera">
+        <div className="logo logo-claro">
+          <span className="mk" aria-hidden="true"></span> INVENTRA
+        </div>
+        <InterruptorTema className="interruptor-marca" soloIcono />
       </div>
 
       <div>

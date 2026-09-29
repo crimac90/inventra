@@ -10,7 +10,8 @@
 
 :root {
   --navy: #1f3864;
-  --navy2: #2e5496;
+  --navy2: #2e5496;
+  --navy2-texto: #ffffff;
   --cta: #12b76a;
   --cta-accion: #0d804a;
   --cta-texto: #ffffff;
@@ -24,6 +25,20 @@
   --danger-accion: #d92d20;
   --chip: #eef3fb;
 
+  /*
+    Colores de estado. Estaban escritos sueltos en cinco reglas de dos hojas
+    distintas, que es justo lo que impide tener un modo oscuro: no hay un sitio
+    donde cambiarlos. El verde fuerte es el verde de accion del documento
+    (#0D804A); antes una de las reglas usaba #0E7A4E, que no esta en la paleta.
+  */
+  --ok-suave: #e7f7ef;
+  --ok-fuerte: #0d804a;
+  --err-suave: #fdecec;
+  --err-fuerte: #b42318;
+
+  /* Halo del campo con el foco puesto. */
+  --foco: rgba(46, 84, 150, 0.15);
+
   /* Escala de espaciado de cuatro, como en el documento de diseno. */
   --e1: 4px;
   --e2: 8px;
@@ -34,6 +49,56 @@
 
   --radio: 10px;
   --radio-grande: 16px;
+}
+
+/*
+  --- Modo oscuro --------------------------------------------------------
+
+  Los valores son los del apartado 4.2 del documento tecnico de diseno y los
+  mismos que dibuja el bloque 11 del prototipo. Solo cambian fondo, superficie,
+  borde, texto y los tonos de estado; la estructura, la jerarquia y los
+  componentes son los mismos, como exige el apartado 10.3.
+
+  El azul de la barra lateral NO cambia: es azul en los dos modos, igual que en
+  el prototipo, asi que el blanco y los grises que van encima siguen escritos
+  donde se usan y no necesitan variante.
+
+  Aqui solo hay un selector, `[data-tema="oscuro"]`, y no una consulta
+  `prefers-color-scheme` en paralelo. La preferencia del sistema operativo se
+  resuelve en `src/tema/tema.js`, que es quien escribe el atributo: de ese modo
+  la lista de colores vive en un solo sitio en lugar de estar duplicada, y el
+  usuario puede elegir un modo distinto al del sistema sin pelear con la
+  especificidad del CSS.
+*/
+
+:root[data-tema="oscuro"] {
+  --bg: #0f1522;
+  --surface: #182234;
+  --border: #263247;
+  --text: #e6eaf2;
+  --muted: #9aa5b8;
+  /*
+    El azul primario del modo oscuro es el #6E9BE0 del apartado 4.2, no un
+    aclarado del azul del modo claro. El prototipo dibujaba #3E6DB5, que sobre
+    la superficie oscura da 3,08:1 y sobre el chip 2,56:1 —por debajo del 4,5:1
+    que el propio documento exige—. Con el valor del documento son 5,64 y 4,69.
+    Y encima de ese azul el texto pasa a ser oscuro: en blanco daria 2,83.
+  */
+  --navy2: #6e9be0;
+  --navy2-texto: #0f1522;
+  --chip: #20304a;
+
+  /* Sobre fondo oscuro el verde de marca si contrasta, y lleva texto oscuro. */
+  --cta: #2cd98a;
+  --cta-accion: #2cd98a;
+  --cta-texto: #0f1522;
+
+  --ok-suave: #123024;
+  --ok-fuerte: #4ade9b;
+  --err-suave: #3a1717;
+  --err-fuerte: #f58a82;
+
+  --foco: rgba(110, 155, 224, 0.35);
 }
 
 * {
@@ -165,7 +230,7 @@ a.btn {
 .field select:focus {
   outline: none;
   border-color: var(--navy2);
-  box-shadow: 0 0 0 3px rgba(46, 84, 150, 0.15);
+  box-shadow: 0 0 0 3px var(--foco);
 }
 
 .field input[aria-invalid="true"],
@@ -188,7 +253,7 @@ a.btn {
 }
 
 .msg.err {
-  color: #b42318;
+  color: var(--err-fuerte);
 }
 
 /* El aviso de bloque se usa para los errores que no pertenecen a un campo
@@ -202,13 +267,13 @@ a.btn {
 }
 
 .aviso.err {
-  background: #fdecec;
-  color: #b42318;
+  background: var(--err-suave);
+  color: var(--err-fuerte);
 }
 
 .aviso.ok {
-  background: #e7f7ef;
-  color: #0e7a4e;
+  background: var(--ok-suave);
+  color: var(--ok-fuerte);
 }
 
 .link {

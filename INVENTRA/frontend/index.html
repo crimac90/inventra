@@ -14,6 +14,27 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <!--
+      El modo claro u oscuro se pinta ANTES de que el navegador dibuje nada. Si
+      esperara a que React monte, la pantalla daria un fogonazo blanco antes de
+      ponerse oscura. Es la unica logica que vive fuera de la aplicacion, y por
+      eso repite lo minimo de src/tema/tema.js: la clave y el atributo.
+    -->
+    <script>
+      try {
+        var elegido = localStorage.getItem("inventra.tema");
+        document.documentElement.setAttribute(
+          "data-tema",
+          elegido === "claro" || elegido === "oscuro"
+            ? elegido
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "oscuro"
+              : "claro",
+        );
+      } catch (e) {
+        document.documentElement.setAttribute("data-tema", "claro");
+      }
+    </script>
   </head>
   <body>
     <!-- React monta toda la aplicacion dentro de este unico elemento. -->

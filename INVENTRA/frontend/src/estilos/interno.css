@@ -146,7 +146,7 @@
   height: 34px;
   border-radius: 50%;
   background: var(--navy2);
-  color: #fff;
+  color: var(--navy2-texto);
   display: grid;
   place-items: center;
   font-weight: 600;
@@ -313,13 +313,13 @@ td.acciones-fila button {
 }
 
 .estado.activo {
-  background: #e7f7ef;
-  color: #0d804a;
+  background: var(--ok-suave);
+  color: var(--ok-fuerte);
 }
 
 .estado.inactivo {
-  background: #fdecec;
-  color: #b42318;
+  background: var(--err-suave);
+  color: var(--err-fuerte);
 }
 
 .tag {
@@ -419,4 +419,24 @@ td.acciones-fila button {
   .content {
     padding: var(--e4);
   }
+}
+
+/*
+  Franja de correo sin confirmar. Usa el color de advertencia, no el de error:
+  no hay nada roto, falta un paso. Se apoya en la clase `.aviso` de base.css y
+  solo añade la distribución en línea con su botón.
+*/
+.aviso.verificacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e4);
+  flex-wrap: wrap;
+  background: var(--chip);
+  color: var(--text);
+  border-left: 4px solid var(--warn);
+}
+
+.aviso.verificacion .link {
+  flex: none;
 }

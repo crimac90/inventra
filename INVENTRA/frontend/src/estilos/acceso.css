@@ -34,6 +34,43 @@
   justify-content: space-between;
 }
 
+/*
+  Cabecera del panel: el logotipo a la izquierda y el interruptor de modo a la
+  derecha. El boton usa el mismo blanco translucido que las vinetas, de modo que
+  se apoya en el azul sin introducir un color nuevo.
+*/
+.marca-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+}
+
+.interruptor-marca {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.interruptor-marca:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.interruptor-marca svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+
 .marca .tg {
   font-size: 24px;
   font-weight: 700;
