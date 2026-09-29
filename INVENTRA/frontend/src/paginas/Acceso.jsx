@@ -16,7 +16,7 @@ import { useSesion } from "../sesion/ContextoSesion";
 
 const VINETAS = [
   { marca: "✓", texto: "Ventas e inventario en tiempo real" },
-  { marca: "✓", texto: "Alertas de stock y reportes de utilidad" },
+  { marca: "✓", texto: "Alertas de existencias y reportes de utilidad" },
   { marca: "✓", texto: "Soporte local en español" },
 ];
 

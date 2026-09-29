@@ -2,7 +2,7 @@
   Panel principal (punto 8.2 del documento tecnico de diseno).
 
   El prototipo muestra aqui cuatro indicadores: ventas de hoy, productos activos,
-  stock bajo y utilidad del mes. Ninguno se puede mostrar todavia, porque sus
+  existencias bajas y utilidad del mes. Ninguno se puede mostrar todavia, porque sus
   datos vienen de los modulos de inventario y ventas, que aun no existen.
 
   La decision fue NO inventar esos numeros. Un panel con cifras fijas escritas a
