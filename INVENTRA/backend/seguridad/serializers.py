@@ -17,6 +17,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .correo import leer_verificacion
 from .models import Rol, Usuario
 
 # Mensaje único para credenciales incorrectas. Es deliberadamente genérico: si
@@ -41,7 +42,11 @@ class UsuarioSerializer(serializers.ModelSerializer):
         fields = [
             "id", "nombre_completo", "correo", "telefono",
             "rol", "licorera_id", "licorera_nombre", "activo",
+            # El frontend lo usa para mostrar —o no— el aviso de correo sin
+            # confirmar. Es de solo lectura: se cambia abriendo el enlace.
+            "correo_verificado",
         ]
+        read_only_fields = ["correo_verificado"]
 
 
 class InicioSesionSerializer(TokenObtainPairSerializer):
@@ -378,4 +383,46 @@ class CambiarContrasenaSerializer(serializers.Serializer):
         usuario = self.context["request"].user
         usuario.set_password(self.validated_data["contrasena_nueva"])
         usuario.save(update_fields=["password"])
+        return usuario
+
+
+ENLACE_VERIFICACION_INVALIDO = (
+    "El enlace de confirmación no es válido o ya venció. Pide uno nuevo desde tu perfil."
+)
+
+
+class VerificarCorreoSerializer(serializers.Serializer):
+    """
+    Confirma la dirección de correo de una cuenta (D-10).
+
+    No pide autenticación: quien abre el enlace puede estar en otro navegador o
+    en el teléfono, sin sesión. Lo que autoriza la operación es la firma del
+    token, no la sesión.
+
+    El token lleva dentro el identificador y el correo con el que se emitió. Se
+    comprueban los dos: si el correo de la cuenta cambió después de enviarlo,
+    el enlace ya no vale, porque confirmaría una dirección que no es.
+    """
+
+    token = serializers.CharField()
+
+    def validate(self, attrs):
+        contenido = leer_verificacion(attrs["token"])
+        if contenido is None:
+            raise serializers.ValidationError({"token": ENLACE_VERIFICACION_INVALIDO})
+
+        usuario = Usuario.objects.filter(pk=contenido.get("uid"), activo=True).first()
+        if usuario is None or usuario.correo != contenido.get("correo"):
+            raise serializers.ValidationError({"token": ENLACE_VERIFICACION_INVALIDO})
+
+        attrs["usuario"] = usuario
+        return attrs
+
+    def save(self, **kwargs):
+        usuario = self.validated_data["usuario"]
+        # Abrir dos veces el mismo enlace no es un error: lo que iba a quedar
+        # confirmado ya lo está. Solo se escribe si hace falta.
+        if not usuario.correo_verificado:
+            usuario.correo_verificado = True
+            usuario.save(update_fields=["correo_verificado"])
         return usuario

@@ -93,3 +93,16 @@ export function reactivarUsuario(id) {
   return api.post(`/seguridad/usuarios/${id}/reactivar/`, {});
 }
 
+/*
+  Confirmación del correo (D-10). La pantalla que llama a esta función se abre
+  desde el enlace del mensaje, sin sesión iniciada: lo que autoriza la operación
+  es la firma del token, no la cabecera de autenticación.
+*/
+export function verificarCorreo(token) {
+  return api.post("/seguridad/verificar-correo/", { token });
+}
+
+/* Pide un enlace nuevo. Esta sí exige sesión: se manda al correo de quien entró. */
+export function reenviarVerificacion() {
+  return api.post("/seguridad/reenviar-verificacion/", {});
+}

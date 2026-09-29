@@ -6,10 +6,15 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+import logging
+
+from seguridad.correo import enviar_correo_verificacion
 from seguridad.serializers import InicioSesionSerializer, UsuarioSerializer
 
 from .models import Plan
 from .serializers import LicoreraSerializer, PlanSerializer, RegistroLicoreraSerializer
+
+registro_log = logging.getLogger(__name__)
 
 
 class PlanesView(ListAPIView):
@@ -45,6 +50,16 @@ class RegistroLicoreraView(APIView):
         usuario = creado["usuario"]
         tokens = InicioSesionSerializer.get_token(usuario)
         usuario.registrar_ingreso_exitoso()
+
+        # El enlace de confirmación sale aquí y no dentro del serializador: crear
+        # la licorera es una operación de base de datos y mandar un correo es una
+        # llamada a un servicio de fuera. Si el correo falla, la cuenta ya existe
+        # y la persona puede pedir otro enlace desde su perfil; lo que no puede
+        # pasar es que un servicio caído impida registrarse (D-10).
+        try:
+            enviar_correo_verificacion(usuario)
+        except Exception:
+            registro_log.exception("No se pudo enviar el correo de verificación")
 
         return Response(
             {

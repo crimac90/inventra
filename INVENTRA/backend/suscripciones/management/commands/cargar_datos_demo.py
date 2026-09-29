@@ -57,6 +57,13 @@ NEGOCIOS = [
 SUPERADMINISTRADOR = ("Operador INVENTRA", f"plataforma{DOMINIO}")
 
 
+def plural(cantidad, singular, plural_irregular=None):
+    """«1 usuario», «3 usuarios»: el numero manda sobre la palabra."""
+    if cantidad == 1:
+        return "%d %s" % (cantidad, singular)
+    return "%d %s" % (cantidad, plural_irregular or singular + "s")
+
+
 class Command(BaseCommand):
     help = "Carga (o retira) el juego de cuentas de demostración."
 
@@ -152,8 +159,11 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.WARNING(
-                f"Retirado: {usuarios} usuario(s), {suscripciones} suscripción(es), "
-                f"{licoreras} licorera(s)."
+                # Se escribe el plural, no «(s)»: la misma regla que se aplica a
+                # los mensajes de la aplicación vale para lo que sale por consola.
+                f"Retirado: {plural(usuarios, 'usuario')}, "
+                f"{plural(suscripciones, 'suscripción', 'suscripciones')}, "
+                f"{plural(licoreras, 'licorera')}."
             )
         )
 

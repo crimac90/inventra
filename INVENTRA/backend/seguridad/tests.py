@@ -21,6 +21,7 @@ from rest_framework import status
 
 from suscripciones.models import Licorera, Plan, Suscripcion
 
+from .correo import firmar_verificacion
 from .models import Rol, Usuario
 
 
@@ -663,3 +664,144 @@ class LimiteDePeticionesTests(TestCase):
         for _ in range(30):
             respuesta = self.client.get(url)
         self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+
+class VerificacionCorreoTests(TestCase):
+    """
+    Comprueba la confirmación del correo (D-10, bloque 1 del módulo SUS).
+
+    Lo que se quiere asegurar no es solo que el camino feliz funcione, sino los
+    tres bordes donde este tipo de enlace suele fallar: que abrirlo dos veces no
+    rompa nada, que deje de valer si el correo de la cuenta cambió, y que el
+    plazo se respete.
+    """
+
+    CONTRASENA = "ClaveSegura2026"
+
+    def setUp(self):
+        cache.clear()
+        self.licorera = crear_licorera("Verificacion")
+        self.usuario = Usuario.objects.create_user(
+            correo="sinverificar@licorera.com",
+            nombre_completo="Usuaria Sin Verificar",
+            password=self.CONTRASENA,
+            licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
+        )
+        self.url_verificar = reverse("verificar-correo")
+        self.url_reenviar = reverse("reenviar-verificacion")
+
+    def token_de(self, usuario=None):
+        return firmar_verificacion(usuario or self.usuario)
+
+    def verificar(self, token):
+        return self.client.post(self.url_verificar, {"token": token},
+                                content_type="application/json")
+
+    def autenticar(self, usuario=None):
+        usuario = usuario or self.usuario
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": usuario.correo, "password": self.CONTRASENA},
+            content_type="application/json",
+        )
+        return respuesta.json()["acceso"]
+
+    # --- el camino normal ---
+
+    def test_la_cuenta_nace_sin_verificar(self):
+        self.assertFalse(self.usuario.correo_verificado)
+
+    def test_el_enlace_confirma_el_correo(self):
+        respuesta = self.verificar(self.token_de())
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.usuario.refresh_from_db()
+        self.assertTrue(self.usuario.correo_verificado)
+
+    def test_abrir_el_enlace_dos_veces_responde_igual(self):
+        token = self.token_de()
+        self.assertEqual(self.verificar(token).status_code, status.HTTP_200_OK)
+        segunda = self.verificar(token)
+        self.assertEqual(segunda.status_code, status.HTTP_200_OK)
+        self.usuario.refresh_from_db()
+        self.assertTrue(self.usuario.correo_verificado)
+
+    def test_el_registro_envia_el_enlace_y_el_correo_lo_contiene(self):
+        mail.outbox = []
+        respuesta = self.client.post(
+            reverse("registrar-licorera"),
+            {
+                "nombre_negocio": "Licores del Centro",
+                "nombre_completo": "Dueña del Centro",
+                "correo": "duena@licores.com",
+                "password": self.CONTRASENA,
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("verificar-correo?token=", mail.outbox[0].body)
+        self.assertFalse(respuesta.json()["usuario"]["correo_verificado"])
+
+    # --- los bordes ---
+
+    def test_un_token_manipulado_no_sirve(self):
+        respuesta = self.verificar(self.token_de() + "x")
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.usuario.refresh_from_db()
+        self.assertFalse(self.usuario.correo_verificado)
+
+    def test_un_token_vencido_no_sirve(self):
+        token = self.token_de()
+        with self.settings(EMAIL_VERIFICATION_TIMEOUT=0):
+            respuesta = self.verificar(token)
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.usuario.refresh_from_db()
+        self.assertFalse(self.usuario.correo_verificado)
+
+    def test_si_el_correo_de_la_cuenta_cambio_el_enlace_deja_de_valer(self):
+        token = self.token_de()
+        self.usuario.correo = "otra@licorera.com"
+        self.usuario.save(update_fields=["correo"])
+        respuesta = self.verificar(token)
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.usuario.refresh_from_db()
+        self.assertFalse(self.usuario.correo_verificado)
+
+    def test_el_enlace_de_una_cuenta_inactiva_no_sirve(self):
+        token = self.token_de()
+        self.usuario.activo = False
+        self.usuario.save(update_fields=["activo"])
+        self.assertEqual(self.verificar(token).status_code, status.HTTP_400_BAD_REQUEST)
+
+    # --- el reenvío ---
+
+    def test_reenviar_exige_sesion(self):
+        respuesta = self.client.post(self.url_reenviar)
+        self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_reenviar_manda_un_correo_nuevo(self):
+        acceso = self.autenticar()
+        mail.outbox = []
+        respuesta = self.client.post(self.url_reenviar, HTTP_AUTHORIZATION=f"Bearer {acceso}")
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("verificar-correo?token=", mail.outbox[0].body)
+
+    def test_reenviar_con_el_correo_ya_confirmado_avisa_y_no_manda_nada(self):
+        self.verificar(self.token_de())
+        acceso = self.autenticar()
+        mail.outbox = []
+        respuesta = self.client.post(self.url_reenviar, HTTP_AUTHORIZATION=f"Bearer {acceso}")
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_el_enlace_reenviado_confirma_la_cuenta(self):
+        acceso = self.autenticar()
+        mail.outbox = []
+        self.client.post(self.url_reenviar, HTTP_AUTHORIZATION=f"Bearer {acceso}")
+        cuerpo = mail.outbox[0].body
+        token = cuerpo.split("verificar-correo?token=")[1].split()[0]
+        self.assertEqual(self.verificar(token).status_code, status.HTTP_200_OK)
+        self.usuario.refresh_from_db()
+        self.assertTrue(self.usuario.correo_verificado)

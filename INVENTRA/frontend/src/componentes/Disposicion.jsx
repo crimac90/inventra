@@ -7,6 +7,7 @@
   pantallas.
 */
 
+import AvisoVerificacion from "./AvisoVerificacion";
 import BarraLateral from "./BarraLateral";
 import Cabecera from "./Cabecera";
 import { useSesion } from "../sesion/ContextoSesion";
@@ -21,7 +22,10 @@ export default function Disposicion({ titulo, children }) {
 
       <div className="main">
         <Cabecera titulo={titulo} />
-        <main className="content">{children}</main>
+        <main className="content">
+          <AvisoVerificacion />
+          {children}
+        </main>
       </div>
     </div>
   );

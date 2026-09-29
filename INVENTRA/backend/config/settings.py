@@ -137,6 +137,12 @@ AUTH_PASSWORD_VALIDATORS = [
 # vencimiento no hay que programarlo ni guardarlo en ninguna tabla.
 PASSWORD_RESET_TIMEOUT = 30 * 60
 
+# El enlace que confirma el correo dura tres días, no treinta minutos: se lee
+# cuando la persona abre su bandeja, que puede ser al día siguiente, y mientras
+# tanto la cuenta funciona igual (D-10). El de la contraseña es corto porque
+# abre la puerta de una cuenta; este solo confirma una dirección.
+EMAIL_VERIFICATION_TIMEOUT = 3 * 24 * 60 * 60
+
 # Dirección del frontend: el enlace del correo lleva a una pantalla, no a la API.
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
@@ -216,6 +222,7 @@ REST_FRAMEWORK = {
         "ingreso": "20/hour",          # frena la prueba de contraseñas por fuerza bruta
         "recuperacion": "5/hour",      # evita usar el sistema para bombardear a un tercero
         "restablecimiento": "10/hour",
+        "verificacion": "10/hour",     # el botón de reenviar se puede pulsar muchas veces
     },
 }
 

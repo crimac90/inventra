@@ -8,11 +8,13 @@ from .views import (
     CierreSesionView,
     InicioSesionView,
     PerfilView,
+    ReenviarVerificacionView,
     RenovacionView,
     RestablecerContrasenaView,
     RolesView,
     SolicitarRecuperacionView,
     UsuarioViewSet,
+    VerificarCorreoView,
 )
 
 # El enrutador genera automáticamente las direcciones del conjunto de vistas:
@@ -30,6 +32,9 @@ urlpatterns = [
     path("cambiar-contrasena/", CambiarContrasenaView.as_view(), name="cambiar-contrasena"),
     path("recuperar/", SolicitarRecuperacionView.as_view(), name="recuperar"),
     path("restablecer/", RestablecerContrasenaView.as_view(), name="restablecer"),
+    path("verificar-correo/", VerificarCorreoView.as_view(), name="verificar-correo"),
+    path("reenviar-verificacion/", ReenviarVerificacionView.as_view(),
+         name="reenviar-verificacion"),
     path("roles/", RolesView.as_view(), name="roles"),
     path("", include(enrutador.urls)),
 ]

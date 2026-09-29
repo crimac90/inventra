@@ -15,6 +15,7 @@ import Recuperar from "./paginas/Recuperar";
 import Registro from "./paginas/Registro";
 import Usuarios from "./paginas/Usuarios";
 import Restablecer from "./paginas/Restablecer";
+import VerificarCorreo from "./paginas/VerificarCorreo";
 import RutaPrivada from "./sesion/RutaPrivada";
 
 export default function App() {
@@ -32,6 +33,8 @@ export default function App() {
         aqui, hay que cambiarla alli: el enlace del correo dejaria de funcionar.
       */}
       <Route path="/restablecer-contrasena" element={<Restablecer />} />
+      {/* Igual que la anterior: la arma el backend en seguridad/correo.py. */}
+      <Route path="/verificar-correo" element={<VerificarCorreo />} />
 
       {/* Internas: exigen sesion. */}
       <Route

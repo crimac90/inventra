@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .correo import enviar_correo_recuperacion
+from .correo import enviar_correo_recuperacion, enviar_correo_verificacion
 from .models import Rol, Usuario
 from .permissions import EsAdministradorDeLicorera
 from .serializers import (
@@ -29,6 +29,7 @@ from .serializers import (
     UsuarioActualizarSerializer,
     UsuarioCrearSerializer,
     UsuarioSerializer,
+    VerificarCorreoSerializer,
 )
 
 registro = logging.getLogger(__name__)
@@ -291,5 +292,65 @@ class RestablecerContrasenaView(APIView):
         serializador.guardar()
         return Response(
             {"detalle": "Contraseña actualizada. Ya puedes ingresar con la nueva."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class VerificarCorreoView(APIView):
+    """
+    Confirmación del correo desde el enlace recibido (D-10).
+
+    Es pública por la misma razón que el restablecimiento: quien abre el enlace
+    puede estar en otro navegador o en el teléfono, sin sesión iniciada. Lo que
+    autoriza la operación es la firma del token.
+
+    Abrir dos veces el mismo enlace responde lo mismo la segunda vez. No es un
+    descuido: el resultado que el usuario pidió —su correo confirmado— es el
+    mismo, y un error ahí solo lo confundiría.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_scope = "verificacion"
+
+    def post(self, request):
+        serializador = VerificarCorreoSerializer(data=request.data)
+        serializador.is_valid(raise_exception=True)
+        serializador.save()
+        return Response(
+            {"detalle": "Tu correo quedó confirmado."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ReenviarVerificacionView(APIView):
+    """
+    Reenvío del enlace de confirmación (D-10).
+
+    Esta sí exige sesión, y por eso no necesita responder de forma ambigua como
+    la recuperación de contraseña: el correo se manda a la dirección de quien
+    está autenticado, así que no sirve para averiguar qué cuentas existen ni
+    para bombardear a un tercero. Aun así lleva límite por origen, porque es un
+    botón que se puede pulsar muchas veces seguidas.
+    """
+
+    permission_classes = [IsAuthenticated]
+    throttle_scope = "verificacion"
+
+    def post(self, request):
+        usuario = request.user
+        if usuario.correo_verificado:
+            return Response(
+                {"detalle": "Tu correo ya está confirmado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            enviar_correo_verificacion(usuario)
+        except Exception:
+            # Igual que en la recuperación: si el servicio de correo falla, se
+            # deja el rastro en el registro del servidor y no se le muestra al
+            # usuario un error técnico que no puede resolver.
+            registro.exception("No se pudo reenviar el correo de verificación")
+        return Response(
+            {"detalle": "Te enviamos un enlace nuevo a %s." % usuario.correo},
             status=status.HTTP_200_OK,
         )
