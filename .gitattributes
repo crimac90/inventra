@@ -1,0 +1,21 @@
+# Finales de linea.
+#
+# El proyecto se escribe en Windows, que termina las lineas con CR+LF, y el
+# repositorio las guarda con LF. Sin esta regla cada archivo tocado en Windows
+# aparece reescrito entero en el commit, y los cambios reales se pierden entre
+# cincuenta archivos que solo cambiaron de fin de linea.
+#
+# `text=auto eol=lf` deja que git normalice a LF al guardar y devuelva al disco
+# lo que cada sistema use. No cambia el contenido de ningun archivo.
+* text=auto eol=lf
+
+# Archivos binarios: git no debe tocarlos.
+*.docx  binary
+*.xlsx  binary
+*.pptx  binary
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
