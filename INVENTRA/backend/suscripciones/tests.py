@@ -54,14 +54,22 @@ class RegistroLicoreraTests(TestCase):
 
         self.assertEqual(usuario.licorera_id, licorera.id)
         self.assertEqual(usuario.rol.nombre, Rol.ADMINISTRADOR_LICORERA)
-        self.assertEqual(suscripcion.plan.nombre, "Básico")
-        self.assertEqual(suscripcion.estado, Suscripcion.Estado.ACTIVA)
+        # La prueba corre sobre el plan Pro: el manual promete «todas las
+        # funciones disponibles» durante los quince días.
+        self.assertEqual(suscripcion.plan.nombre, "Pro")
+        self.assertEqual(suscripcion.estado, Suscripcion.Estado.EN_PRUEBA)
 
-    def test_el_precio_queda_congelado_en_la_suscripcion(self):
-        """El precio pactado se copia al contratar: los aumentos no cambian el histórico."""
+    def test_la_prueba_no_se_cobra(self):
+        """
+        El precio pactado de la prueba es cero, no el del plan.
+
+        El precio se congela el día que se contrata, en la fila que abra ese
+        contrato (RF-SUS-02). Copiar aquí el precio del Pro diría que el negocio
+        debe 109.900 pesos por unos días que son gratis.
+        """
         self.registrar()
         suscripcion = Suscripcion.objects.get()
-        self.assertEqual(suscripcion.precio_pactado, suscripcion.plan.precio_mensual)
+        self.assertEqual(suscripcion.precio_pactado, 0)
 
     def test_registro_devuelve_tokens_para_entrar_de_una_vez(self):
         respuesta = self.registrar().json()
@@ -397,3 +405,121 @@ class SuscripcionVigenteTests(TestCase):
     def test_sin_ninguna_suscripcion_no_hay_plan(self):
         self.assertIsNone(self.licorera.suscripcion_vigente())
         self.assertIsNone(self.licorera.plan_vigente())
+
+
+class PeriodoDePruebaTests(TestCase):
+    """
+    Comprueba la prueba gratuita de quince días (RF-SUS-01 y RF-SUS-03).
+
+    Lo que se vigila aquí es el borde del calendario, que es donde estas cosas
+    fallan: el primer día, el último día y el día siguiente. Los tres se
+    comprueban moviendo la fecha de fin de la suscripción, no esperando quince
+    días.
+    """
+
+    DATOS = {
+        "nombre_negocio": "Licorera de Prueba",
+        "nombre_completo": "Dueña de Prueba",
+        "correo": "duena@prueba.com",
+        "password": "Licorera2026",
+    }
+
+    def setUp(self):
+        cache.clear()
+        self.client.post(reverse("registrar-licorera"), self.DATOS,
+                         content_type="application/json")
+        self.licorera = Licorera.objects.get(nombre=self.DATOS["nombre_negocio"])
+        self.suscripcion = Suscripcion.objects.get(licorera=self.licorera)
+        self.url = reverse("mi-suscripcion")
+
+    def entrar(self):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": self.DATOS["correo"], "password": self.DATOS["password"]},
+            content_type="application/json",
+        )
+        return respuesta.json()["acceso"]
+
+    def consultar(self):
+        return self.client.get(self.url, HTTP_AUTHORIZATION=f"Bearer {self.entrar()}")
+
+    # --- cómo nace ---
+
+    def test_la_prueba_dura_quince_dias(self):
+        self.assertEqual(self.suscripcion.fecha_inicio, timezone.localdate())
+        self.assertEqual(
+            self.suscripcion.fecha_fin,
+            timezone.localdate() + timedelta(days=Suscripcion.DIAS_DE_PRUEBA),
+        )
+
+    def test_la_prueba_habilita_todas_las_funciones(self):
+        """Con el plan Pro, el negocio puede crear más de un usuario durante la prueba."""
+        plan = self.licorera.plan_vigente()
+        self.assertEqual(plan.nombre, "Pro")
+        self.assertIsNone(plan.maximo_usuarios)
+        self.assertTrue(self.licorera.puede_agregar_usuario())
+
+    # --- el borde del calendario ---
+
+    def test_recien_registrada_quedan_quince_dias(self):
+        self.assertEqual(self.suscripcion.dias_restantes(), Suscripcion.DIAS_DE_PRUEBA)
+        self.assertTrue(self.suscripcion.esta_vigente())
+
+    def test_el_ultimo_dia_quedan_cero_dias_y_todavia_opera(self):
+        self.suscripcion.fecha_fin = timezone.localdate()
+        self.suscripcion.save(update_fields=["fecha_fin"])
+        self.assertEqual(self.suscripcion.dias_restantes(), 0)
+        self.assertTrue(self.suscripcion.esta_vigente())
+        self.assertIsNotNone(self.licorera.suscripcion_vigente())
+
+    def test_al_dia_siguiente_deja_de_estar_vigente(self):
+        self.suscripcion.fecha_fin = timezone.localdate() - timedelta(days=1)
+        self.suscripcion.save(update_fields=["fecha_fin"])
+        self.assertEqual(self.suscripcion.dias_restantes(), 0)
+        self.assertFalse(self.suscripcion.esta_vigente())
+        self.assertIsNone(self.licorera.suscripcion_vigente())
+
+    def test_una_suscripcion_sin_fecha_de_fin_no_cuenta_dias(self):
+        self.suscripcion.fecha_fin = None
+        self.suscripcion.estado = Suscripcion.Estado.ACTIVA
+        self.suscripcion.save(update_fields=["fecha_fin", "estado"])
+        self.assertIsNone(self.suscripcion.dias_restantes())
+        self.assertTrue(self.suscripcion.esta_vigente())
+
+    def test_un_estado_no_operativo_no_esta_vigente_aunque_falten_dias(self):
+        self.suscripcion.estado = Suscripcion.Estado.SUSPENDIDA
+        self.suscripcion.save(update_fields=["estado"])
+        self.assertFalse(self.suscripcion.esta_vigente())
+        self.assertGreater(self.suscripcion.dias_restantes(), 0)
+
+    # --- lo que ve el frontend ---
+
+    def test_la_consulta_devuelve_el_estado_de_la_prueba(self):
+        datos = self.consultar().json()
+        self.assertEqual(datos["plan"], "Pro")
+        self.assertEqual(datos["estado"], Suscripcion.Estado.EN_PRUEBA)
+        self.assertTrue(datos["es_prueba"])
+        self.assertEqual(datos["dias_restantes"], Suscripcion.DIAS_DE_PRUEBA)
+        self.assertTrue(datos["puede_operar"])
+
+    def test_la_consulta_exige_sesion(self):
+        respuesta = self.client.get(self.url)
+        self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_sin_suscripcion_vigente_avisa_que_no_puede_operar(self):
+        self.suscripcion.estado = Suscripcion.Estado.SUSPENDIDA
+        self.suscripcion.save(update_fields=["estado"])
+        datos = self.consultar().json()
+        self.assertFalse(datos["puede_operar"])
+        self.assertIsNone(datos["plan"])
+
+    def test_cada_licorera_ve_su_propia_suscripcion(self):
+        """El identificador no viaja en la dirección: se toma de la sesión."""
+        otra = Licorera.objects.create(nombre="Otra Licorera", correo="otra@licorera.com")
+        Suscripcion.objects.create(
+            licorera=otra, plan=Plan.objects.get(nombre="Básico"),
+            estado=Suscripcion.Estado.ACTIVA, fecha_inicio=timezone.localdate(),
+            precio_pactado=Plan.objects.get(nombre="Básico").precio_mensual,
+        )
+        datos = self.consultar().json()
+        self.assertEqual(datos["plan"], "Pro")   # la suya, no la de la otra

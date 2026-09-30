@@ -2,8 +2,10 @@
 Traductores del módulo de suscripciones.
 
 El registro de una licorera es la puerta de entrada del negocio: crea de una sola
-vez el cliente, su suscripción al plan Básico y su primer usuario.
+vez el cliente, su suscripción en período de prueba y su primer usuario.
 """
+
+from datetime import timedelta
 
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as ErrorDeValidacion
@@ -74,7 +76,14 @@ class RegistroLicoreraSerializer(serializers.Serializer):
         queda nada a medias en la base de datos. Una licorera sin usuario, o un
         usuario sin licorera, serían registros inservibles.
         """
-        plan_basico = Plan.objects.get(nombre="Básico")
+        # La prueba corre sobre el plan Pro, no sobre el Básico. Lo decide el
+        # manual de usuario, que promete «quince días con todas las funciones
+        # disponibles»: con el Básico el negocio no podría crear un segundo
+        # usuario durante su propia prueba. Al terminar, quien no contrate pasa a
+        # suspendida; quien contrate Básico teniendo dos usuarios lo resuelve la
+        # validación del cambio de plan (RF-SUS-02).
+        plan_de_prueba = Plan.objects.get(nombre="Pro")
+        hoy = timezone.localdate()
 
         licorera = Licorera.objects.create(
             nombre=datos_validados["nombre_negocio"],
@@ -83,10 +92,13 @@ class RegistroLicoreraSerializer(serializers.Serializer):
 
         Suscripcion.objects.create(
             licorera=licorera,
-            plan=plan_basico,
-            estado=Suscripcion.Estado.ACTIVA,
-            fecha_inicio=timezone.localdate(),
-            precio_pactado=plan_basico.precio_mensual,
+            plan=plan_de_prueba,
+            estado=Suscripcion.Estado.EN_PRUEBA,
+            fecha_inicio=hoy,
+            fecha_fin=hoy + timedelta(days=Suscripcion.DIAS_DE_PRUEBA),
+            # Cero, porque la prueba no se cobra. El precio del plan se congela
+            # el día que se contrata, en la fila que abra ese contrato.
+            precio_pactado=0,
         )
 
         usuario = Usuario.objects.create_user(
@@ -98,3 +110,39 @@ class RegistroLicoreraSerializer(serializers.Serializer):
         )
 
         return {"licorera": licorera, "usuario": usuario}
+
+
+class MiSuscripcionSerializer(serializers.Serializer):
+    """
+    Estado de la suscripción de la licorera de quien consulta (RF-SUS-03).
+
+    No es un ModelSerializer porque lo que el frontend necesita no es la fila:
+    es la respuesta a tres preguntas —qué plan tengo, hasta cuándo, y si puedo
+    registrar operaciones—. Dos de las tres se calculan.
+
+    `puede_operar` se devuelve ya resuelto y no como una regla que el navegador
+    tenga que aplicar: una comprobación de permiso escrita en el frontend se
+    puede saltar abriendo las herramientas del navegador. El backend la vuelve a
+    hacer en cada operación de escritura; esto es solo para que la interfaz
+    muestre lo que corresponde.
+    """
+
+    plan = serializers.CharField(source="plan.nombre")
+    precio_mensual = serializers.DecimalField(
+        source="plan.precio_mensual", max_digits=12, decimal_places=2)
+    estado = serializers.CharField()
+    estado_texto = serializers.SerializerMethodField()
+    es_prueba = serializers.BooleanField()
+    fecha_inicio = serializers.DateField()
+    fecha_fin = serializers.DateField()
+    dias_restantes = serializers.SerializerMethodField()
+    puede_operar = serializers.SerializerMethodField()
+
+    def get_estado_texto(self, suscripcion):
+        return suscripcion.get_estado_display()
+
+    def get_dias_restantes(self, suscripcion):
+        return suscripcion.dias_restantes()
+
+    def get_puede_operar(self, suscripcion):
+        return suscripcion.esta_vigente()

@@ -1,18 +1,23 @@
 """Vistas del módulo de suscripciones."""
 
+import logging
+
 from rest_framework import status
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
-import logging
 
 from seguridad.correo import enviar_correo_verificacion
 from seguridad.serializers import InicioSesionSerializer, UsuarioSerializer
 
 from .models import Plan
-from .serializers import LicoreraSerializer, PlanSerializer, RegistroLicoreraSerializer
+from .serializers import (
+    LicoreraSerializer,
+    MiSuscripcionSerializer,
+    PlanSerializer,
+    RegistroLicoreraSerializer,
+)
 
 registro_log = logging.getLogger(__name__)
 
@@ -70,3 +75,33 @@ class RegistroLicoreraView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class MiSuscripcionView(APIView):
+    """
+    Suscripción vigente de la licorera de quien consulta (RF-SUS-03).
+
+    No recibe ningún identificador: la licorera se toma del usuario de la
+    petición. Es el mismo criterio que el perfil, y por la misma razón: si el
+    identificador viniera en la dirección, habría que comprobar en cada llamada
+    que es el suyo, y bastaría olvidarlo una vez para que un negocio viera la
+    suscripción de otro.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        licorera = request.user.licorera
+        if licorera is None:
+            # El Administrador INVENTRA no pertenece a ninguna licorera.
+            return Response({"detalle": "Tu cuenta no pertenece a una licorera."},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        suscripcion = licorera.suscripcion_vigente()
+        if suscripcion is None:
+            # Sin suscripción vigente el negocio consulta pero no registra. Se
+            # responde 200 con el dato, no un error: la falta de suscripción es
+            # una situación normal del negocio, no un fallo de la petición.
+            return Response({"plan": None, "estado": None, "puede_operar": False})
+
+        return Response(MiSuscripcionSerializer(suscripcion).data)

@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import AvisoSuscripcion from "../componentes/AvisoSuscripcion";
 import Disposicion from "../componentes/Disposicion";
 import { listarUsuarios } from "../api/seguridad";
 import { useSesion } from "../sesion/ContextoSesion";
@@ -67,6 +68,8 @@ export default function Panel() {
     <Disposicion titulo="Panel principal">
       <h1>Hola, {usuario.nombre_completo}</h1>
       <div className="hs">Este es el estado de tu licorera en INVENTRA.</div>
+
+      <AvisoSuscripcion />
 
       {esAdministrador && (
         <div className="kpis">

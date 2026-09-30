@@ -160,6 +160,12 @@ class Suscripcion(models.Model):
     # vengan, así que vive aquí y no repartido por cada vista.
     ESTADOS_OPERATIVOS = ("en_prueba", "activa", "en_mora")
 
+    # Duración de la prueba gratuita (RF-SUS-01). Vive aquí, y no en la vista que
+    # registra, porque también la van a necesitar el panel de plataforma y la
+    # orden que vence suscripciones: si estuviera escrita en cada sitio, cambiarla
+    # sería buscarla.
+    DIAS_DE_PRUEBA = 15
+
     licorera = models.ForeignKey(
         Licorera, on_delete=models.PROTECT, related_name="suscripciones",
         db_column="licorera_id",
@@ -191,3 +197,39 @@ class Suscripcion(models.Model):
 
     def __str__(self):
         return f"{self.licorera} — {self.plan} ({self.estado})"
+
+    # ------------------------------------------------------------------
+    # Vigencia (RF-SUS-01 y RF-SUS-03)
+    # ------------------------------------------------------------------
+
+    def esta_vigente(self, hoy=None):
+        """
+        Si esta suscripción permite hoy registrar operaciones nuevas.
+
+        Son las mismas dos condiciones que usa `Licorera.suscripcion_vigente()`,
+        escritas una sola vez: el estado deja operar y la fecha no se ha pasado.
+        Se repetía la lógica en la consulta y en cada sitio que preguntaba; ahora
+        la consulta filtra y este método responde por una fila concreta.
+        """
+        hoy = hoy or timezone.localdate()
+        if self.estado not in self.ESTADOS_OPERATIVOS:
+            return False
+        return self.fecha_fin is None or self.fecha_fin >= hoy
+
+    def dias_restantes(self, hoy=None):
+        """
+        Días que faltan para que termine la vigencia, o None si no vence.
+
+        El último día cuenta: una prueba que termina hoy tiene cero días
+        restantes y todavía deja trabajar, igual que un plazo que vence a las
+        doce de la noche. Devolver cero y seguir operando no es una excepción,
+        es lo que significa «vence hoy».
+        """
+        if self.fecha_fin is None:
+            return None
+        hoy = hoy or timezone.localdate()
+        return max(0, (self.fecha_fin - hoy).days)
+
+    @property
+    def es_prueba(self):
+        return self.estado == self.Estado.EN_PRUEBA
