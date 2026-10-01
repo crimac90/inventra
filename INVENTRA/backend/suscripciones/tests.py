@@ -25,6 +25,7 @@ from rest_framework import status
 from seguridad.models import Rol, Usuario
 
 from .models import Licorera, Plan, Suscripcion
+from .modulos import MODULOS
 from .permissions import PuedeRegistrarOperaciones
 
 
@@ -852,3 +853,146 @@ class ConsultaDeEstadoTests(TestCase):
         datos = self.consultar()
         self.assertTrue(datos["avisa_vencimiento"])
         self.assertEqual(datos["dias_restantes"], Suscripcion.DIAS_DE_AVISO)
+
+
+class CaracteristicasDelPlanTests(TestCase):
+    """Qué habilita cada plan, preguntado por su nombre (RF-SUS-04)."""
+
+    def setUp(self):
+        self.basico = Plan.objects.get(nombre="Básico")
+        self.pro = Plan.objects.get(nombre="Pro")
+
+    def test_el_basico_es_de_un_usuario_y_una_sede(self):
+        self.assertFalse(self.basico.incluye(Plan.Caracteristica.MULTIUSUARIO))
+        self.assertFalse(self.basico.incluye(Plan.Caracteristica.MULTISEDE))
+
+    def test_el_basico_no_trae_facturacion_ni_reportes_avanzados(self):
+        self.assertFalse(self.basico.incluye(Plan.Caracteristica.FACTURACION))
+        self.assertFalse(self.basico.incluye(Plan.Caracteristica.REPORTES_AVANZADOS))
+
+    def test_el_pro_las_trae_todas(self):
+        for caracteristica in Plan.Caracteristica:
+            self.assertTrue(self.pro.incluye(caracteristica), caracteristica)
+
+    def test_un_tope_mayor_que_uno_si_es_multiusuario(self):
+        """
+        El tope y la característica responden preguntas distintas: un plan de
+        cinco usuarios incluye multiusuario y sigue teniendo límite. Si se
+        confundieran, el día que exista un plan intermedio no habría forma de
+        decir que admite varios y a la vez no admite infinitos.
+        """
+        intermedio = Plan.objects.create(
+            nombre="Intermedio", precio_mensual=1, maximo_usuarios=5, maximo_sedes=1)
+        self.assertTrue(intermedio.incluye(Plan.Caracteristica.MULTIUSUARIO))
+        self.assertEqual(intermedio.maximo_usuarios, 5)
+
+    def test_un_nombre_que_no_existe_no_pasa_en_silencio(self):
+        """Devolver «no incluida» sería una restricción invisible."""
+        with self.assertRaises(ValueError):
+            self.basico.incluye("teletransporte")
+
+
+class ModulosSegunElPlanTests(TestCase):
+    """
+    En qué estado le llega cada módulo del menú a una licorera (RF-SUS-04).
+
+    POR QUÉ IMPORTA EL CASO DEL BÁSICO
+    Antes, el menú anunciaba Sedes como «Pronto» a todo el mundo. A quien tiene
+    plan Básico eso le promete algo que no va a llegar nunca, porque multisede
+    es del Pro. Es la diferencia que este bloque viene a arreglar y la que estas
+    pruebas vigilan.
+    """
+
+    DATOS = {
+        "nombre_negocio": "Licorera de Prueba",
+        "nombre_completo": "Dueña de Prueba",
+        "correo": "duena@prueba.com",
+        "password": "Licorera2026",
+    }
+
+    def setUp(self):
+        cache.clear()
+        self.client.post(reverse("registrar-licorera"), self.DATOS,
+                         content_type="application/json")
+        self.licorera = Licorera.objects.get(nombre=self.DATOS["nombre_negocio"])
+        self.suscripcion = Suscripcion.objects.get(licorera=self.licorera)
+        self.url = reverse("mis-modulos")
+
+    def consultar(self):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": self.DATOS["correo"], "password": self.DATOS["password"]},
+            content_type="application/json")
+        datos = self.client.get(
+            self.url,
+            HTTP_AUTHORIZATION="Bearer %s" % respuesta.json()["acceso"]).json()
+        return {m["clave"]: m["estado"] for m in datos["modulos"]}
+
+    def pasar_a_basico(self):
+        self.suscripcion.plan = Plan.objects.get(nombre="Básico")
+        self.suscripcion.save(update_fields=["plan"])
+
+    def test_la_consulta_exige_sesion(self):
+        self.assertEqual(self.client.get(self.url).status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+
+    def test_lo_construido_aparece_disponible(self):
+        estados = self.consultar()
+        self.assertEqual(estados["panel"], "disponible")
+        self.assertEqual(estados["usuarios"], "disponible")
+
+    def test_lo_que_falta_por_construir_aparece_como_pronto(self):
+        estados = self.consultar()
+        self.assertEqual(estados["inventario"], "pronto")
+        self.assertEqual(estados["ventas"], "pronto")
+
+    def test_con_plan_pro_sedes_esta_pendiente_de_construir(self):
+        """La prueba corre sobre Pro, así que multisede sí entra en su plan."""
+        self.assertEqual(self.consultar()["sedes"], "pronto")
+
+    def test_con_plan_basico_sedes_no_entra_en_el_plan(self):
+        self.pasar_a_basico()
+        self.assertEqual(self.consultar()["sedes"], "plan")
+
+    def test_el_plan_pesa_mas_que_lo_construido(self):
+        """
+        Aunque Sedes se construyera mañana, a una licorera con plan Básico le
+        sigue sin corresponder. Por eso el estado del plan se decide primero.
+        """
+        modulo = next(m for m in MODULOS if m.clave == "sedes")
+        construido = modulo.construido
+        modulo.construido = True
+        try:
+            self.pasar_a_basico()
+            self.assertEqual(self.consultar()["sedes"], "plan")
+        finally:
+            modulo.construido = construido
+
+    def test_reportes_no_se_cierra_por_plan(self):
+        """
+        El Básico incluye los reportes básicos; lo que el Pro añade son la
+        rotación y la utilidad. La restricción va dentro del módulo, no en la
+        puerta, y el menú no debe cerrarlo.
+        """
+        self.pasar_a_basico()
+        self.assertEqual(self.consultar()["reportes"], "pronto")
+
+    def test_la_cuenta_suspendida_sigue_viendo_su_plan(self):
+        """
+        Suspendida no es «sin plan»: el negocio contrató algo y su menú tiene que
+        seguir diciendo la verdad sobre lo que ese plan incluye. Lo que no puede
+        hacer —registrar— lo corta el permiso de escritura, que es otra cosa.
+        """
+        self.pasar_a_basico()
+        self.suscripcion.fecha_fin = timezone.localdate() - timedelta(days=30)
+        self.suscripcion.save(update_fields=["fecha_fin"])
+        self.assertEqual(self.consultar()["sedes"], "plan")
+
+    def test_sin_suscripcion_no_se_inventan_restricciones(self):
+        """
+        Sin plan no se sabe qué incluye, y suponer que no incluye nada sería
+        inventar una restricción. Queda lo único cierto: qué está construido.
+        """
+        self.suscripcion.delete()
+        self.assertEqual(self.consultar()["sedes"], "pronto")
+

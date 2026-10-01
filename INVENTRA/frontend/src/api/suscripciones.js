@@ -20,3 +20,13 @@ export function consultarMiSuscripcion() {
 export function consultarPlanes() {
   return api.get("/suscripciones/planes/");
 }
+
+/*
+  Devuelve, para cada modulo del producto, si la licorera lo puede usar hoy,
+  si todavia no esta construido o si no entra en su plan. La lista la decide el
+  servidor: el plan contratado no es algo que el navegador pueda saber.
+*/
+export function consultarMisModulos() {
+  return api.get("/suscripciones/mis-modulos/");
+}
+

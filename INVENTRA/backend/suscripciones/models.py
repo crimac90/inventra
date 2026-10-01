@@ -14,6 +14,23 @@ from django.utils import timezone
 class Plan(models.Model):
     """Catálogo de planes comerciales. Define qué habilita cada uno (RF-SUS-04)."""
 
+    class Caracteristica(models.TextChoices):
+        """
+        Lo que un plan habilita o no habilita (RF-SUS-04).
+
+        Las cuatro ya existían repartidas en columnas sueltas —dos banderas y dos
+        topes numéricos—, y cada sitio que quería preguntar «¿este plan incluye
+        multisede?» tenía que saber que eso se mira en `maximo_sedes` y que el
+        valor que lo niega es el uno. Nombrarlas permite preguntarlo sin saber
+        dónde está escrito, que es lo que necesitan el menú lateral y los módulos
+        que vendrán.
+        """
+
+        MULTIUSUARIO = "multiusuario", "Más de un usuario"
+        MULTISEDE = "multisede", "Más de una sede"
+        REPORTES_AVANZADOS = "reportes_avanzados", "Reportes avanzados"
+        FACTURACION = "facturacion", "Facturación electrónica"
+
     nombre = models.CharField(
         max_length=30, unique=True,
         help_text="Nombre comercial del plan: Básico o Pro.",
@@ -50,6 +67,29 @@ class Plan(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    def incluye(self, caracteristica):
+        """
+        Si este plan habilita la característica indicada (RF-SUS-04).
+
+        Los topes se leen como «¿deja pasar de uno?» y no como «¿cuántos?»,
+        porque la pregunta aquí es de sí o no. Cuántos caben exactamente lo
+        siguen respondiendo `maximo_usuarios` y `maximo_sedes`, que es otra
+        pregunta: un plan intermedio de cinco usuarios incluiría multiusuario y
+        tendría tope igualmente.
+        """
+        Caracteristica = self.Caracteristica
+        if caracteristica == Caracteristica.FACTURACION:
+            return self.permite_facturacion
+        if caracteristica == Caracteristica.REPORTES_AVANZADOS:
+            return self.permite_reportes_avanzados
+        if caracteristica == Caracteristica.MULTIUSUARIO:
+            return self.maximo_usuarios != 1
+        if caracteristica == Caracteristica.MULTISEDE:
+            return self.maximo_sedes != 1
+        # Un nombre que no existe no puede devolver «no incluida» en silencio:
+        # sería una restricción invisible que nadie encuentra.
+        raise ValueError("Característica desconocida: %r" % (caracteristica,))
 
 
 class Licorera(models.Model):

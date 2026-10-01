@@ -2,10 +2,18 @@
   Barra lateral de navegacion.
 
   Los seis modulos son los del prototipo y del punto 8.2 del documento de diseno.
-  Los que todavia no se han construido aparecen apagados y no se pueden pulsar:
-  mostrarlos deja ver el alcance del sistema, y apagarlos evita el enlace que no
-  lleva a ninguna parte. A medida que se construya cada modulo se le quita la
-  marca de pendiente y se le pone su direccion.
+  Los que no se pueden usar aparecen apagados y no se pueden pulsar: mostrarlos
+  deja ver el alcance del sistema, y apagarlos evita el enlace que no lleva a
+  ninguna parte.
+
+  POR QUE EL ESTADO VIENE DEL SERVIDOR
+  Estaba escrito a mano aqui, y eso escondia un error que si se ve hoy: a una
+  licorera con plan Basico el menu le anunciaba Sedes como «Pronto», y para ella
+  no va a llegar nunca, porque multisede es del plan Pro. Que un modulo este
+  construido lo sabe el servidor, y que entre en el plan contratado tambien
+  (RF-SUS-04). Aqui se queda solo lo que es de la interfaz: el orden, el icono y
+  el texto. Mientras la respuesta no llega, los modulos sin direccion se pintan
+  apagados y sin etiqueta: es lo que ya eran.
 
   Los iconos van escritos aqui, en linea, por dos razones: son los mismos ocho
   del prototipo, sobre reticula de 24 pixeles, y al ser dibujos y no imagenes
@@ -13,8 +21,10 @@
   icono y letra a la vez.
 */
 
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 
+import { consultarMisModulos } from "../api/suscripciones";
 import InterruptorTema from "./InterruptorTema";
 
 const ICONOS = {
@@ -74,14 +84,35 @@ const ICONOS = {
 const MODULOS = [
   { clave: "panel", texto: "Panel", ruta: "/panel" },
   { clave: "usuarios", texto: "Usuarios", ruta: "/usuarios", soloAdministrador: true },
-  { clave: "inventario", texto: "Inventario", pendiente: true },
-  { clave: "ventas", texto: "Ventas", pendiente: true },
-  { clave: "reportes", texto: "Reportes", pendiente: true },
-  { clave: "sedes", texto: "Sedes", pendiente: true },
+  { clave: "inventario", texto: "Inventario" },
+  { clave: "ventas", texto: "Ventas" },
+  { clave: "reportes", texto: "Reportes" },
+  { clave: "sedes", texto: "Sedes" },
 ];
+
+// Lo que se escribe al lado del modulo que no se puede pulsar. El texto del
+// servidor es una clave, no una etiqueta: traducirla es cosa de la interfaz.
+const ETIQUETA = {
+  pronto: { texto: "Pronto", titulo: "Todavía no está disponible." },
+  plan: { texto: "Pro", titulo: "Disponible en el plan Pro." },
+};
 
 export default function BarraLateral({ esAdministrador }) {
   const clase = ({ isActive }) => (isActive ? "nav on" : "nav");
+  const [estados, setEstados] = useState({});
+
+  useEffect(() => {
+    let vigente = true;
+    consultarMisModulos()
+      .then(({ modulos }) => {
+        if (!vigente) return;
+        setEstados(Object.fromEntries(modulos.map((m) => [m.clave, m.estado])));
+      })
+      .catch(() => {});
+    return () => {
+      vigente = false;
+    };
+  }, []);
 
   return (
     <aside className="side">
@@ -90,18 +121,27 @@ export default function BarraLateral({ esAdministrador }) {
       </div>
 
       <nav aria-label="Módulos">
-        {MODULOS.filter((m) => !m.soloAdministrador || esAdministrador).map((modulo) =>
-          modulo.pendiente ? (
-            <span key={modulo.clave} className="nav pendiente" aria-disabled="true">
+        {MODULOS.filter((m) => !m.soloAdministrador || esAdministrador).map((modulo) => {
+          const etiqueta = ETIQUETA[estados[modulo.clave]];
+          if (modulo.ruta && !etiqueta) {
+            return (
+              <NavLink key={modulo.clave} to={modulo.ruta} className={clase}>
+                {ICONOS[modulo.clave]} {modulo.texto}
+              </NavLink>
+            );
+          }
+          return (
+            <span
+              key={modulo.clave}
+              className="nav pendiente"
+              aria-disabled="true"
+              title={etiqueta ? etiqueta.titulo : undefined}
+            >
               {ICONOS[modulo.clave]} {modulo.texto}
-              <span className="proximamente">Pronto</span>
+              {etiqueta ? <span className="proximamente">{etiqueta.texto}</span> : null}
             </span>
-          ) : (
-            <NavLink key={modulo.clave} to={modulo.ruta} className={clase}>
-              {ICONOS[modulo.clave]} {modulo.texto}
-            </NavLink>
-          ),
-        )}
+          );
+        })}
       </nav>
 
       <div className="grow"></div>

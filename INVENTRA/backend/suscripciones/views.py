@@ -12,6 +12,7 @@ from seguridad.correo import enviar_correo_verificacion
 from seguridad.serializers import InicioSesionSerializer, UsuarioSerializer
 
 from .models import Plan
+from .modulos import estado_de_los_modulos
 from .serializers import (
     LicoreraSerializer,
     MiSuscripcionSerializer,
@@ -105,3 +106,31 @@ class MiSuscripcionView(APIView):
             return Response({"plan": None, "estado": None, "puede_operar": False})
 
         return Response(MiSuscripcionSerializer(suscripcion).data)
+
+
+class MisModulosView(APIView):
+    """
+    Qué módulos puede usar hoy la licorera de quien consulta (RF-SUS-04).
+
+    El menú lateral tenía la lista escrita a mano, con la marca «Pronto» puesta
+    a ojo. Esa lista no puede vivir en el navegador: el plan contratado lo sabe
+    el servidor, y una licorera con plan Básico no debe leer que Sedes llegará
+    «Pronto» cuando para ella no va a llegar.
+
+    El plan sale de la suscripción **actual** y no de la vigente: una cuenta
+    suspendida sigue teniendo un plan contratado, y su menú tiene que seguir
+    diciendo la verdad sobre lo que ese plan incluye. Lo que no puede hacer
+    mientras está suspendida —registrar— lo corta el permiso de escritura, que
+    es otra cosa.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        licorera = request.user.licorera
+        plan = None
+        if licorera is not None:
+            suscripcion = licorera.suscripcion_actual()
+            plan = suscripcion.plan if suscripcion else None
+        return Response({"modulos": estado_de_los_modulos(plan)})
+
