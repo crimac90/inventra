@@ -130,16 +130,43 @@ class MiSuscripcionSerializer(serializers.Serializer):
     plan = serializers.CharField(source="plan.nombre")
     precio_mensual = serializers.DecimalField(
         source="plan.precio_mensual", max_digits=12, decimal_places=2)
-    estado = serializers.CharField()
+    estado = serializers.SerializerMethodField()
     estado_texto = serializers.SerializerMethodField()
-    es_prueba = serializers.BooleanField()
+    es_prueba = serializers.SerializerMethodField()
     fecha_inicio = serializers.DateField()
     fecha_fin = serializers.DateField()
     dias_restantes = serializers.SerializerMethodField()
+    dias_para_suspension = serializers.SerializerMethodField()
+    avisa_vencimiento = serializers.SerializerMethodField()
     puede_operar = serializers.SerializerMethodField()
 
+    # El estado que sale de aquí es el calculado, no el que tiene guardado la
+    # fila (D-25). La columna la pone al día una orden que corre a diario, y si
+    # una noche no corriera, el panel diría que la prueba sigue viva el día
+    # después de vencer. Lo que se calcula no se queda atrás.
+    def get_estado(self, suscripcion):
+        return suscripcion.estado_por_fecha()
+
     def get_estado_texto(self, suscripcion):
-        return suscripcion.get_estado_display()
+        return Suscripcion.Estado(suscripcion.estado_por_fecha()).label
+
+    def get_es_prueba(self, suscripcion):
+        return suscripcion.estado_por_fecha() == Suscripcion.Estado.EN_PRUEBA
+
+    def get_dias_para_suspension(self, suscripcion):
+        return suscripcion.dias_para_suspension()
+
+    def get_avisa_vencimiento(self, suscripcion):
+        """
+        Si al panel le toca avisar de que la fecha se acerca.
+
+        Se resuelve aquí y no en el navegador para que el umbral viva en un solo
+        sitio. Estaba escrito a mano en el componente del aviso, y un tres
+        repetido en dos lenguajes distintos es un tres que algún día valdrá dos
+        en uno de ellos (regla 14).
+        """
+        dias = suscripcion.dias_restantes()
+        return dias is not None and dias <= Suscripcion.DIAS_DE_AVISO
 
     def get_dias_restantes(self, suscripcion):
         return suscripcion.dias_restantes()

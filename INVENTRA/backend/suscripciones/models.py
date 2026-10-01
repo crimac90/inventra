@@ -8,7 +8,6 @@ Corresponde a las tablas plan, licorera y suscripcion del diccionario de datos.
 """
 
 from django.db import models
-from django.db.models import Q
 from django.utils import timezone
 
 
@@ -90,29 +89,43 @@ class Licorera(models.Model):
     def __str__(self):
         return self.nombre
 
-    def suscripcion_vigente(self):
+    def suscripcion_actual(self):
         """
-        Devuelve la suscripción que define hoy qué puede hacer el negocio.
+        La última suscripción de la licorera, deje operar hoy o no.
 
-        Vigente significa dos cosas a la vez: que su estado permite operar
-        —en prueba, activa o en mora— y que no se le ha pasado la fecha.
+        Son dos preguntas distintas y antes estaban mezcladas en una sola
+        consulta: «cuál es la suscripción de este negocio» y «puede registrar
+        operaciones». Mientras una suscripción vencida y una suspendida eran lo
+        mismo, mezclarlas no molestaba. Con los días de gracia sí: una cuenta en
+        mora tiene la fecha pasada y **debe seguir operando** (D-25), de modo que
+        la fecha ya no puede decidir por sí sola. Aquí se responde la primera
+        pregunta; la segunda la responde `esta_vigente()` sobre la fila devuelta.
 
-        La condición de la fecha tiene dos formas porque hay dos casos. Una
-        suscripción de plan contratado no tiene fecha de fin mientras esté vigente:
-        `fecha_fin` se rellena el día que se cierra, al cambiar de plan o al darse
-        de baja. Una suscripción de prueba nace con fecha de fin desde el primer
-        día. Si solo se mirara «sin fecha de fin», ninguna prueba sería vigente; si
-        solo se mirara la fecha, se colaría cualquier fila histórica ya cerrada.
+        Se excluyen las canceladas porque son la baja definitiva: esa licorera no
+        tiene suscripción, no tiene una que no vale.
+
+        El desempate por identificador no es un adorno: al contratar el mismo día
+        en que termina la prueba, las dos filas empiezan hoy, y sin él la consulta
+        podría devolver la que se acaba de cerrar.
         """
-        hoy = timezone.localdate()
         return (
             self.suscripciones
-            .filter(estado__in=Suscripcion.ESTADOS_OPERATIVOS)
-            .filter(Q(fecha_fin__isnull=True) | Q(fecha_fin__gte=hoy))
+            .exclude(estado=Suscripcion.Estado.CANCELADA)
             .select_related("plan")
-            .order_by("-fecha_inicio")
+            .order_by("-fecha_inicio", "-id")
             .first()
         )
+
+    def suscripcion_vigente(self):
+        """
+        La suscripción que hoy permite registrar operaciones, o None si ninguna.
+
+        Es la actual, si deja operar. Toda la regla de fechas y estados vive en
+        `Suscripcion.estado_por_fecha()`, escrita una sola vez, y no repartida
+        entre esta consulta y el modelo.
+        """
+        actual = self.suscripcion_actual()
+        return actual if actual is not None and actual.esta_vigente() else None
 
     def plan_vigente(self):
         suscripcion = self.suscripcion_vigente()
@@ -166,6 +179,14 @@ class Suscripcion(models.Model):
     # sería buscarla.
     DIAS_DE_PRUEBA = 15
 
+    # Los dos plazos que rodean al vencimiento (D-25). Son dos constantes y no
+    # una, aunque hoy tuvieran el mismo valor, porque significan cosas opuestas:
+    # una cuenta los días de antes y la otra los de después. Se eligieron
+    # distintos a proposito, para que al leer el código no se confundan y para
+    # que mover una no arrastre a la otra.
+    DIAS_DE_AVISO = 3     # antes de la fecha de fin: el panel avisa, se opera normal
+    DIAS_DE_GRACIA = 4    # después: la cuenta sigue operando en mora; al quinto, suspendida
+
     licorera = models.ForeignKey(
         Licorera, on_delete=models.PROTECT, related_name="suscripciones",
         db_column="licorera_id",
@@ -183,7 +204,11 @@ class Suscripcion(models.Model):
     fecha_inicio = models.DateField(help_text="Inicio de la vigencia.")
     fecha_fin = models.DateField(
         null=True, blank=True,
-        help_text="Fin de la vigencia. Vacío mientras esté vigente.",
+        help_text=(
+            "Hasta cuándo vale esta suscripción. La define el Administrador "
+            "INVENTRA al activar y al renovar, y no puede ser una fecha pasada "
+            "(RF-SUS-03); al cambiar de plan se acorta al día del cambio."
+        ),
     )
     precio_pactado = models.DecimalField(
         max_digits=12, decimal_places=2,
@@ -202,19 +227,61 @@ class Suscripcion(models.Model):
     # Vigencia (RF-SUS-01 y RF-SUS-03)
     # ------------------------------------------------------------------
 
-    def esta_vigente(self, hoy=None):
+    def estado_por_fecha(self, hoy=None):
         """
-        Si esta suscripción permite hoy registrar operaciones nuevas.
+        El estado que le corresponde hoy a esta suscripción según su fecha de fin.
 
-        Son las mismas dos condiciones que usa `Licorera.suscripcion_vigente()`,
-        escritas una sola vez: el estado deja operar y la fecha no se ha pasado.
-        Se repetía la lógica en la consulta y en cada sitio que preguntaba; ahora
-        la consulta filtra y este método responde por una fila concreta.
+        ESTE MÉTODO ES LA FUENTE DE VERDAD; la columna `estado` es una copia que
+        la orden `actualizar_estados_suscripciones` mantiene al día (D-25). Se
+        hizo así y no al revés porque una copia puede quedarse atrás —basta que
+        la orden no corriera anoche— y entonces el sistema dejaría operar a quien
+        ya venció. Lo que se calcula en el momento no se olvida de correr.
+
+        Escalones, contando desde la fecha de fin:
+            hasta ese día        conserva su estado (en prueba o activa)
+            de 1 a DIAS_DE_GRACIA    en mora: sigue operando, con aviso de pago
+            a partir de ahí          suspendida: consulta, no registra
+        """
+        # La cancelada es la baja definitiva. Ninguna fecha la revive: si este
+        # método pudiera devolver otra cosa, la orden diaria resucitaría cuentas
+        # que alguien dio de baja a conciencia.
+        if self.estado == self.Estado.CANCELADA:
+            return self.Estado.CANCELADA
+
+        # Sin fecha de fin no hay nada que vencer. Desde D-25 la aplicación no
+        # crea filas así, pero la columna admite nulo y las filas antiguas lo
+        # son: se conserva la rama en vez de suponer que no existen.
+        if self.fecha_fin is None:
+            return self.estado
+
+        hoy = hoy or timezone.localdate()
+        vencida_hace = (hoy - self.fecha_fin).days
+        if vencida_hace <= 0:
+            return self.estado
+
+        # La prueba no tiene días de gracia: lo dice RF-SUS-03 y tiene sentido,
+        # porque quien no ha pagado nunca no está en mora de nada.
+        if self.es_periodo_gratuito:
+            return self.Estado.SUSPENDIDA
+
+        if vencida_hace <= self.DIAS_DE_GRACIA:
+            return self.Estado.EN_MORA
+        return self.Estado.SUSPENDIDA
+
+    def esta_vigente(self, hoy=None):
+        """Si esta suscripción permite hoy registrar operaciones nuevas."""
+        return self.estado_por_fecha(hoy) in self.ESTADOS_OPERATIVOS
+
+    def dias_para_suspension(self, hoy=None):
+        """
+        Días que le quedan a una cuenta en mora antes de quedar suspendida, o
+        None si no está en mora. El día en curso cuenta, igual que en
+        `dias_restantes()`: mientras se pueda trabajar, el día no ha pasado.
         """
         hoy = hoy or timezone.localdate()
-        if self.estado not in self.ESTADOS_OPERATIVOS:
-            return False
-        return self.fecha_fin is None or self.fecha_fin >= hoy
+        if self.estado_por_fecha(hoy) != self.Estado.EN_MORA:
+            return None
+        return self.DIAS_DE_GRACIA + 1 - (hoy - self.fecha_fin).days
 
     def dias_restantes(self, hoy=None):
         """
@@ -232,4 +299,20 @@ class Suscripcion(models.Model):
 
     @property
     def es_prueba(self):
+        """Si esta suscripción está ahora mismo en período de prueba."""
         return self.estado == self.Estado.EN_PRUEBA
+
+    @property
+    def es_periodo_gratuito(self):
+        """
+        Si esta fila corresponde a un período por el que no se cobra.
+
+        No basta con mirar el estado, aunque «en prueba» lo diría: el estado
+        cambia el día que la prueba vence, y a partir de ahí ya no se podría
+        reconocer que lo fue —que es justo cuando hace falta saberlo, para no
+        darle días de gracia—. El precio pactado, en cambio, se congela al abrir
+        la fila y no se mueve nunca (D-22, que fija la prueba en cero): es el
+        único dato que sigue diciendo qué fue esta suscripción después de dejar
+        de serlo.
+        """
+        return self.estado == self.Estado.EN_PRUEBA or self.precio_pactado == 0

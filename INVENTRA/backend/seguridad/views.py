@@ -14,6 +14,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from suscripciones.permissions import PuedeRegistrarOperaciones
+
 from .correo import enviar_correo_recuperacion, enviar_correo_verificacion
 from .models import Rol, Usuario
 from .permissions import EsAdministradorDeLicorera
@@ -134,9 +136,15 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 
     Un conjunto de vistas agrupa en una sola clase las operaciones habituales
     sobre un recurso: listar, consultar, crear, modificar y dar de baja.
+
+    Dos permisos y no uno: el primero dice quién —solo el administrador de la
+    licorera—, y el segundo dice cuándo —solo con la suscripción vigente
+    (RF-SUS-03)—. Consultar la lista sigue funcionando con la cuenta suspendida;
+    crear, modificar e inactivar, no. Es el primer sitio donde se aplica la regla
+    del módulo SUS, y el mismo par se repetirá en INV y en VEN.
     """
 
-    permission_classes = [EsAdministradorDeLicorera]
+    permission_classes = [EsAdministradorDeLicorera, PuedeRegistrarOperaciones]
 
     def get_queryset(self):
         """

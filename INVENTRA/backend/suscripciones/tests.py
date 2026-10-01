@@ -2,8 +2,8 @@
 Pruebas del módulo de suscripciones.
 
 Cubren el registro de licoreras (CU-SUS-01 y RF-SEG-01), el catálogo de planes,
-el límite de peticiones del registro y el comando que carga las cuentas de
-demostración.
+el límite de peticiones del registro, el comando que carga las cuentas de
+demostración y el ciclo de estados de la suscripción (RF-SUS-03).
 
 Se ejecutan con `py manage.py test suscripciones`.
 """
@@ -25,6 +25,7 @@ from rest_framework import status
 from seguridad.models import Rol, Usuario
 
 from .models import Licorera, Plan, Suscripcion
+from .permissions import PuedeRegistrarOperaciones
 
 
 class RegistroLicoreraTests(TestCase):
@@ -523,3 +524,331 @@ class PeriodoDePruebaTests(TestCase):
         )
         datos = self.consultar().json()
         self.assertEqual(datos["plan"], "Pro")   # la suya, no la de la otra
+
+
+class EstadoPorFechaTests(TestCase):
+    """
+    El escalón entre vencer y quedar suspendido (RF-SUS-03, decisión D-25).
+
+    POR QUÉ ESTA CLASE MIRA DÍA A DÍA
+    Lo que se construyó no es «vencida sí o no», son cuatro días en los que la
+    cuenta está vencida y sigue trabajando. Una prueba que solo comprobara
+    «antes» y «mucho después» pasaría sin ejecutar nunca la rama de la mora, que
+    es la única línea nueva. Se comprueban los dos bordes: el primer día de
+    gracia y el primero sin ella.
+    """
+
+    def setUp(self):
+        self.licorera = Licorera.objects.create(
+            nombre="Licorera de prueba", correo="contacto@prueba.com")
+        self.plan = Plan.objects.get(nombre="Básico")
+        self.hoy = timezone.localdate()
+
+    def crear(self, estado, vencida_hace=None, precio=None):
+        """`vencida_hace` en días: 0 es «vence hoy», 3 es «venció hace tres días»."""
+        return Suscripcion.objects.create(
+            licorera=self.licorera,
+            plan=self.plan,
+            estado=estado,
+            fecha_inicio=self.hoy - timedelta(days=60),
+            fecha_fin=(None if vencida_hace is None
+                       else self.hoy - timedelta(days=vencida_hace)),
+            precio_pactado=self.plan.precio_mensual if precio is None else precio,
+        )
+
+    # --- dentro de la vigencia ---
+
+    def test_con_la_fecha_por_delante_conserva_su_estado(self):
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=-10)
+        self.assertEqual(suscripcion.estado_por_fecha(), Suscripcion.Estado.ACTIVA)
+        self.assertTrue(suscripcion.esta_vigente())
+
+    def test_el_dia_del_vencimiento_todavia_esta_activa(self):
+        """La fecha de fin es el último día completo, no el primero sin servicio."""
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=0)
+        self.assertEqual(suscripcion.estado_por_fecha(), Suscripcion.Estado.ACTIVA)
+        self.assertTrue(suscripcion.esta_vigente())
+
+    # --- los cuatro días de gracia ---
+
+    def test_al_dia_siguiente_entra_en_mora_y_sigue_operando(self):
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=1)
+        self.assertEqual(suscripcion.estado_por_fecha(), Suscripcion.Estado.EN_MORA)
+        self.assertTrue(suscripcion.esta_vigente())
+
+    def test_el_ultimo_dia_de_gracia_sigue_en_mora(self):
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA,
+                                 vencida_hace=Suscripcion.DIAS_DE_GRACIA)
+        self.assertEqual(suscripcion.estado_por_fecha(), Suscripcion.Estado.EN_MORA)
+        self.assertTrue(suscripcion.esta_vigente())
+
+    def test_pasada_la_gracia_queda_suspendida(self):
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA,
+                                 vencida_hace=Suscripcion.DIAS_DE_GRACIA + 1)
+        self.assertEqual(suscripcion.estado_por_fecha(), Suscripcion.Estado.SUSPENDIDA)
+        self.assertFalse(suscripcion.esta_vigente())
+
+    def test_los_dias_para_la_suspension_se_cuentan_desde_el_vencimiento(self):
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=1)
+        self.assertEqual(suscripcion.dias_para_suspension(), Suscripcion.DIAS_DE_GRACIA)
+        vigente = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=-5)
+        self.assertIsNone(vigente.dias_para_suspension())
+
+    # --- la prueba no tiene gracia ---
+
+    def test_la_prueba_vencida_pasa_directa_a_suspendida(self):
+        suscripcion = self.crear(Suscripcion.Estado.EN_PRUEBA, vencida_hace=1, precio=0)
+        self.assertEqual(suscripcion.estado_por_fecha(), Suscripcion.Estado.SUSPENDIDA)
+        self.assertFalse(suscripcion.esta_vigente())
+
+    def test_una_prueba_se_reconoce_por_el_precio_cuando_ya_no_lo_dice_su_estado(self):
+        """
+        Una vez la orden diaria la marca como suspendida, el estado deja de decir
+        que fue una prueba. Si la gracia dependiera del estado, esa fila volvería
+        a entrar en mora y el negocio ganaría cuatro días que nunca pagó.
+        """
+        suscripcion = self.crear(Suscripcion.Estado.SUSPENDIDA, vencida_hace=1, precio=0)
+        self.assertTrue(suscripcion.es_periodo_gratuito)
+        self.assertEqual(suscripcion.estado_por_fecha(), Suscripcion.Estado.SUSPENDIDA)
+
+    # --- los casos que ninguna fecha cambia ---
+
+    def test_una_cancelada_no_vuelve_por_ninguna_fecha(self):
+        suscripcion = self.crear(Suscripcion.Estado.CANCELADA, vencida_hace=-30)
+        self.assertEqual(suscripcion.estado_por_fecha(), Suscripcion.Estado.CANCELADA)
+        self.assertFalse(suscripcion.esta_vigente())
+
+    def test_sin_fecha_de_fin_conserva_su_estado(self):
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA)
+        self.assertEqual(suscripcion.estado_por_fecha(), Suscripcion.Estado.ACTIVA)
+        self.assertTrue(suscripcion.esta_vigente())
+
+    # --- lo que devuelve la consulta de la licorera ---
+
+    def test_la_suscripcion_actual_aparece_aunque_este_suspendida(self):
+        suscripcion = self.crear(Suscripcion.Estado.SUSPENDIDA, vencida_hace=30)
+        self.assertEqual(self.licorera.suscripcion_actual(), suscripcion)
+        self.assertIsNone(self.licorera.suscripcion_vigente())
+
+    def test_una_cuenta_en_mora_manda_aunque_su_fecha_haya_pasado(self):
+        """
+        Es el caso que la consulta anterior no podía devolver: filtraba por fecha
+        no pasada, y una cuenta en mora tiene la fecha pasada por definición.
+        """
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=2)
+        self.assertEqual(self.licorera.suscripcion_vigente(), suscripcion)
+
+    def test_la_cancelada_no_es_la_suscripcion_actual(self):
+        self.crear(Suscripcion.Estado.CANCELADA, vencida_hace=10)
+        self.assertIsNone(self.licorera.suscripcion_actual())
+
+
+class OrdenDeEstadosTests(TestCase):
+    """
+    La orden que copia el estado calculado a la columna (decisión D-25).
+
+    Se comprueba sobre todo lo que la orden NO debe hacer, que es donde está el
+    riesgo: retroceder, tocar la fecha o revivir una cancelada.
+    """
+
+    def setUp(self):
+        self.licorera = Licorera.objects.create(
+            nombre="Licorera de prueba", correo="contacto@prueba.com")
+        self.plan = Plan.objects.get(nombre="Básico")
+        self.hoy = timezone.localdate()
+
+    def crear(self, estado, vencida_hace, precio=None):
+        return Suscripcion.objects.create(
+            licorera=self.licorera, plan=self.plan, estado=estado,
+            fecha_inicio=self.hoy - timedelta(days=60),
+            fecha_fin=self.hoy - timedelta(days=vencida_hace),
+            precio_pactado=self.plan.precio_mensual if precio is None else precio,
+        )
+
+    def correr(self, *argumentos):
+        salida = StringIO()
+        call_command("actualizar_estados_suscripciones", *argumentos, stdout=salida)
+        return salida.getvalue()
+
+    def test_una_activa_recien_vencida_pasa_a_mora(self):
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=1)
+        self.correr()
+        suscripcion.refresh_from_db()
+        self.assertEqual(suscripcion.estado, Suscripcion.Estado.EN_MORA)
+
+    def test_pasada_la_gracia_la_orden_la_suspende(self):
+        suscripcion = self.crear(Suscripcion.Estado.EN_MORA,
+                                 vencida_hace=Suscripcion.DIAS_DE_GRACIA + 1)
+        self.correr()
+        suscripcion.refresh_from_db()
+        self.assertEqual(suscripcion.estado, Suscripcion.Estado.SUSPENDIDA)
+
+    def test_no_retrocede_una_suspendida_cuya_fecha_se_amplio(self):
+        """
+        Renovar abre una fila nueva; la vieja se queda como está. Si la orden
+        pudiera retroceder, ampliar una fecha por error resucitaría una cuenta
+        que alguien suspendió a conciencia.
+        """
+        suscripcion = self.crear(Suscripcion.Estado.SUSPENDIDA, vencida_hace=-30)
+        self.correr()
+        suscripcion.refresh_from_db()
+        self.assertEqual(suscripcion.estado, Suscripcion.Estado.SUSPENDIDA)
+
+    def test_no_toca_una_cancelada(self):
+        suscripcion = self.crear(Suscripcion.Estado.CANCELADA, vencida_hace=90)
+        self.correr()
+        suscripcion.refresh_from_db()
+        self.assertEqual(suscripcion.estado, Suscripcion.Estado.CANCELADA)
+
+    def test_no_modifica_la_fecha_de_fin(self):
+        """
+        De esto depende que la orden no mande correos: el aviso al administrador
+        de la licorera cuelga de quien escribe la fecha, y la orden no la escribe.
+        """
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=2)
+        fecha = suscripcion.fecha_fin
+        self.correr()
+        suscripcion.refresh_from_db()
+        self.assertEqual(suscripcion.fecha_fin, fecha)
+
+    def test_simular_no_escribe_pero_lo_cuenta(self):
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=2)
+        salida = self.correr("--simular")
+        suscripcion.refresh_from_db()
+        self.assertEqual(suscripcion.estado, Suscripcion.Estado.ACTIVA)
+        self.assertIn("cambiarían", salida)
+
+    def test_la_fecha_del_argumento_permite_demostrar_sin_esperar(self):
+        suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=-10)
+        futuro = self.hoy + timedelta(days=30)
+        self.correr("--fecha", futuro.isoformat())
+        suscripcion.refresh_from_db()
+        self.assertEqual(suscripcion.estado, Suscripcion.Estado.SUSPENDIDA)
+
+    def test_una_fecha_mal_escrita_se_rechaza(self):
+        with self.assertRaises(CommandError):
+            self.correr("--fecha", "31/12/2026")
+
+
+class PermisoDeEscrituraTests(TestCase):
+    """
+    Una cuenta suspendida consulta pero no registra (RF-SUS-03).
+
+    Se comprueba sobre la gestión de usuarios, que es la única escritura que la
+    aplicación tiene hoy y el primer sitio donde se aplica la regla. INV y VEN
+    usarán el mismo permiso.
+    """
+
+    DATOS = {
+        "nombre_negocio": "Licorera de Prueba",
+        "nombre_completo": "Dueña de Prueba",
+        "correo": "duena@prueba.com",
+        "password": "Licorera2026",
+    }
+
+    def setUp(self):
+        cache.clear()
+        self.client.post(reverse("registrar-licorera"), self.DATOS,
+                         content_type="application/json")
+        self.licorera = Licorera.objects.get(nombre=self.DATOS["nombre_negocio"])
+        self.suscripcion = Suscripcion.objects.get(licorera=self.licorera)
+        self.vendedor = Rol.objects.get(nombre=Rol.VENDEDOR)
+
+    def entrar(self):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": self.DATOS["correo"], "password": self.DATOS["password"]},
+            content_type="application/json",
+        )
+        return {"HTTP_AUTHORIZATION": "Bearer %s" % respuesta.json()["acceso"]}
+
+    def vencer(self, hace_dias):
+        self.suscripcion.fecha_fin = timezone.localdate() - timedelta(days=hace_dias)
+        self.suscripcion.save(update_fields=["fecha_fin"])
+
+    def crear_vendedor(self):
+        return self.client.post(
+            reverse("usuario-list"),
+            {"nombre_completo": "Vendedor", "correo": "vendedor@prueba.com",
+             "password": "Licorera2026", "rol": self.vendedor.id},
+            content_type="application/json", **self.entrar())
+
+    def test_la_gestion_de_usuarios_lleva_puesto_el_permiso(self):
+        """
+        Comprobar el 403 no basta: si alguien quitara el permiso de la vista, el
+        403 desaparecería y con él la prueba que lo vigila. Esto mira que la
+        regla siga enganchada donde debe.
+        """
+        from seguridad.views import UsuarioViewSet
+        self.assertIn(PuedeRegistrarOperaciones, UsuarioViewSet.permission_classes)
+
+    def test_con_la_suscripcion_vigente_se_puede_crear(self):
+        self.assertEqual(self.crear_vendedor().status_code, status.HTTP_201_CREATED)
+
+    def test_una_prueba_vencida_no_deja_crear(self):
+        self.vencer(1)
+        self.assertEqual(self.crear_vendedor().status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_la_cuenta_suspendida_sigue_pudiendo_consultar(self):
+        """La mitad del requisito que no se puede olvidar: consultar sí se puede."""
+        self.vencer(1)
+        respuesta = self.client.get(reverse("usuario-list"), **self.entrar())
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+    def test_no_deja_inactivar_con_la_cuenta_suspendida(self):
+        usuario = Usuario.objects.get(correo=self.DATOS["correo"])
+        self.vencer(1)
+        respuesta = self.client.delete(
+            reverse("usuario-detail", args=[usuario.id]), **self.entrar())
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class ConsultaDeEstadoTests(TestCase):
+    """Lo que el panel recibe cuando la cuenta entra en mora (RF-SUS-03)."""
+
+    DATOS = PermisoDeEscrituraTests.DATOS
+
+    def setUp(self):
+        cache.clear()
+        self.client.post(reverse("registrar-licorera"), self.DATOS,
+                         content_type="application/json")
+        self.licorera = Licorera.objects.get(nombre=self.DATOS["nombre_negocio"])
+        self.suscripcion = Suscripcion.objects.get(licorera=self.licorera)
+
+    def consultar(self):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": self.DATOS["correo"], "password": self.DATOS["password"]},
+            content_type="application/json")
+        return self.client.get(
+            reverse("mi-suscripcion"),
+            HTTP_AUTHORIZATION="Bearer %s" % respuesta.json()["acceso"]).json()
+
+    def test_la_consulta_devuelve_el_estado_calculado_y_no_el_guardado(self):
+        """
+        La fila sigue diciendo «en prueba» porque la orden diaria no ha corrido.
+        Lo que el panel muestra no puede depender de que anoche corriera.
+        """
+        self.suscripcion.plan = Plan.objects.get(nombre="Básico")
+        self.suscripcion.precio_pactado = self.suscripcion.plan.precio_mensual
+        self.suscripcion.estado = Suscripcion.Estado.ACTIVA
+        self.suscripcion.fecha_fin = timezone.localdate() - timedelta(days=1)
+        self.suscripcion.save()
+        datos = self.consultar()
+        self.assertEqual(datos["estado"], Suscripcion.Estado.EN_MORA)
+        self.assertEqual(datos["dias_para_suspension"], Suscripcion.DIAS_DE_GRACIA)
+        self.assertTrue(datos["puede_operar"])
+        self.assertFalse(datos["es_prueba"])
+
+    def test_avisa_solo_cuando_el_vencimiento_esta_cerca(self):
+        """
+        El umbral lo resuelve el servidor. Con la prueba recién abierta faltan
+        quince días y no hay nada que avisar; movida la fecha al borde, sí.
+        """
+        self.assertFalse(self.consultar()["avisa_vencimiento"])
+        self.suscripcion.fecha_fin = (
+            timezone.localdate() + timedelta(days=Suscripcion.DIAS_DE_AVISO))
+        self.suscripcion.save(update_fields=["fecha_fin"])
+        datos = self.consultar()
+        self.assertTrue(datos["avisa_vencimiento"])
+        self.assertEqual(datos["dias_restantes"], Suscripcion.DIAS_DE_AVISO)

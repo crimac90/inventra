@@ -6,19 +6,27 @@
   del modulo la situara en un bloque posterior: un manual entregado que promete
   algo que no esta es la clase de contradiccion que llevamos dias corrigiendo.
 
-  Tres situaciones y tres tonos:
-    - en prueba, con dias de sobra: informativo;
-    - en prueba, con tres dias o menos: de advertencia, porque ya hay que actuar;
-    - sin suscripcion vigente: de error, porque el negocio dejo de poder registrar.
-  Cuando el plan esta contratado y al dia no se muestra nada: una franja
-  permanente que dice «todo bien» deja de leerse a los dos dias.
+  Cuatro situaciones y tres tonos:
+    - sin suscripcion vigente: de error, porque el negocio dejo de poder registrar;
+    - en mora: de error tambien, porque todavia opera pero hay que actuar hoy;
+    - en prueba: informativo, y de advertencia en los ultimos dias;
+    - plan contratado a punto de vencer: de advertencia.
+  Con el plan contratado y al dia no se muestra nada: una franja permanente que
+  dice «todo bien» deja de leerse a los dos dias.
+
+  Ningun umbral se escribe aqui. Cuantos dias faltan, cuantos quedan antes de la
+  suspension y si toca avisar los resuelve el servidor, donde estan las
+  constantes; un numero repetido en dos lenguajes acaba valiendo cosas distintas
+  en cada uno (regla 14).
 */
 
 import { useEffect, useState } from "react";
 
 import { consultarMiSuscripcion } from "../api/suscripciones";
 
-const DIAS_DE_AVISO = 3;
+function dias(cantidad, singular, plural) {
+  return cantidad === 1 ? `1 ${singular}` : `${cantidad} ${plural}`;
+}
 
 export default function AvisoSuscripcion() {
   const [suscripcion, setSuscripcion] = useState(null);
@@ -44,22 +52,45 @@ export default function AvisoSuscripcion() {
     );
   }
 
-  if (!suscripcion.es_prueba) return null;
+  if (suscripcion.estado === "en_mora") {
+    const restantes = suscripcion.dias_para_suspension;
+    return (
+      <div className="aviso err" role="status">
+        <b>Tu plan venció y sigue funcionando {dias(restantes, "día más", "días más")}.</b>{" "}
+        Comunícate para renovarlo. Si no lo haces, podrás seguir consultando tu información,
+        pero no registrar operaciones nuevas.
+      </div>
+    );
+  }
 
-  const dias = suscripcion.dias_restantes;
-  const urgente = dias <= DIAS_DE_AVISO;
+  if (suscripcion.es_prueba) {
+    const restantes = suscripcion.dias_restantes;
+    return (
+      <div className={suscripcion.avisa_vencimiento ? "aviso err" : "aviso ok"} role="status">
+        <b>
+          {restantes === 0
+            ? "Hoy es el último día de tu prueba gratuita."
+            : `${dias(restantes, "día", "días")} de tu prueba gratuita.`}
+        </b>{" "}
+        Durante la prueba tienes disponibles todas las funciones del plan {suscripcion.plan}.
+        Al terminar, tu información se conserva y la puedes seguir consultando.
+      </div>
+    );
+  }
 
-  return (
-    <div className={urgente ? "aviso err" : "aviso ok"} role="status">
-      <b>
-        {dias === 0
-          ? "Hoy es el último día de tu prueba gratuita."
-          : dias === 1
-            ? "Queda 1 día de tu prueba gratuita."
-            : `Quedan ${dias} días de tu prueba gratuita.`}
-      </b>{" "}
-      Durante la prueba tienes disponibles todas las funciones del plan {suscripcion.plan}.
-      Al terminar, tu información se conserva y la puedes seguir consultando.
-    </div>
-  );
+  if (suscripcion.avisa_vencimiento) {
+    const restantes = suscripcion.dias_restantes;
+    return (
+      <div className="aviso err" role="status">
+        <b>
+          {restantes === 0
+            ? "Tu plan vence hoy."
+            : `Tu plan vence en ${dias(restantes, "día", "días")}.`}
+        </b>{" "}
+        Renuévalo para seguir registrando operaciones sin interrupción.
+      </div>
+    );
+  }
+
+  return null;
 }

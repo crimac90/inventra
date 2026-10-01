@@ -1,6 +1,6 @@
 # INVENTRA — Diccionario de datos del sistema construido
 
-> Generado el 2026-09-27 con `py manage.py generar_diccionario_datos`  
+> Generado el 2026-09-30 con `py manage.py generar_diccionario_datos`  
 > Django 5.2.17 · motor mysql · base «inventra»  
 > **No se edita a mano:** se cambia el modelo y se vuelve a generar.
 
@@ -78,7 +78,7 @@ Historial de contratación de planes.
 | `plan_id` | bigint | No | FK → `plan` | Plan contratado en este período. |
 | `estado` | varchar(12) | No | — | Estado actual de la suscripción. Valores admitidos: `en_prueba`, `activa`, `en_mora`, `suspendida`, `cancelada`. |
 | `fecha_inicio` | date | No | — | Inicio de la vigencia. |
-| `fecha_fin` | date | Sí | — | Fin de la vigencia. Vacío mientras esté vigente. |
+| `fecha_fin` | date | Sí | — | Hasta cuándo vale esta suscripción. La define el Administrador INVENTRA al activar y al renovar, y no puede ser una fecha pasada (RF-SUS-03); al cambiar de plan se acorta al día del cambio. |
 | `precio_pactado` | numeric(12, 2) | No | — | Precio congelado al contratar; los aumentos no cambian el histórico. |
 
 ---
