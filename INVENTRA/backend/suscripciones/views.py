@@ -9,8 +9,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from seguridad.correo import enviar_correo_verificacion
+from seguridad.permissions import EsAdministradorDeLicorera
 from seguridad.serializers import InicioSesionSerializer, UsuarioSerializer
 
+from .cambio_de_plan import CambioNoPermitido, cambiar, es_bajada
 from .models import Plan
 from .modulos import estado_de_los_modulos
 from .serializers import (
@@ -133,4 +135,54 @@ class MisModulosView(APIView):
             suscripcion = licorera.suscripcion_actual()
             plan = suscripcion.plan if suscripcion else None
         return Response({"modulos": estado_de_los_modulos(plan)})
+
+
+class CambiarPlanView(APIView):
+    """
+    Cambio de plan pedido por el negocio (RF-SUS-02, decisión D-23).
+
+    Solo baja de plan. Subir implica cobrar, y eso lo ejecuta el Administrador
+    INVENTRA desde su panel: el servicio es el mismo, lo que cambia es quién
+    lo dispara.
+
+    NO LLEVA EL PERMISO DE ESCRITURA, Y ES A PROPÓSITO. Una licorera suspendida
+    no puede registrar operaciones, pero sí tiene que poder pasarse al plan que
+    va a pagar: es el camino que D-25 describe para volver —bajar de plan,
+    pagar, y que INVENTRA renueve la fecha—. Cerrarlo dejaría a esa licorera sin
+    salida dentro de la aplicación.
+    """
+
+    permission_classes = [EsAdministradorDeLicorera]
+
+    def post(self, request):
+        licorera = request.user.licorera
+        destino = Plan.objects.filter(id=request.data.get("plan")).first()
+        if destino is None:
+            return Response({"detalle": "Elige un plan."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        actual = licorera.suscripcion_actual()
+        # Pedir el plan que ya se tiene no es pedir una subida. Sin la primera
+        # condición, `es_bajada` devuelve falso —no cuesta menos que sí mismo— y
+        # la respuesta mandaba al negocio a gestionar con INVENTRA algo que ya
+        # tiene. El motivo real lo da `cambiar()`, que responde «ya tienes ese
+        # plan»; aquí solo se deja pasar.
+        if (actual is not None
+                and actual.plan_id != destino.id
+                and not es_bajada(actual.plan, destino)):
+            return Response(
+                {"detalle": "Para pasar al plan %s comunícate con INVENTRA: la "
+                            "activación se hace al confirmar el pago." % destino.nombre},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            nueva = cambiar(licorera, destino)
+        except CambioNoPermitido as motivo:
+            # 409 y no 400: la petición está bien formada y el plan existe; lo
+            # que no encaja es el estado del negocio, y eso el usuario lo puede
+            # cambiar inactivando lo que sobra.
+            return Response({"detalle": str(motivo)}, status=status.HTTP_409_CONFLICT)
+
+        return Response(MiSuscripcionSerializer(nueva).data)
 

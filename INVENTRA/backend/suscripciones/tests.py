@@ -25,6 +25,7 @@ from rest_framework import status
 from seguridad.models import Rol, Usuario
 
 from .models import Licorera, Plan, Suscripcion
+from .cambio_de_plan import es_bajada, excesos
 from .modulos import MODULOS
 from .permissions import PuedeRegistrarOperaciones
 
@@ -995,4 +996,225 @@ class ModulosSegunElPlanTests(TestCase):
         """
         self.suscripcion.delete()
         self.assertEqual(self.consultar()["sedes"], "pronto")
+
+
+class CambioDePlanTests(TestCase):
+    """
+    Bajar y subir de plan (RF-SUS-02, decisiones D-23 y D-25).
+
+    La licorera nace en prueba sobre Pro, así que casi todas las pruebas la pasan
+    antes a un Pro contratado: la prueba tiene reglas propias y se comprueban
+    aparte.
+    """
+
+    DATOS = {
+        "nombre_negocio": "Licorera de Prueba",
+        "nombre_completo": "Dueña de Prueba",
+        "correo": "duena@prueba.com",
+        "password": "Licorera2026",
+    }
+
+    def setUp(self):
+        cache.clear()
+        self.client.post(reverse("registrar-licorera"), self.DATOS,
+                         content_type="application/json")
+        self.licorera = Licorera.objects.get(nombre=self.DATOS["nombre_negocio"])
+        self.suscripcion = Suscripcion.objects.get(licorera=self.licorera)
+        self.basico = Plan.objects.get(nombre="Básico")
+        self.pro = Plan.objects.get(nombre="Pro")
+        self.url = reverse("cambiar-plan")
+        self.hoy = timezone.localdate()
+
+    # --- utilidades ---
+
+    def contratar_pro(self, vence_en=20):
+        """Saca la licorera de la prueba y la deja con un Pro contratado."""
+        self.suscripcion.estado = Suscripcion.Estado.ACTIVA
+        self.suscripcion.precio_pactado = self.pro.precio_mensual
+        self.suscripcion.fecha_fin = self.hoy + timedelta(days=vence_en)
+        self.suscripcion.save()
+
+    def cabecera(self, correo=None, password=None):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": correo or self.DATOS["correo"],
+             "password": password or self.DATOS["password"]},
+            content_type="application/json")
+        return {"HTTP_AUTHORIZATION": "Bearer %s" % respuesta.json()["acceso"]}
+
+    def pedir(self, plan=None, **cabecera):
+        return self.client.post(
+            self.url, {"plan": plan.id if plan else None},
+            content_type="application/json", **(cabecera or self.cabecera()))
+
+    def segundo_usuario(self, activo=True):
+        return Usuario.objects.create_user(
+            correo="vendedor@prueba.com", nombre_completo="Vendedor",
+            password="Licorera2026", licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.VENDEDOR), activo=activo)
+
+    # --- el sentido del cambio ---
+
+    def test_bajar_es_pasar_a_un_plan_mas_barato(self):
+        self.assertTrue(es_bajada(self.pro, self.basico))
+        self.assertFalse(es_bajada(self.basico, self.pro))
+
+    def test_el_negocio_no_puede_subir_de_plan_por_su_cuenta(self):
+        """Subir implica cobrar, y el cobro no pasa por la aplicación (D-23)."""
+        self.contratar_pro()
+        self.suscripcion.plan = self.basico
+        self.suscripcion.precio_pactado = self.basico.precio_mensual
+        self.suscripcion.save()
+        respuesta = self.pedir(self.pro)
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("INVENTRA", respuesta.json()["detalle"])
+
+    # --- la bajada que procede ---
+
+    def test_bajar_cierra_la_fila_anterior_y_abre_otra(self):
+        self.contratar_pro()
+        vence = self.suscripcion.fecha_fin
+        respuesta = self.pedir(self.basico)
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.fecha_fin, self.hoy)
+
+        nueva = self.licorera.suscripcion_actual()
+        self.assertEqual(nueva.plan, self.basico)
+        self.assertEqual(nueva.fecha_inicio, self.hoy)
+        self.assertEqual(nueva.estado, Suscripcion.Estado.ACTIVA)
+        self.assertEqual(self.licorera.suscripciones.count(), 2)
+
+    def test_la_fila_nueva_hereda_la_fecha_de_vencimiento(self):
+        """
+        El cliente no escribe fechas: si la fila nueva estrenara vigencia,
+        cambiar de plan sería una forma de regalársela (D-25).
+        """
+        self.contratar_pro()
+        vence = self.suscripcion.fecha_fin
+        self.pedir(self.basico)
+        self.assertEqual(self.licorera.suscripcion_actual().fecha_fin, vence)
+
+    def test_el_precio_del_plan_nuevo_queda_congelado(self):
+        self.contratar_pro()
+        self.pedir(self.basico)
+        self.assertEqual(self.licorera.suscripcion_actual().precio_pactado,
+                         self.basico.precio_mensual)
+
+    def test_cerrar_una_fila_vencida_no_le_alarga_la_vigencia(self):
+        """
+        Una cuenta suspendida que se pasa al plan barato antes de ponerse al día
+        conserva la fecha en que venció. Ponerle la de hoy le regalaría los días
+        que estuvo sin servicio y el historial diría que estuvo vigente.
+        """
+        self.contratar_pro(vence_en=-30)
+        vencio = self.suscripcion.fecha_fin
+        self.pedir(self.basico)
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.fecha_fin, vencio)
+        self.assertEqual(self.licorera.suscripcion_actual().fecha_fin, vencio)
+
+    def test_la_licorera_suspendida_puede_bajar_de_plan(self):
+        """
+        Es el camino de vuelta que describe D-25: bajar, pagar y que INVENTRA
+        renueve. Si el permiso de escritura cerrara esta puerta, esa licorera se
+        quedaría sin salida dentro de la aplicación.
+        """
+        self.contratar_pro(vence_en=-30)
+        self.assertIsNone(self.licorera.suscripcion_vigente())
+        self.assertEqual(self.pedir(self.basico).status_code, status.HTTP_200_OK)
+
+    def test_la_fila_nueva_nace_suspendida_si_hereda_una_fecha_pasada(self):
+        self.contratar_pro(vence_en=-30)
+        self.pedir(self.basico)
+        self.assertEqual(self.licorera.suscripcion_actual().estado,
+                         Suscripcion.Estado.SUSPENDIDA)
+
+    # --- la bajada que no cabe ---
+
+    def test_no_se_baja_con_mas_usuarios_de_los_que_admite_el_plan(self):
+        self.contratar_pro()
+        self.segundo_usuario()
+        respuesta = self.pedir(self.basico)
+        self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(self.licorera.suscripciones.count(), 1)
+
+    def test_el_rechazo_dice_el_limite_y_cuantos_hay(self):
+        """
+        «Excede el límite» no deja actuar a nadie: hay que decir cuántos admite
+        el plan y cuántos tiene la licorera, en castellano y sin paréntesis.
+        """
+        self.contratar_pro()
+        self.segundo_usuario()
+        detalle = self.pedir(self.basico).json()["detalle"]
+        self.assertIn("un usuario", detalle)
+        self.assertIn("2 usuarios activos", detalle)
+        self.assertNotIn("(s)", detalle)
+
+    def test_los_usuarios_inactivos_no_estorban(self):
+        """Quien fue dado de baja no ocupa un cupo, aquí tampoco."""
+        self.contratar_pro()
+        self.segundo_usuario(activo=False)
+        self.assertEqual(self.pedir(self.basico).status_code, status.HTTP_200_OK)
+
+    def test_el_calculo_de_lo_que_sobra_se_puede_preguntar_aparte(self):
+        """
+        `excesos()` es lo que el panel de INVENTRA necesitará para avisar antes
+        de intentar el cambio, así que responde por su cuenta y no solo dentro
+        del rechazo.
+        """
+        self.contratar_pro()
+        self.assertEqual(excesos(self.licorera, self.basico), [])
+        self.segundo_usuario()
+        sobra = excesos(self.licorera, self.basico)
+        self.assertEqual(len(sobra), 1)
+        self.assertIn("2 usuarios activos", sobra[0])
+
+    def test_el_plan_sin_tope_no_deja_nada_fuera(self):
+        self.contratar_pro()
+        self.segundo_usuario()
+        self.assertEqual(excesos(self.licorera, self.pro), [])
+
+    # --- la prueba tiene sus propias reglas ---
+
+    def test_durante_la_prueba_no_se_cambia_de_plan(self):
+        respuesta = self.pedir(self.basico)
+        self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(self.licorera.suscripciones.count(), 1)
+
+    def test_el_aviso_de_la_prueba_dice_que_es_pro_y_que_se_pierde_al_bajar(self):
+        """
+        Lo pidió así: que quede claro que la prueba es la versión Pro y que
+        elegir el Básico después significa perder funciones.
+        """
+        detalle = self.pedir(self.basico).json()["detalle"]
+        self.assertIn("Pro", detalle)
+        self.assertIn("Básico", detalle)
+        self.assertIn("un solo usuario", detalle)
+
+    # --- lo que no procede por otros motivos ---
+
+    def test_no_se_cambia_al_plan_que_ya_se_tiene(self):
+        self.contratar_pro()
+        respuesta = self.pedir(self.pro)
+        self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("ya tiene", respuesta.json()["detalle"])
+
+    def test_sin_plan_en_la_peticion_no_se_hace_nada(self):
+        self.contratar_pro()
+        self.assertEqual(self.pedir(None).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_un_vendedor_no_cambia_el_plan_del_negocio(self):
+        self.contratar_pro()
+        self.segundo_usuario()
+        respuesta = self.pedir(
+            self.basico,
+            **self.cabecera("vendedor@prueba.com", "Licorera2026"))
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_la_peticion_exige_sesion(self):
+        respuesta = self.client.post(self.url, {"plan": self.basico.id},
+                                     content_type="application/json")
+        self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
 
