@@ -399,14 +399,20 @@ function Formulario({ inicial, roles, ocupado, onGuardar, onCancelar }) {
 function textoDeError(error) {
   if (!(error instanceof ErrorApi)) return "Ocurrió un error inesperado.";
 
-  // 409: el plan contratado no admite más usuarios. El backend manda el texto
-  // con el nombre del plan y su tope, así que se muestra tal cual.
-  if (error.codigo === 409) return error.mensaje;
+  /*
+    Los rechazos los explica el servidor, no esta pantalla.
 
-  if (error.codigo === 403) {
-    return "Esta acción solo la puede realizar el administrador de la licorera.";
-  }
+    El 403 tenía aquí un texto fijo —«solo lo puede hacer el administrador»— y
+    era cierto mientras ese fuera el único motivo posible. Desde que la gestión
+    de usuarios exige además la suscripción vigente (RF-SUS-03) hay dos, y el
+    texto fijo le decía al administrador de una licorera vencida que no era
+    administrador. Traducir un código de estado a una frase supone que el código
+    tiene un solo significado, y los códigos no funcionan así: el motivo lo sabe
+    quien rechaza.
 
+    El 404 se queda traducido a propósito: ahí el servidor dice «no encontrado»,
+    que es cierto pero no dice qué no se encontró.
+  */
   if (error.codigo === 404) {
     return "Ese usuario ya no existe.";
   }
