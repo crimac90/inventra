@@ -173,3 +173,142 @@ class MiSuscripcionSerializer(serializers.Serializer):
 
     def get_puede_operar(self, suscripcion):
         return suscripcion.esta_vigente()
+
+
+class AltaLicoreraSerializer(serializers.Serializer):
+    """
+    Alta de una licorera por el Administrador INVENTRA (RF-SUS-01, segunda vía).
+
+    Es la otra puerta que decidió D-10. Se diferencia del autoservicio en dos
+    cosas, y las dos vienen de que aquí hay un contrato de por medio: el plan y
+    la fecha de vencimiento los escribe quien dio de alta, en vez de salir de la
+    prueba de quince días.
+
+    La cuenta del dueño nace **sin contraseña utilizable**. La define él, con el
+    enlace que se le envía, de modo que el Administrador INVENTRA no llega a
+    conocer la clave de un cliente. No es una precaución teórica: es lo único que
+    permite sostener después quién pudo entrar a una cuenta.
+    """
+
+    nombre_negocio = serializers.CharField(max_length=100)
+    nit = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    direccion = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    telefono = serializers.CharField(max_length=20, required=False, allow_blank=True)
+
+    nombre_completo = serializers.CharField(max_length=100)
+    correo = serializers.EmailField(max_length=100)
+
+    plan = serializers.PrimaryKeyRelatedField(queryset=Plan.objects.filter(activo=True))
+    fecha_fin = serializers.DateField()
+
+    def validate_correo(self, valor):
+        correo = valor.strip().lower()
+        if Usuario.objects.filter(correo=correo).exists():
+            raise serializers.ValidationError("Ya existe una cuenta registrada con este correo.")
+        return correo
+
+    def validate_nit(self, valor):
+        nit = (valor or "").strip()
+        if nit and Licorera.objects.filter(nit=nit).exists():
+            raise serializers.ValidationError("Ya hay una licorera registrada con este NIT.")
+        return nit or None
+
+    def validate_fecha_fin(self, valor):
+        """La misma regla que al corregir: una fecha escrita a mano no va al pasado."""
+        if valor < timezone.localdate():
+            raise serializers.ValidationError(
+                "La fecha de vencimiento no puede quedar en el pasado.")
+        return valor
+
+    @transaction.atomic
+    def create(self, datos):
+        licorera = Licorera.objects.create(
+            nombre=datos["nombre_negocio"],
+            nit=datos.get("nit") or None,
+            direccion=datos.get("direccion") or "",
+            telefono=datos.get("telefono") or "",
+            correo=datos["correo"],
+        )
+
+        suscripcion = Suscripcion.objects.create(
+            licorera=licorera,
+            plan=datos["plan"],
+            estado=Suscripcion.Estado.ACTIVA,
+            fecha_inicio=timezone.localdate(),
+            fecha_fin=datos["fecha_fin"],
+            precio_pactado=datos["plan"].precio_mensual,
+        )
+
+        usuario = Usuario.objects.create_user(
+            correo=datos["correo"],
+            nombre_completo=datos["nombre_completo"],
+            # Sin contraseña: Django la marca como inutilizable y ningún intento
+            # de ingreso la acierta hasta que su dueño define una.
+            password=None,
+            licorera=licorera,
+            rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
+        )
+
+        return {"licorera": licorera, "usuario": usuario, "suscripcion": suscripcion}
+
+
+class LicoreraDelPanelSerializer(serializers.Serializer):
+    """
+    Una licorera vista desde el panel de la plataforma (RF-SUS-05).
+
+    Lo que sale de aquí es deliberadamente corto: nombre, contacto, plan, estado
+    y cuántas cuentas tiene. **Nada de su información comercial** —ni productos,
+    ni ventas, ni importes—, que es lo que el requisito prohíbe expresamente. El
+    operador de la plataforma administra suscripciones, no negocios ajenos.
+    """
+
+    id = serializers.IntegerField()
+    nombre = serializers.CharField()
+    nit = serializers.CharField(allow_null=True)
+    correo = serializers.CharField()
+    telefono = serializers.CharField(allow_null=True)
+    fecha_registro = serializers.DateTimeField()
+    activo = serializers.BooleanField()
+
+    plan = serializers.SerializerMethodField()
+    estado = serializers.SerializerMethodField()
+    estado_texto = serializers.SerializerMethodField()
+    fecha_fin = serializers.SerializerMethodField()
+    dias_restantes = serializers.SerializerMethodField()
+    puede_operar = serializers.SerializerMethodField()
+    usuarios_activos = serializers.SerializerMethodField()
+
+    def _suscripcion(self, licorera):
+        # Se calcula una vez por licorera y se guarda: el serializador pregunta
+        # siete veces por lo mismo y cada una sería una consulta más.
+        if not hasattr(licorera, "_actual"):
+            licorera._actual = licorera.suscripcion_actual()
+        return licorera._actual
+
+    def get_plan(self, licorera):
+        s = self._suscripcion(licorera)
+        return s.plan.nombre if s else None
+
+    def get_estado(self, licorera):
+        s = self._suscripcion(licorera)
+        return s.estado_por_fecha() if s else None
+
+    def get_estado_texto(self, licorera):
+        s = self._suscripcion(licorera)
+        return Suscripcion.Estado(s.estado_por_fecha()).label if s else "Sin suscripción"
+
+    def get_fecha_fin(self, licorera):
+        s = self._suscripcion(licorera)
+        return s.fecha_fin if s else None
+
+    def get_dias_restantes(self, licorera):
+        s = self._suscripcion(licorera)
+        return s.dias_restantes() if s else None
+
+    def get_puede_operar(self, licorera):
+        s = self._suscripcion(licorera)
+        return bool(s and s.esta_vigente())
+
+    def get_usuarios_activos(self, licorera):
+        return licorera.usuarios.filter(activo=True).count()
+

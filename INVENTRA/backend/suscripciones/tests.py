@@ -14,6 +14,7 @@ from pathlib import Path
 
 from datetime import timedelta
 
+from django.core import mail
 from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -25,7 +26,8 @@ from rest_framework import status
 from seguridad.models import Rol, Usuario
 
 from .models import Licorera, Plan, Suscripcion
-from .cambio_de_plan import es_bajada, excesos
+from .cambio_de_plan import abrir_periodo, corregir_vencimiento, es_bajada, excesos
+from .correo import enviar_correo_vencimiento
 from .modulos import MODULOS
 from .permissions import PuedeRegistrarOperaciones
 
@@ -1217,4 +1219,365 @@ class CambioDePlanTests(TestCase):
         respuesta = self.client.post(self.url, {"plan": self.basico.id},
                                      content_type="application/json")
         self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class PanelBase(TestCase):
+    """Montaje común del panel: un operador de plataforma y una licorera con plan."""
+
+    CLAVE = "Inventra2026"
+
+    def setUp(self):
+        cache.clear()
+        self.basico = Plan.objects.get(nombre="Básico")
+        self.pro = Plan.objects.get(nombre="Pro")
+        self.hoy = timezone.localdate()
+
+        self.operador = Usuario.objects.create_superuser(
+            correo="plataforma@inventra.co", nombre_completo="Operador",
+            password=self.CLAVE)
+
+        self.licorera = Licorera.objects.create(
+            nombre="Licorera La Esquina", correo="contacto@esquina.com")
+        self.suscripcion = Suscripcion.objects.create(
+            licorera=self.licorera, plan=self.basico,
+            estado=Suscripcion.Estado.ACTIVA,
+            fecha_inicio=self.hoy, fecha_fin=self.hoy + timedelta(days=20),
+            precio_pactado=self.basico.precio_mensual)
+        self.duena = Usuario.objects.create_user(
+            correo="duena@esquina.com", nombre_completo="Dueña",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA))
+        mail.outbox = []
+
+    def cabecera(self, correo=None):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": correo or self.operador.correo, "password": self.CLAVE},
+            content_type="application/json")
+        return {"HTTP_AUTHORIZATION": "Bearer %s" % respuesta.json()["acceso"]}
+
+    def url_suscripcion(self, licorera=None):
+        return reverse("suscripcion-de-licorera",
+                       args=[(licorera or self.licorera).id])
+
+
+class AltaDeLicoreraTests(PanelBase):
+    """Alta directa por el Administrador INVENTRA (RF-SUS-01, segunda vía)."""
+
+    DATOS = {
+        "nombre_negocio": "Licorera El Roble",
+        "nombre_completo": "Pedro Roble",
+        "correo": "pedro@roble.com",
+    }
+
+    def alta(self, **cambios):
+        cuerpo = dict(self.DATOS, plan=self.pro.id,
+                      fecha_fin=str(timezone.localdate() + timedelta(days=30)))
+        cuerpo.update(cambios)
+        return self.client.post(reverse("alta-licorera"), cuerpo,
+                                content_type="application/json", **self.cabecera())
+
+    def test_crea_el_negocio_con_su_plan_y_su_fecha(self):
+        self.assertEqual(self.alta().status_code, status.HTTP_201_CREATED)
+        licorera = Licorera.objects.get(nombre=self.DATOS["nombre_negocio"])
+        suscripcion = licorera.suscripcion_actual()
+        self.assertEqual(suscripcion.plan, self.pro)
+        self.assertEqual(suscripcion.fecha_fin, self.hoy + timedelta(days=30))
+        self.assertEqual(suscripcion.precio_pactado, self.pro.precio_mensual)
+        self.assertEqual(suscripcion.estado, Suscripcion.Estado.ACTIVA)
+
+    def test_la_cuenta_nace_sin_contrasena_utilizable(self):
+        """
+        INVENTRA no debe conocer la clave de un cliente. Mientras el dueño no
+        defina la suya, no hay ninguna que sirva para entrar.
+        """
+        self.alta()
+        usuario = Usuario.objects.get(correo=self.DATOS["correo"])
+        self.assertFalse(usuario.has_usable_password())
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": self.DATOS["correo"], "password": self.CLAVE},
+            content_type="application/json")
+        self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_se_le_envia_al_dueno_el_enlace_para_definirla(self):
+        self.alta()
+        self.assertEqual(len(mail.outbox), 1)
+        mensaje = mail.outbox[0]
+        self.assertEqual(mensaje.to, [self.DATOS["correo"]])
+        self.assertIn("restablecer-contrasena", mensaje.body)
+
+    def test_no_se_repite_un_correo_ya_registrado(self):
+        respuesta = self.alta(correo=self.duena.correo)
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_la_fecha_de_vencimiento_no_puede_ser_pasada(self):
+        respuesta = self.alta(fecha_fin=str(self.hoy - timedelta(days=1)))
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_un_administrador_de_licorera_no_da_de_alta_a_nadie(self):
+        respuesta = self.client.post(
+            reverse("alta-licorera"), dict(self.DATOS, plan=self.pro.id,
+                                           fecha_fin=str(self.hoy)),
+            content_type="application/json", **self.cabecera(self.duena.correo))
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PanelDeLaPlataformaTests(PanelBase):
+    """Lo que ve el operador de la plataforma (RF-SUS-05)."""
+
+    CAMPOS = {
+        "id", "nombre", "nit", "correo", "telefono", "fecha_registro", "activo",
+        "plan", "estado", "estado_texto", "fecha_fin", "dias_restantes",
+        "puede_operar", "usuarios_activos",
+    }
+
+    def consultar(self):
+        return self.client.get(reverse("panel"), **self.cabecera()).json()
+
+    def test_lista_las_licoreras_con_su_plan_y_su_estado(self):
+        datos = self.consultar()["licoreras"]
+        fila = next(l for l in datos if l["nombre"] == self.licorera.nombre)
+        self.assertEqual(fila["plan"], "Básico")
+        self.assertEqual(fila["estado"], Suscripcion.Estado.ACTIVA)
+        self.assertEqual(fila["usuarios_activos"], 1)
+
+    def test_no_expone_informacion_comercial_del_negocio(self):
+        """
+        El requisito lo prohíbe expresamente. La prueba fija el juego de campos
+        entero y no la ausencia de uno concreto: así, el día que alguien añada
+        las ventas o el inventario «para que se vea mejor», falla aquí.
+        """
+        fila = self.consultar()["licoreras"][0]
+        self.assertEqual(set(fila), self.CAMPOS)
+
+    def test_las_metricas_cuentan_las_cuentas_activas_y_lo_que_facturan(self):
+        metricas = self.consultar()["metricas"]
+        self.assertEqual(metricas["licoreras_registradas"], 1)
+        self.assertEqual(metricas["cuentas_activas"], 1)
+        self.assertEqual(float(metricas["ingresos_mensuales_recurrentes"]),
+                         float(self.basico.precio_mensual))
+
+    def test_una_suspendida_no_cuenta_como_activa_ni_suma_ingresos(self):
+        self.suscripcion.fecha_fin = self.hoy - timedelta(days=30)
+        self.suscripcion.save(update_fields=["fecha_fin"])
+        metricas = self.consultar()["metricas"]
+        self.assertEqual(metricas["cuentas_activas"], 0)
+        self.assertEqual(float(metricas["ingresos_mensuales_recurrentes"]), 0)
+
+    def test_una_prueba_no_suma_ingresos(self):
+        self.suscripcion.estado = Suscripcion.Estado.EN_PRUEBA
+        self.suscripcion.precio_pactado = 0
+        self.suscripcion.save()
+        metricas = self.consultar()["metricas"]
+        self.assertEqual(metricas["cuentas_activas"], 1)
+        self.assertEqual(float(metricas["ingresos_mensuales_recurrentes"]), 0)
+
+    def test_el_estado_que_muestra_es_el_calculado_y_no_el_guardado(self):
+        """La columna la pone al día una orden; el panel no puede esperarla."""
+        self.suscripcion.fecha_fin = self.hoy - timedelta(days=1)
+        self.suscripcion.save(update_fields=["fecha_fin"])
+        fila = self.consultar()["licoreras"][0]
+        self.assertEqual(fila["estado"], Suscripcion.Estado.EN_MORA)
+
+    def test_el_panel_es_solo_del_operador_de_la_plataforma(self):
+        respuesta = self.client.get(reverse("panel"),
+                                    **self.cabecera(self.duena.correo))
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class AbrirPeriodoTests(PanelBase):
+    """Renovar y subir de plan, que son la misma operación (D-25)."""
+
+    def pedir(self, plan=None, dias=30, correo=None):
+        cuerpo = {"plan": (plan or self.basico).id}
+        if dias is not None:
+            cuerpo["fecha_fin"] = str(self.hoy + timedelta(days=dias))
+        return self.client.post(self.url_suscripcion(), cuerpo,
+                                content_type="application/json",
+                                **self.cabecera(correo))
+
+    def test_renovar_cierra_la_anterior_y_abre_otra_con_la_fecha_dada(self):
+        self.assertEqual(self.pedir().status_code, status.HTTP_201_CREATED)
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.fecha_fin, self.hoy)
+        nueva = self.licorera.suscripcion_actual()
+        self.assertEqual(nueva.fecha_fin, self.hoy + timedelta(days=30))
+        self.assertEqual(self.licorera.suscripciones.count(), 2)
+
+    def test_subir_de_plan_es_la_misma_operacion_con_otro_plan(self):
+        self.pedir(plan=self.pro)
+        nueva = self.licorera.suscripcion_actual()
+        self.assertEqual(nueva.plan, self.pro)
+        self.assertEqual(nueva.precio_pactado, self.pro.precio_mensual)
+
+    def test_la_fecha_no_se_hereda_al_subir_la_escribe_quien_cobra(self):
+        anterior = self.suscripcion.fecha_fin
+        self.pedir(plan=self.pro, dias=60)
+        self.assertNotEqual(self.licorera.suscripcion_actual().fecha_fin, anterior)
+        self.assertEqual(self.licorera.suscripcion_actual().fecha_fin,
+                         self.hoy + timedelta(days=60))
+
+    def test_bajar_de_plan_no_se_hace_desde_el_panel(self):
+        """
+        El rechazo por exceso de usuarios tiene que salirle a quien decide qué
+        inactiva, y esa persona no está en INVENTRA (D-23).
+        """
+        self.suscripcion.plan = self.pro
+        self.suscripcion.precio_pactado = self.pro.precio_mensual
+        self.suscripcion.save()
+        respuesta = self.pedir(plan=self.basico)
+        self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("administrador de la licorera", respuesta.json()["detalle"])
+
+    def test_sin_fecha_no_se_abre_nada(self):
+        self.assertEqual(self.pedir(dias=None).status_code, status.HTTP_409_CONFLICT)
+
+    def test_la_fecha_no_puede_quedar_en_el_pasado(self):
+        respuesta = self.pedir(dias=-1)
+        self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("pasado", respuesta.json()["detalle"])
+
+    def test_avisa_por_correo_al_administrador_de_la_licorera(self):
+        self.pedir(dias=45)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.duena.correo])
+        self.assertIn("Vigencia", mail.outbox[0].subject)
+
+    def vendedor(self):
+        return Usuario.objects.create_user(
+            correo="vendedor@esquina.com", nombre_completo="Vendedor",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.VENDEDOR))
+
+    def test_el_aviso_va_a_los_administradores_y_no_a_los_vendedores(self):
+        """
+        Se avisa a quien puede hacer algo con el aviso. Un vendedor no renueva
+        nada y recibirlo solo le enseña a ignorar los correos del sistema.
+        """
+        self.suscripcion.plan = self.pro        # el Pro admite dos cuentas
+        self.suscripcion.precio_pactado = self.pro.precio_mensual
+        self.suscripcion.save()
+        self.vendedor()
+        self.pedir(plan=self.pro, dias=45)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.duena.correo])
+
+    def test_renovar_el_mismo_plan_no_se_bloquea_por_exceso(self):
+        """
+        Renovar no cambia ningún límite, así que no hay nada que validar. Si se
+        comprobara igual, una licorera que por lo que fuera excediera su propio
+        plan no podría renovar —no podría pagar—, y negarle el cobro no arregla
+        el exceso: lo congela.
+        """
+        self.vendedor()                         # dos cuentas en un plan de una
+        self.assertEqual(self.pedir().status_code, status.HTTP_201_CREATED)
+
+    def test_subir_de_plan_si_comprueba_que_quepa(self):
+        """
+        Lo contrario del caso anterior: al cambiar de plan sí cambian los
+        límites, y ahí la comprobación es la que pide RF-SUS-02.
+        """
+        self.suscripcion.plan = self.pro
+        self.suscripcion.precio_pactado = self.pro.precio_mensual
+        self.suscripcion.save()
+        self.vendedor()
+        intermedio = Plan.objects.create(
+            nombre="Intermedio", precio_mensual=self.pro.precio_mensual * 2,
+            maximo_usuarios=1, maximo_sedes=1)
+        respuesta = self.pedir(plan=intermedio)
+        self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("no cabe", respuesta.json()["detalle"])
+
+    def test_sin_administrador_activo_el_aviso_se_calla_en_vez_de_fallar(self):
+        """
+        No tener a quien avisar no es motivo para dejar la renovación a medias:
+        el período se abrió igual, que es lo que importaba.
+        """
+        self.duena.activo = False
+        self.duena.save(update_fields=["activo"])
+        self.assertEqual(enviar_correo_vencimiento(self.licorera, self.suscripcion), [])
+        self.assertEqual(self.pedir(dias=45).status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_cerrar_una_fila_vencida_no_le_alarga_la_vigencia(self):
+        self.suscripcion.fecha_fin = self.hoy - timedelta(days=30)
+        self.suscripcion.save(update_fields=["fecha_fin"])
+        vencio = self.suscripcion.fecha_fin
+        self.pedir()
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.fecha_fin, vencio)
+
+    def test_el_servicio_se_puede_llamar_sin_pasar_por_la_vista(self):
+        """Lo usará también el alta y, más adelante, cualquier proceso de cobro."""
+        nueva = abrir_periodo(self.licorera, self.pro, self.hoy + timedelta(days=10))
+        self.assertEqual(nueva.plan, self.pro)
+
+
+class CorregirVencimientoTests(PanelBase):
+    """La fecha mal escrita se arregla; nada queda irreparable (D-25)."""
+
+    def corregir(self, dias, correo=None):
+        return self.client.patch(
+            self.url_suscripcion(),
+            {"fecha_fin": str(self.hoy + timedelta(days=dias))},
+            content_type="application/json", **self.cabecera(correo))
+
+    def test_corrige_la_fila_vigente_sin_abrir_otra(self):
+        self.assertEqual(self.corregir(60).status_code, status.HTTP_200_OK)
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.fecha_fin, self.hoy + timedelta(days=60))
+        self.assertEqual(self.licorera.suscripciones.count(), 1)
+
+    def test_los_dos_anos_que_eran_dos_meses(self):
+        """El caso que motivó la regla: una fecha larguísima se acorta."""
+        self.corregir(730)
+        self.corregir(60)
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.fecha_fin, self.hoy + timedelta(days=60))
+
+    def test_corregir_hacia_adelante_devuelve_a_la_vida_una_suspendida(self):
+        """
+        Si alguien tecleó una fecha demasiado temprana y la cuenta quedó
+        suspendida, corregirla tiene que arreglarlo: de nada sirve poder editar
+        si el daño ya es irreversible.
+        """
+        self.suscripcion.fecha_fin = self.hoy - timedelta(days=30)
+        self.suscripcion.estado = Suscripcion.Estado.SUSPENDIDA
+        self.suscripcion.save()
+        self.corregir(30)
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.estado, Suscripcion.Estado.ACTIVA)
+        self.assertTrue(self.suscripcion.esta_vigente())
+
+    def test_guardar_la_misma_fecha_no_manda_correo(self):
+        """Avisar de algo que no pasó enseña a no leer los avisos."""
+        dias = (self.suscripcion.fecha_fin - self.hoy).days
+        self.assertEqual(self.corregir(dias).status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_corregirla_de_verdad_si_manda_correo(self):
+        """El correo lleva la fecha nueva escrita, no un «se actualizó»."""
+        nueva = self.hoy + timedelta(days=99)
+        self.corregir(99)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.duena.correo])
+        self.assertIn(nueva.strftime("%d/%m/%Y"), mail.outbox[0].body)
+
+    def test_no_se_puede_corregir_hacia_el_pasado(self):
+        respuesta = self.corregir(-1)
+        self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
+
+    def test_una_licorera_que_no_existe_responde_que_no_existe(self):
+        respuesta = self.client.patch(
+            reverse("suscripcion-de-licorera", args=[9999]),
+            {"fecha_fin": str(self.hoy)},
+            content_type="application/json", **self.cabecera())
+        self.assertEqual(respuesta.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_el_servicio_dice_si_hubo_cambio(self):
+        cambio, _ = corregir_vencimiento(self.licorera, self.suscripcion.fecha_fin)
+        self.assertFalse(cambio)
+        cambio, _ = corregir_vencimiento(self.licorera, self.hoy + timedelta(days=5))
+        self.assertTrue(cambio)
 

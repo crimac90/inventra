@@ -147,3 +147,121 @@ def cambiar(licorera, destino):
     nueva.estado = nueva.estado_por_fecha(hoy)
     nueva.save()
     return nueva
+
+
+# ---------------------------------------------------------------------------
+# Lo que ejecuta el Administrador INVENTRA (RF-SUS-01 y RF-SUS-05, D-25)
+# ---------------------------------------------------------------------------
+
+def _no_puede_ser_pasada(fecha_fin):
+    """
+    La fecha que escribe una persona nunca puede quedar en el pasado (D-25).
+
+    El mínimo es hoy, así que lo más agresivo que puede hacer una corrección es
+    dejar el vencimiento en hoy, nunca ayer: un negocio no puede quedarse sin
+    acceso por un día que ya trabajó. No aplica cuando es el sistema el que
+    cierra una fila al cambiar de plan; eso no lo escribe nadie a mano.
+    """
+    if fecha_fin is None:
+        raise CambioNoPermitido("Indica hasta cuándo vale la suscripción.")
+    if fecha_fin < timezone.localdate():
+        raise CambioNoPermitido(
+            "La fecha de vencimiento no puede quedar en el pasado. Lo más atrás "
+            "que puede ponerse es hoy.")
+
+
+@transaction.atomic
+def abrir_periodo(licorera, plan, fecha_fin):
+    """
+    Abre un período contratado: renovar y subir de plan son la misma operación.
+
+    Las dos cierran la suscripción vigente y abren otra con un plan y una fecha
+    que pone el Administrador INVENTRA. La única diferencia es si el plan cambia,
+    y eso no justifica dos caminos distintos que luego hay que mantener iguales.
+
+    La fecha la escribe él y no se hereda, al revés que en la bajada: subir y
+    renovar implican cobrar, y quien cobra sabe por cuánto tiempo se pagó. La
+    bajada es la excepción, y lo es porque ahí no hay dinero de por medio.
+
+    **Bajar de plan no se hace desde aquí.** El rechazo por exceso de usuarios o
+    sedes tiene que salirle a quien puede decidir qué inactiva, y esa persona no
+    está en INVENTRA (D-23).
+    """
+    _no_puede_ser_pasada(fecha_fin)
+    if not plan.activo:
+        raise CambioNoPermitido("El plan %s no está disponible." % plan.nombre)
+
+    anterior = licorera.suscripcion_actual()
+    if anterior is not None and es_bajada(anterior.plan, plan):
+        raise CambioNoPermitido(
+            "Bajar al plan %s lo hace el administrador de la licorera desde su "
+            "cuenta: es quien puede decidir qué usuarios o sedes inactiva."
+            % plan.nombre)
+
+    # El exceso solo se comprueba cuando el plan CAMBIA. Renovar el mismo plan no
+    # altera ningún límite, así que no hay nada que validar; comprobarlo igual
+    # dejaba a una licorera que por lo que fuera excediera su propio plan sin
+    # poder renovar —es decir, sin poder pagar—, y negarle el cobro no arregla el
+    # exceso: lo congela. Lo encontró una prueba del aviso por correo, que se
+    # quedó sin correo porque la renovación nunca llegó a ejecutarse.
+    if anterior is None or anterior.plan_id != plan.id:
+        sobra = excesos(licorera, plan)
+        if sobra:
+            raise CambioNoPermitido(
+                "La licorera no cabe en el plan %s: %s" % (plan.nombre, " ".join(sobra)))
+
+    hoy = timezone.localdate()
+    if anterior is not None:
+        vencia = anterior.fecha_fin
+        anterior.fecha_fin = hoy if vencia is None else min(vencia, hoy)
+        anterior.save(update_fields=["fecha_fin"])
+
+    nueva = Suscripcion(
+        licorera=licorera,
+        plan=plan,
+        estado=Suscripcion.Estado.ACTIVA,
+        fecha_inicio=hoy,
+        fecha_fin=fecha_fin,
+        precio_pactado=plan.precio_mensual,
+    )
+    nueva.save()
+    return nueva
+
+
+@transaction.atomic
+def corregir_vencimiento(licorera, fecha_fin):
+    """
+    Cambia la fecha de la suscripción vigente, sin abrir una fila nueva (D-25).
+
+    Es el caso de haber escrito dos años donde eran dos meses. No es una
+    renovación: no hay período nuevo, hay un dato mal puesto.
+
+    Devuelve `(cambió, suscripción)`. El booleano existe para que la vista sepa
+    si mandar el correo: guardar el formulario sin tocar la fecha no son dos
+    correos, es ninguno.
+
+    ESTE ES EL ÚNICO SITIO QUE PUEDE DEVOLVER UNA SUSCRIPCIÓN A LA VIDA, y por
+    eso está separado de todo lo demás. Si alguien tecleó una fecha demasiado
+    temprana y la cuenta quedó suspendida, corregirla tiene que arreglarlo —de
+    nada sirve poder editar si el daño ya es irreversible—. Lo hace una persona
+    a conciencia, que es la diferencia con la orden diaria: aquélla solo avanza
+    precisamente porque no hay nadie mirando.
+    """
+    _no_puede_ser_pasada(fecha_fin)
+
+    suscripcion = licorera.suscripcion_actual()
+    if suscripcion is None:
+        raise CambioNoPermitido("Esta licorera no tiene una suscripción que corregir.")
+
+    if suscripcion.fecha_fin == fecha_fin:
+        return False, suscripcion
+
+    suscripcion.fecha_fin = fecha_fin
+    if suscripcion.estado in (Suscripcion.Estado.EN_MORA, Suscripcion.Estado.SUSPENDIDA):
+        suscripcion.estado = (Suscripcion.Estado.EN_PRUEBA
+                              if suscripcion.es_periodo_gratuito
+                              else Suscripcion.Estado.ACTIVA)
+    suscripcion.estado = suscripcion.estado_por_fecha()
+    suscripcion.save(update_fields=["fecha_fin", "estado"])
+    return True, suscripcion
+
