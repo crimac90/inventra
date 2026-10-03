@@ -9,6 +9,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import Acceso from "./paginas/Acceso";
+import MiSuscripcion from "./paginas/MiSuscripcion";
 import Panel from "./paginas/Panel";
 import Perfil from "./paginas/Perfil";
 import Recuperar from "./paginas/Recuperar";
@@ -50,6 +51,14 @@ export default function App() {
         element={
           <RutaPrivada>
             <Usuarios />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/mi-suscripcion"
+        element={
+          <RutaPrivada>
+            <MiSuscripcion />
           </RutaPrivada>
         }
       />

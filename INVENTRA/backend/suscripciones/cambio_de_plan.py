@@ -110,6 +110,38 @@ def comprobar(licorera, destino):
     return suscripcion
 
 
+# El cambio que pide el negocio tiene dos sentidos y cada uno se rechaza con un
+# codigo distinto: 403 cuando la operacion no le corresponde, 409 cuando le
+# corresponde pero su estado no la admite.
+NO_LE_CORRESPONDE = 403
+NO_PROCEDE_AHORA = 409
+
+
+def motivo_para_no_cambiar(licorera, destino):
+    """
+    `None` si el negocio puede pasarse a ese plan; si no, `(codigo, por que)`.
+
+    POR QUE ESTA FUNCION EXISTE APARTE
+    La pantalla necesita decir **antes** de pulsar si el cambio va a proceder, y
+    la vista necesita rechazarlo **al** pulsar. Si fueran dos comprobaciones
+    distintas acabarian discrepando —el boton habilitado sobre un cambio que el
+    servidor rechaza, o al reves— y el usuario no sabria a cual creer. Aqui hay
+    una sola, y las dos la llaman.
+    """
+    actual = licorera.suscripcion_actual()
+    if (actual is not None
+            and actual.plan_id != destino.id
+            and not es_bajada(actual.plan, destino)):
+        return (NO_LE_CORRESPONDE,
+                "Para pasar al plan %s comunícate con INVENTRA: la activación se hace "
+                "al confirmar el pago." % destino.nombre)
+    try:
+        comprobar(licorera, destino)
+    except CambioNoPermitido as motivo:
+        return (NO_PROCEDE_AHORA, str(motivo))
+    return None
+
+
 @transaction.atomic
 def cambiar(licorera, destino):
     """

@@ -30,3 +30,21 @@ export function consultarMisModulos() {
   return api.get("/suscripciones/mis-modulos/");
 }
 
+/*
+  Cambia el plan de la licorera de la sesion. Solo sirve para bajar: subir
+  implica cobrar y lo ejecuta el Administrador INVENTRA desde su panel (D-23).
+  El servidor responde 409 con el motivo cuando el cambio no procede.
+*/
+export function cambiarDePlan(plan) {
+  return api.post("/suscripciones/cambiar-plan/", { plan });
+}
+
+/*
+  Que pasaria con cada plan, sin hacer nada. Lo usa la pantalla para decir antes
+  de pulsar si el cambio procede y, si no, por que. El veredicto sale de la
+  misma comprobacion que ejecuta el cambio real, asi que no pueden discrepar.
+*/
+export function consultarCambiosDePlan() {
+  return api.get("/suscripciones/cambiar-plan/");
+}
+

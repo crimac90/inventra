@@ -511,12 +511,32 @@ class PeriodoDePruebaTests(TestCase):
         respuesta = self.client.get(self.url)
         self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_sin_suscripcion_vigente_avisa_que_no_puede_operar(self):
+    def test_la_cuenta_suspendida_sigue_viendo_su_plan(self):
+        """
+        Cambiado el 02/10 al construir la pantalla «Mi suscripción». Antes esta
+        consulta devolvía el plan en blanco si la cuenta no estaba vigente, y en
+        esa pantalla el negocio no veía ni qué está a punto de pagar. Suspendida
+        no es «sin plan»: que no pueda registrar lo dice `puede_operar`.
+        """
         self.suscripcion.estado = Suscripcion.Estado.SUSPENDIDA
         self.suscripcion.save(update_fields=["estado"])
         datos = self.consultar().json()
         self.assertFalse(datos["puede_operar"])
-        self.assertIsNone(datos["plan"])
+        self.assertEqual(datos["plan"], "Pro")
+
+    def test_sin_ninguna_suscripcion_la_respuesta_trae_las_mismas_claves(self):
+        """
+        Una respuesta que cambia de forma obliga a quien la consume a adivinar.
+        De eso salió un «quedan undefined días» en pantalla: faltaban claves y
+        el navegador leyó un campo que no venía.
+        """
+        completa = set(self.consultar().json())
+        self.suscripcion.delete()
+        vacia = self.consultar().json()
+        self.assertEqual(set(vacia), completa)
+        self.assertIsNone(vacia["plan"])
+        self.assertIsNone(vacia["dias_restantes"])
+        self.assertFalse(vacia["puede_operar"])
 
     def test_cada_licorera_ve_su_propia_suscripcion(self):
         """El identificador no viaja en la dirección: se toma de la sesión."""
@@ -1219,6 +1239,47 @@ class CambioDePlanTests(TestCase):
         respuesta = self.client.post(self.url, {"plan": self.basico.id},
                                      content_type="application/json")
         self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    # --- la vista previa: que pasaria con cada plan, sin hacer nada ---
+
+    def previa(self):
+        datos = self.client.get(self.url, **self.cabecera()).json()
+        return {p["plan"]: p for p in datos["planes"]}
+
+    def test_la_previa_marca_el_plan_actual(self):
+        self.contratar_pro()
+        self.assertTrue(self.previa()[self.pro.id]["es_el_actual"])
+        self.assertFalse(self.previa()[self.basico.id]["es_el_actual"])
+
+    def test_la_previa_dice_que_si_cuando_el_cambio_procede(self):
+        self.contratar_pro()
+        self.assertTrue(self.previa()[self.basico.id]["se_puede"])
+
+    def test_la_previa_da_el_mismo_motivo_que_el_rechazo(self):
+        """
+        La garantía que hace útil la vista previa: las dos salen de la misma
+        comprobación, así que el botón nunca puede estar habilitado sobre un
+        cambio que el servidor va a rechazar.
+        """
+        self.contratar_pro()
+        self.segundo_usuario()
+        previo = self.previa()[self.basico.id]
+        self.assertFalse(previo["se_puede"])
+        self.assertEqual(previo["motivo"], self.pedir(self.basico).json()["detalle"])
+
+    def test_la_previa_explica_que_subir_lo_activa_inventra(self):
+        self.contratar_pro()
+        self.suscripcion.plan = self.basico
+        self.suscripcion.precio_pactado = self.basico.precio_mensual
+        self.suscripcion.save()
+        previo = self.previa()[self.pro.id]
+        self.assertFalse(previo["se_puede"])
+        self.assertIn("INVENTRA", previo["motivo"])
+
+    def test_durante_la_prueba_la_previa_lo_dice_sin_que_haya_que_pulsar(self):
+        previo = self.previa()[self.basico.id]
+        self.assertFalse(previo["se_puede"])
+        self.assertIn("prueba", previo["motivo"])
 
 
 class PanelBase(TestCase):

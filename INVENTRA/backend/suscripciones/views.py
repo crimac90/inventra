@@ -12,7 +12,7 @@ from seguridad.correo import enviar_correo_verificacion
 from seguridad.permissions import EsAdministradorDeLicorera
 from seguridad.serializers import InicioSesionSerializer, UsuarioSerializer
 
-from .cambio_de_plan import CambioNoPermitido, cambiar, es_bajada
+from .cambio_de_plan import CambioNoPermitido, cambiar, motivo_para_no_cambiar
 from .models import Plan
 from .modulos import estado_de_los_modulos
 from .serializers import (
@@ -100,12 +100,26 @@ class MiSuscripcionView(APIView):
             return Response({"detalle": "Tu cuenta no pertenece a una licorera."},
                             status=status.HTTP_404_NOT_FOUND)
 
-        suscripcion = licorera.suscripcion_vigente()
+        # La **actual**, no la vigente. Una cuenta suspendida sigue teniendo un
+        # plan contratado, y esta es la pantalla donde tiene que verlo: si no,
+        # el negocio no sabe ni qué está a punto de pagar. Que no pueda
+        # registrar lo dice `puede_operar`, que es otra pregunta.
+        suscripcion = licorera.suscripcion_actual()
         if suscripcion is None:
-            # Sin suscripción vigente el negocio consulta pero no registra. Se
-            # responde 200 con el dato, no un error: la falta de suscripción es
-            # una situación normal del negocio, no un fallo de la petición.
-            return Response({"plan": None, "estado": None, "puede_operar": False})
+            # Sin suscripción se responde 200 y no un error: no tenerla es una
+            # situación normal del negocio, no un fallo de la petición.
+            #
+            # La respuesta lleva LAS MISMAS CLAVES que cuando sí la hay, con
+            # valores vacíos. Antes devolvía tres y el navegador tenía que
+            # adivinar las demás: de ahí salió un «quedan undefined días» en
+            # pantalla. Las claves se sacan del propio serializador, así que no
+            # pueden quedarse atrás cuando se añada un campo.
+            vacia = {campo: None for campo in MiSuscripcionSerializer().fields}
+            vacia.update({"estado_texto": "Sin suscripción",
+                          "es_prueba": False,
+                          "avisa_vencimiento": False,
+                          "puede_operar": False})
+            return Response(vacia)
 
         return Response(MiSuscripcionSerializer(suscripcion).data)
 
@@ -154,6 +168,33 @@ class CambiarPlanView(APIView):
 
     permission_classes = [EsAdministradorDeLicorera]
 
+    def get(self, request):
+        """
+        Qué pasaría con cada plan, sin hacer nada todavía.
+
+        La pantalla lo usa para decir **antes** de pulsar si el cambio procede y,
+        si no, por qué: «el plan Básico admite un usuario y tienes tres activos».
+        Ofrecer un botón que se va a rechazar hace trabajar al negocio para nada,
+        que es el mismo defecto que ya se corrigió en la gestión de usuarios.
+
+        El veredicto sale de la misma función que usa el POST, así que la vista
+        previa y el rechazo no pueden decir cosas distintas.
+        """
+        licorera = request.user.licorera
+        actual = licorera.suscripcion_actual()
+
+        planes = []
+        for plan in Plan.objects.filter(activo=True).order_by("precio_mensual"):
+            motivo = motivo_para_no_cambiar(licorera, plan)
+            planes.append({
+                "plan": plan.id,
+                "nombre": plan.nombre,
+                "es_el_actual": actual is not None and actual.plan_id == plan.id,
+                "se_puede": motivo is None,
+                "motivo": None if motivo is None else motivo[1],
+            })
+        return Response({"planes": planes})
+
     def post(self, request):
         licorera = request.user.licorera
         destino = Plan.objects.filter(id=request.data.get("plan")).first()
@@ -161,28 +202,22 @@ class CambiarPlanView(APIView):
             return Response({"detalle": "Elige un plan."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        actual = licorera.suscripcion_actual()
-        # Pedir el plan que ya se tiene no es pedir una subida. Sin la primera
-        # condición, `es_bajada` devuelve falso —no cuesta menos que sí mismo— y
-        # la respuesta mandaba al negocio a gestionar con INVENTRA algo que ya
-        # tiene. El motivo real lo da `cambiar()`, que responde «ya tienes ese
-        # plan»; aquí solo se deja pasar.
-        if (actual is not None
-                and actual.plan_id != destino.id
-                and not es_bajada(actual.plan, destino)):
-            return Response(
-                {"detalle": "Para pasar al plan %s comunícate con INVENTRA: la "
-                            "activación se hace al confirmar el pago." % destino.nombre},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        motivo = motivo_para_no_cambiar(licorera, destino)
+        if motivo is not None:
+            # El código distingue dos rechazos: 403 cuando la operación no le
+            # corresponde al negocio —subir lo activa INVENTRA— y 409 cuando sí
+            # le corresponde pero su estado no la admite, que es algo que puede
+            # arreglar inactivando lo que sobra.
+            return Response({"detalle": motivo[1]}, status=motivo[0])
 
         try:
             nueva = cambiar(licorera, destino)
-        except CambioNoPermitido as motivo:
-            # 409 y no 400: la petición está bien formada y el plan existe; lo
-            # que no encaja es el estado del negocio, y eso el usuario lo puede
-            # cambiar inactivando lo que sobra.
-            return Response({"detalle": str(motivo)}, status=status.HTTP_409_CONFLICT)
+        except CambioNoPermitido as tardio:
+            # No deberia llegar aqui: lo que `cambiar()` comprueba acaba de
+            # comprobarse arriba. Se deja por si algo cambia entre las dos
+            # —otra pestaña creando un usuario, por ejemplo—: ante esa carrera,
+            # mejor un 409 explicado que un error del servidor.
+            return Response({"detalle": str(tardio)}, status=status.HTTP_409_CONFLICT)
 
         return Response(MiSuscripcionSerializer(nueva).data)
 

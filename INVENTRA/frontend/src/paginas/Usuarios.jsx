@@ -18,6 +18,7 @@
 */
 
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import CampoSeleccion from "../componentes/CampoSeleccion";
@@ -32,6 +33,7 @@ import {
   listarUsuarios,
   reactivarUsuario,
 } from "../api/seguridad";
+import { consultarMiSuscripcion } from "../api/suscripciones";
 import { useSesion } from "../sesion/ContextoSesion";
 
 const NOMBRES_DE_ROL = {
@@ -61,6 +63,12 @@ export default function Usuarios() {
   const [editando, setEditando] = useState(null);
   const [porInactivar, setPorInactivar] = useState(null);
   const [ocupado, setOcupado] = useState(false);
+  /*
+    Si la suscripcion no esta vigente, el negocio consulta pero no registra
+    (RF-SUS-03). Empieza en `true` y la carga lo corrige: suponer lo contrario
+    escondería los botones un instante a quien sí puede usarlos.
+  */
+  const [puedeRegistrar, setPuedeRegistrar] = useState(true);
 
   /*
     `useCallback` conserva la misma función entre redibujados. Hace falta porque
@@ -74,6 +82,17 @@ export default function Usuarios() {
 
   useEffect(() => {
     let vigente = true;
+
+    /*
+      La suscripcion se consulta aparte y con su propio `catch`. Dentro del
+      `Promise.all` un fallo suyo tumbaria la carga entera y la lista de
+      usuarios no aparecería: una consulta secundaria no puede dejar sin
+      pantalla a lo principal. Si no se sabe, se supone que sí puede registrar
+      y el backend rechaza si no, que es donde la regla está de verdad.
+    */
+    consultarMiSuscripcion()
+      .then((suscripcion) => vigente && setPuedeRegistrar(suscripcion.puede_operar))
+      .catch(() => {});
 
     Promise.all([listarUsuarios(), consultarRoles()])
       .then(([listado, catalogo]) => {
@@ -163,12 +182,26 @@ export default function Usuarios() {
           </div>
         </div>
 
-        {!editando && (
+        {!editando && !cargando && puedeRegistrar && (
           <button className="btn btn-cta" type="button" onClick={() => setEditando({})}>
             Agregar usuario
           </button>
         )}
       </div>
+
+      {/*
+        El mismo criterio que con «no puedes inactivarte a ti mismo»: no se
+        ofrece una accion que se va a rechazar. Antes el formulario aparecia
+        entero, se rellenaba y el rechazo llegaba al final, con el trabajo ya
+        hecho. Ahora el motivo va delante y lleva a donde se arregla.
+      */}
+      {!cargando && !puedeRegistrar && (
+        <div className="aviso err" role="status">
+          Tu suscripción no está vigente, así que la lista se puede consultar pero no se
+          pueden crear ni modificar cuentas.{" "}
+          <Link to="/mi-suscripcion">Ver mi suscripción</Link>
+        </div>
+      )}
 
       {aviso && (
         <div
@@ -220,16 +253,18 @@ export default function Usuarios() {
                     </span>
                   </td>
                   <td className="acciones-fila">
-                    <button
-                      className="btn btn-out btn-pequeno"
-                      type="button"
-                      onClick={() => setEditando(fila)}
-                      disabled={ocupado}
-                    >
-                      Editar
-                    </button>
+                    {puedeRegistrar && (
+                      <button
+                        className="btn btn-out btn-pequeno"
+                        type="button"
+                        onClick={() => setEditando(fila)}
+                        disabled={ocupado}
+                      >
+                        Editar
+                      </button>
+                    )}
 
-                    {fila.activo ? (
+                    {puedeRegistrar && (fila.activo ? (
                       /*
                         Nadie puede inactivarse a sí mismo: el backend lo impide
                         con un 400 y aquí el botón ni siquiera aparece, para no
@@ -254,7 +289,7 @@ export default function Usuarios() {
                       >
                         Reactivar
                       </button>
-                    )}
+                    ))}
                   </td>
                 </tr>
               ))}

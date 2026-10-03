@@ -115,6 +115,11 @@ export default function Panel() {
               Gestionar usuarios
             </Link>
           )}
+          {esAdministrador && (
+            <Link className="btn btn-out btn-pequeno" to="/mi-suscripcion">
+              Mi suscripción
+            </Link>
+          )}
         </div>
       </div>
 
