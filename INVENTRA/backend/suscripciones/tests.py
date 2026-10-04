@@ -789,6 +789,21 @@ class OrdenDeEstadosTests(TestCase):
         suscripcion.refresh_from_db()
         self.assertEqual(suscripcion.estado, Suscripcion.Estado.SUSPENDIDA)
 
+    def test_el_resumen_escribe_el_plural_y_no_la_forma_con_parentesis(self):
+        """
+        El manual de marca prohíbe «(s)». La regla se escribió para los mensajes
+        de la aplicación y vale igual para la consola: quien lee «1
+        suscripción(es)» deja de estar seguro de que el sistema contó bien.
+
+        Se comprueba con una sola fila, que es el caso donde la forma perezosa
+        se nota: con dos o más, «suscripciones» sale bien por casualidad.
+        """
+        self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=1)
+        salida = self.correr()
+
+        self.assertNotIn("(es)", salida)
+        self.assertIn("1 suscripción actualizada", salida)
+
     def test_no_toca_una_cancelada(self):
         suscripcion = self.crear(Suscripcion.Estado.CANCELADA, vencida_hace=90)
         self.correr()
@@ -807,11 +822,21 @@ class OrdenDeEstadosTests(TestCase):
         self.assertEqual(suscripcion.fecha_fin, fecha)
 
     def test_simular_no_escribe_pero_lo_cuenta(self):
+        """
+        El verbo va en condicional y en la forma que le toca a la cantidad.
+
+        Esta prueba exigía «cambiarían» sobre una sola fila, y pasaba porque el
+        resumen estaba escrito a mano como «1 suscripción(es) cambiarían». Es
+        decir, fijaba el defecto: una prueba puede sostener en pie justo lo que
+        habría que corregir, y entonces no protege, estorba.
+        """
         suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=2)
         salida = self.correr("--simular")
         suscripcion.refresh_from_db()
         self.assertEqual(suscripcion.estado, Suscripcion.Estado.ACTIVA)
-        self.assertIn("cambiarían", salida)
+        self.assertIn("1 suscripción cambiaría", salida)
+        # Y no se anuncia como hecho lo que no se hizo.
+        self.assertNotIn("actualizada", salida)
 
     def test_la_fecha_del_argumento_permite_demostrar_sin_esperar(self):
         suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=-10)

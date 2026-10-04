@@ -34,6 +34,7 @@ from django.utils import timezone
 from seguridad.models import Rol, Usuario
 
 from suscripciones.models import Licorera, Plan, Suscripcion
+from suscripciones.texto import plural
 
 CONTRASENA = "Inventra2026"
 
@@ -74,13 +75,6 @@ NEGOCIOS = [
 ]
 
 SUPERADMINISTRADOR = ("Operador INVENTRA", f"plataforma{DOMINIO}")
-
-
-def plural(cantidad, singular, plural_irregular=None):
-    """«1 usuario», «3 usuarios»: el numero manda sobre la palabra."""
-    if cantidad == 1:
-        return "%d %s" % (cantidad, singular)
-    return "%d %s" % (cantidad, plural_irregular or singular + "s")
 
 
 class Command(BaseCommand):

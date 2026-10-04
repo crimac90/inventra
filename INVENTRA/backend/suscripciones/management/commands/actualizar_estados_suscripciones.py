@@ -33,6 +33,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from suscripciones.models import Suscripcion
+from suscripciones.texto import concuerda, plural
 
 # Posición de cada estado en el ciclo de vida. La orden solo escribe cuando el
 # estado calculado va por delante del guardado.
@@ -80,8 +81,11 @@ class Command(BaseCommand):
         if not cambiadas:
             self.stdout.write(self.style.SUCCESS("Ningún estado que actualizar."))
             return
-        resumen = "%d suscripción(es) %s." % (
-            cambiadas, "cambiarían" if simular else "actualizadas")
+        # El plural se escribe, no se insinúa con «(s)»: un resumen que dice
+        # «1 suscripción(es)» hace dudar de que el sistema haya contado bien.
+        verbo = (concuerda(cambiadas, "cambiaría", "cambiarían") if simular
+                 else concuerda(cambiadas, "actualizada", "actualizadas"))
+        resumen = "%s %s." % (plural(cambiadas, "suscripción", "suscripciones"), verbo)
         self.stdout.write(self.style.SUCCESS(resumen))
 
     def _fecha(self, texto):
