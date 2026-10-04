@@ -6,6 +6,10 @@
   accesibilidad quede resuelta en un solo lugar: la etiqueta queda asociada al
   campo por su identificador, y cuando hay error se marca con aria-invalid y el
   mensaje se anuncia a los lectores de pantalla.
+
+  `minimo` solo lo usan los campos de fecha: marca el primer dia que el
+  calendario deja elegir. Es una ayuda del navegador, no una validacion; la
+  regla que de verdad rechaza una fecha pasada esta en el servidor.
 */
 
 export default function Campo({
@@ -19,6 +23,7 @@ export default function Campo({
   ayuda,
   autoComplete,
   requerido = true,
+  minimo,
 }) {
   return (
     <div className="field">
@@ -29,6 +34,7 @@ export default function Campo({
         type={tipo}
         value={valor}
         placeholder={marcador}
+        min={minimo}
         autoComplete={autoComplete}
         required={requerido}
         aria-invalid={error ? "true" : undefined}

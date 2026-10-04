@@ -12,12 +12,14 @@ import Acceso from "./paginas/Acceso";
 import MiSuscripcion from "./paginas/MiSuscripcion";
 import Panel from "./paginas/Panel";
 import Perfil from "./paginas/Perfil";
+import Plataforma from "./paginas/Plataforma";
 import Recuperar from "./paginas/Recuperar";
 import Registro from "./paginas/Registro";
 import Usuarios from "./paginas/Usuarios";
 import Restablecer from "./paginas/Restablecer";
 import VerificarCorreo from "./paginas/VerificarCorreo";
 import RutaPrivada from "./sesion/RutaPrivada";
+import { ROLES_DE_NEGOCIO, ROL_DE_PLATAFORMA } from "./sesion/destino";
 
 export default function App() {
   return (
@@ -37,11 +39,16 @@ export default function App() {
       {/* Igual que la anterior: la arma el backend en seguridad/correo.py. */}
       <Route path="/verificar-correo" element={<VerificarCorreo />} />
 
-      {/* Internas: exigen sesion. */}
+      {/*
+        Internas: exigen sesion. Las tres siguientes son de un negocio, de modo
+        que llevan la lista de roles que las puede ver; el operador de INVENTRA
+        no tiene licorera y el panel principal le hablaria de «tu licorera» sin
+        que exista ninguna.
+      */}
       <Route
         path="/panel"
         element={
-          <RutaPrivada>
+          <RutaPrivada roles={ROLES_DE_NEGOCIO}>
             <Panel />
           </RutaPrivada>
         }
@@ -49,7 +56,7 @@ export default function App() {
       <Route
         path="/usuarios"
         element={
-          <RutaPrivada>
+          <RutaPrivada roles={ROLES_DE_NEGOCIO}>
             <Usuarios />
           </RutaPrivada>
         }
@@ -57,11 +64,25 @@ export default function App() {
       <Route
         path="/mi-suscripcion"
         element={
-          <RutaPrivada>
+          <RutaPrivada roles={ROLES_DE_NEGOCIO}>
             <MiSuscripcion />
           </RutaPrivada>
         }
       />
+      {/*
+        Reservada al operador de INVENTRA. Un administrador de licorera que
+        escriba esta direccion vuelve a su panel; no es un castigo, es que esta
+        pantalla no tiene nada suyo.
+      */}
+      <Route
+        path="/plataforma"
+        element={
+          <RutaPrivada roles={[ROL_DE_PLATAFORMA]}>
+            <Plataforma />
+          </RutaPrivada>
+        }
+      />
+      {/* El perfil no lleva lista: todo el que tiene sesion tiene perfil. */}
       <Route
         path="/perfil"
         element={

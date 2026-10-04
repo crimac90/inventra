@@ -12,6 +12,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import Campo from "../componentes/Campo";
 import PanelMarca from "../componentes/PanelMarca";
 import { ErrorApi } from "../api/cliente";
+import { destinoTrasEntrar } from "../sesion/destino";
 import { useSesion } from "../sesion/ContextoSesion";
 
 const VINETAS = [
@@ -48,8 +49,10 @@ export default function Acceso() {
     setEnviando(true);
 
     try {
-      await entrar({ correo: correo.trim(), password }, recordar);
-      navegar("/panel", { replace: true });
+      const usuario = await entrar({ correo: correo.trim(), password }, recordar);
+      // No todos aterrizan en el mismo sitio: el operador de la plataforma no
+      // tiene licorera y el panel principal no es su pantalla.
+      navegar(destinoTrasEntrar(usuario), { replace: true });
     } catch (error) {
       /*
         Un 401 son credenciales incorrectas, una cuenta inactiva o una cuenta
