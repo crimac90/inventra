@@ -12,10 +12,19 @@ en producción.
 Por eso son un comando: se ejecuta cuando alguien quiere, en el equipo que
 quiere, y queda constancia de que fue una decisión y no un efecto secundario.
 
+LAS SUSCRIPCIONES LLEVAN FECHA DE FIN
+Hasta el cierre del módulo SUS se creaban sin ella, y eso contradecía la
+decisión D-25: si toda suscripción tiene fecha de fin y el estado se deriva de
+ella, una suscripción sin fecha es una que nunca vence. El juego de datos
+enseñaba, a quien lo cargara para conocer el sistema, justo lo contrario de lo
+que el sistema hace.
+
 USO
     py manage.py cargar_datos_demo
     py manage.py cargar_datos_demo --limpiar     (borra lo que cargó)
 """
+
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -27,6 +36,16 @@ from seguridad.models import Rol, Usuario
 from suscripciones.models import Licorera, Plan, Suscripcion
 
 CONTRASENA = "Inventra2026"
+
+# Días de vigencia que se le dan a cada suscripción de demostración.
+#
+# POR QUÉ NO SON IGUALES
+# La decisión D-25 obliga a que toda suscripción tenga fecha de fin, porque el
+# estado se deriva de ella. Puestas las dos a la misma distancia, el juego de
+# datos enseñaría un solo caso. Así enseña dos: La Esquina vigente con holgura,
+# y El Vecino dentro de los tres días de aviso, de modo que quien carga los
+# datos ve la franja de advertencia sin tener que mover ninguna fecha a mano.
+DIAS_DE_VIGENCIA = {"Licorera La Esquina": 25, "Licorera El Vecino": 2}
 
 # Marca que identifica todo lo que crea este comando, para poder retirarlo
 # después sin tocar nada más.
@@ -110,14 +129,18 @@ class Command(BaseCommand):
             self.anunciar("licorera", licorera.nombre, creada)
 
             if not licorera.suscripciones.exists():
+                hoy = timezone.localdate()
+                vence = hoy + timedelta(days=DIAS_DE_VIGENCIA[datos["nombre"]])
                 Suscripcion.objects.create(
                     licorera=licorera,
                     plan=plan,
                     estado=Suscripcion.Estado.ACTIVA,
-                    fecha_inicio=timezone.localdate(),
+                    fecha_inicio=hoy,
+                    fecha_fin=vence,
                     precio_pactado=plan.precio_mensual,
                 )
-                self.anunciar("suscripción", f"{licorera.nombre} → plan {plan.nombre}", True)
+                self.anunciar("suscripción",
+                              f"{licorera.nombre} → plan {plan.nombre}, vence {vence}", True)
 
             for nombre, correo, rol, telefono in datos["usuarios"]:
                 self.crear_usuario(nombre, correo, rol, licorera, telefono)

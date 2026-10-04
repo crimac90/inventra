@@ -337,6 +337,20 @@ class Suscripcion(models.Model):
         hoy = hoy or timezone.localdate()
         return max(0, (self.fecha_fin - hoy).days)
 
+    def avisa_vencimiento(self, hoy=None):
+        """
+        Si toca avisar de que la fecha de fin se acerca.
+
+        Vive en el modelo y no en el serializador porque es una pregunta sobre
+        la suscripción, no sobre cómo se dibuja. Estuvo escrito a mano en el
+        componente del aviso —un tres repetido en dos lenguajes, que algún día
+        valdría dos en uno de ellos—, pasó al serializador en el bloque 3 y baja
+        aquí al aparecer el segundo interesado: cualquiera que necesite saberlo
+        pregunta en el mismo sitio (regla 14).
+        """
+        dias = self.dias_restantes(hoy)
+        return dias is not None and dias <= self.DIAS_DE_AVISO
+
     @property
     def es_prueba(self):
         """Si esta suscripción está ahora mismo en período de prueba."""

@@ -160,13 +160,13 @@ class MiSuscripcionSerializer(serializers.Serializer):
         """
         Si al panel le toca avisar de que la fecha se acerca.
 
-        Se resuelve aquí y no en el navegador para que el umbral viva en un solo
-        sitio. Estaba escrito a mano en el componente del aviso, y un tres
-        repetido en dos lenguajes distintos es un tres que algún día valdrá dos
-        en uno de ellos (regla 14).
+        Se resuelve en el servidor y no en el navegador para que el umbral viva
+        en un solo sitio: estaba escrito a mano en el componente del aviso, y un
+        tres repetido en dos lenguajes distintos es un tres que algún día valdrá
+        dos en uno de ellos. La regla misma está en el modelo, que es a quien le
+        corresponde la pregunta; aquí solo se expone.
         """
-        dias = suscripcion.dias_restantes()
-        return dias is not None and dias <= Suscripcion.DIAS_DE_AVISO
+        return suscripcion.avisa_vencimiento()
 
     def get_dias_restantes(self, suscripcion):
         return suscripcion.dias_restantes()
