@@ -564,6 +564,12 @@ Hay dos licoreras a propósito, y no una: con dos negocios distintos se puede co
 uno no ve los datos del otro. Y una está en plan Básico para poder ver el aviso del tope de
 usuarios al intentar crear un segundo.
 
+Sus **vigencias también son distintas a propósito**: La Esquina queda con veinticinco días
+por delante y El Vecino con dos, es decir, dentro del plazo de aviso (punto 13). Así la
+franja de advertencia se ve desde el primer momento, sin tener que mover una fecha a mano.
+Si al cargar los datos El Vecino aparece en mora o suspendida, es que llevan varios días
+cargados: se retiran y se vuelven a cargar.
+
 Para retirarlas:
 
 ```
@@ -721,3 +727,92 @@ mysql -u root -p inventra < scripts_bd/02_carga_inicial.sql
 En el trabajo diario no hace falta: `py manage.py migrate` hace lo mismo y además registra
 qué migraciones se aplicaron.
 
+---
+
+## 13. Vigencia de las suscripciones
+
+Toda suscripción tiene una fecha de fin y el estado se deduce de ella (decisión D-25). Quien
+la escribe es siempre una persona —el Administrador INVENTRA, al dar de alta, al renovar o
+al corregir una fecha mal tecleada— y nunca el sistema por su cuenta. De esa regla cuelga
+que el aviso por correo al negocio salga exactamente cuando alguien cambió su vigencia, y no
+todos los días.
+
+Los plazos son tres y **a propósito distintos entre sí**, para que al leer un comportamiento
+raro se sepa cuál de ellos está actuando:
+
+| Plazo | Días | Qué ocurre |
+|---|---|---|
+| Aviso | 3 | Antes de la fecha de fin, el panel avisa. Se opera con normalidad. |
+| Gracia | 4 | Después de la fecha de fin, estado «en mora». **Se sigue operando.** |
+| Suspensión | — | Al quinto día. Se consulta todo, no se registra nada nuevo. |
+
+El período de prueba **no tiene gracia**: al vencer pasa directo a suspendida, porque quien
+nunca ha pagado no está en mora.
+
+### 13.1 La orden que pone al día los estados guardados
+
+El estado que manda se calcula en el momento a partir de la fecha. La columna `estado` de la
+base es una **copia** de ese cálculo, y esta orden es la que la mantiene al día:
+
+```
+py manage.py actualizar_estados_suscripciones
+```
+
+Tres cosas que la orden **no** hace, y cada una evita un problema concreto:
+
+- **No toca la fecha de fin.** De eso depende que no pueda mandar un correo cada día: el
+  aviso al negocio cuelga de la acción de una persona, no de esta orden.
+- **No retrocede.** Solo avanza en el ciclo. Ampliar una fecha por error no puede resucitar
+  una cuenta que alguien suspendió a conciencia; para volver a la vida está la corrección de
+  fecha desde el panel, que es una decisión tomada por alguien.
+- **No mira las canceladas.** Son la baja definitiva y ninguna fecha las revierte.
+
+**Si una noche no corre, el sistema se comporta igual de bien.** Lo único que queda atrasado
+es lo que está escrito en la columna, y ni la aplicación ni el panel la consultan para
+decidir: los dos preguntan por el estado calculado. Esta orden existe para que una consulta
+directa a la base, o un informe hecho fuera del sistema, vean lo mismo que ve la aplicación.
+
+Dos opciones para probarla sin esperar días:
+
+```
+py manage.py actualizar_estados_suscripciones --simular
+py manage.py actualizar_estados_suscripciones --fecha 2027-01-01
+```
+
+`--simular` dice qué cambiaría y no escribe nada. `--fecha` calcula como si hoy fuera esa
+fecha, y existe para poder demostrar el vencimiento en una sustentación sin esperar quince
+días ni cambiar el reloj del equipo.
+
+### 13.2 Programarla para que corra todos los días
+
+En desarrollo se ejecuta a mano cuando hace falta. En un servidor publicado tiene que correr
+sola, una vez al día y de madrugada, cuando no hay nadie trabajando.
+
+**Windows — Programador de tareas.** Desde una consola con permisos de administrador, en una
+sola línea, ajustando las dos rutas:
+
+```
+schtasks /Create /SC DAILY /ST 03:00 /TN "INVENTRA estados de suscripcion" /TR "C:\ruta\al\proyecto\INVENTRA\backend\.venv\Scripts\python.exe C:\ruta\al\proyecto\INVENTRA\backend\manage.py actualizar_estados_suscripciones"
+```
+
+Se usa el `python.exe` **del entorno virtual** y no el del sistema: el del sistema no tiene
+instaladas las librerías del proyecto y la tarea fallaría en silencio todas las noches.
+
+**Linux — cron.** Con `crontab -e`:
+
+```
+0 3 * * * cd /ruta/al/proyecto/INVENTRA/backend && .venv/bin/python manage.py actualizar_estados_suscripciones >> /var/log/inventra_estados.log 2>&1
+```
+
+El `>>` con `2>&1` guarda tanto la salida normal como los errores. Una tarea programada que
+no deja rastro es una tarea de la que nadie se entera cuando deja de funcionar, y esta falla
+sin que nadie la eche en falta justamente porque el sistema sigue funcionando sin ella.
+
+**Comprobar que corrió.** El estado guardado y el calculado tienen que coincidir:
+
+```
+py manage.py shell -c "from suscripciones.models import Suscripcion; [print(s.licorera.nombre,'| guardado',s.estado,'| calculado',s.estado_por_fecha()) for s in Suscripcion.objects.select_related('licorera')]"
+```
+
+Si alguna fila muestra los dos valores distintos, la orden lleva sin correr desde que esa
+suscripción cambió de tramo.
