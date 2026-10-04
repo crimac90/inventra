@@ -1,6 +1,6 @@
 # INVENTRA — Diccionario de datos del sistema construido
 
-> Generado el 2026-09-30 con `py manage.py generar_diccionario_datos`  
+> Generado el 2026-10-03 con `py manage.py generar_diccionario_datos`  
 > Django 5.2.17 · motor mysql · base «inventra»  
 > **No se edita a mano:** se cambia el modelo y se vuelve a generar.
 

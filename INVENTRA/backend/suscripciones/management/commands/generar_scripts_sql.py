@@ -36,6 +36,7 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import connection
 from django.db.migrations.loader import MigrationLoader
+from django.db.migrations.operations import RunPython, RunSQL
 
 from seguridad.models import Rol
 
@@ -79,7 +80,10 @@ class Command(BaseCommand):
         `migrate`. El orden importa: una tabla con llave foránea no se puede
         crear antes que la tabla a la que apunta.
         """
-        cargador = MigrationLoader(connection)
+        # Se guarda el cargador: hace falta después para poder mirar las
+        # operaciones de cada migración, no solo su nombre.
+        self.cargador = MigrationLoader(connection)
+        cargador = self.cargador
         ordenadas = []
 
         for hoja in sorted(cargador.graph.leaf_nodes()):
@@ -113,7 +117,7 @@ class Command(BaseCommand):
             # primera línea es literalmente «--». Por eso no basta con mirar el
             # principio: hay que quitar los comentarios y ver si queda algo.
             if not self.tiene_sentencias(sql):
-                lineas.append(f"-- {app}.{nombre}: migración de datos, sin estructura\n")
+                lineas.append(f"-- {app}.{nombre}: {self.motivo_sin_sentencias(app, nombre)}\n")
                 continue
 
             lineas.append(f"\n-- ----------------------------------------------------------")
@@ -169,6 +173,41 @@ class Command(BaseCommand):
             f"{connection.vendor} · base «{connection.settings_dict['NAME']}»\n"
             "-- ============================================================\n"
         )
+
+    def motivo_sin_sentencias(self, app, nombre):
+        """
+        Por qué esta migración no produjo una sola sentencia.
+
+        El script llamaba «migración de datos» a todas las que salían vacías.
+        Era cierto de `0002_datos_planes`, que carga filas con RunPython, y
+        falso de `0004_alter_suscripcion_fecha_fin`, que es de estructura y cuyo
+        único cambio —un `help_text`— no llega a la base.
+
+        El primer intento de arreglo escribía, para todas las demás, que cambian
+        atributos del modelo. También afirmaba de más: `auth.0006` y
+        `token_blacklist.0011` no tienen ni una operación —solo declaran un
+        orden de dependencias—, y las de `auth` sobre el usuario salen vacías
+        por un motivo distinto, que este proyecto usa modelo de usuario propio y
+        Django las deja sin efecto.
+
+        De ahí la forma final: tres casos que el script SÍ puede distinguir
+        mirando las operaciones, y para el resto el hecho desnudo —qué
+        operaciones tiene— sin aventurar la causa. Un entregable generado puede
+        decir poco; lo que no puede es decir algo que no sea verdad.
+        """
+        migracion = self.cargador.disk_migrations.get((app, nombre))
+        if migracion is None:
+            return "no produjo sentencias"
+
+        operaciones = list(migracion.operations)
+        if not operaciones:
+            return "sin operaciones; solo declara un orden de dependencias"
+        if any(isinstance(op, (RunPython, RunSQL)) for op in operaciones):
+            return "migración de datos, sin estructura"
+
+        nombres = sorted({type(op).__name__ for op in operaciones})
+        return ("no produjo sentencias en este proyecto; sus operaciones (%s) no "
+                "llegan a la base" % ", ".join(nombres))
 
     @staticmethod
     def tiene_sentencias(sql):

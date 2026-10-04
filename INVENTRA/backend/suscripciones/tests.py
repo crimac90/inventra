@@ -223,6 +223,45 @@ class DatosDeDemostracionTests(TestCase):
         self.assertEqual(Licorera.objects.count(), 0)
         self.assertEqual(Usuario.objects.count(), 0)
 
+    def test_toda_suscripcion_cargada_tiene_fecha_de_fin(self):
+        """
+        D-25: el estado se deriva de la fecha de fin, así que una suscripción
+        sin fecha es una que no vence nunca. El comando las creaba así, y el
+        juego de datos enseñaba a quien lo cargaba lo contrario de lo que el
+        sistema hace. La prueba fija que no vuelva a pasar.
+        """
+        self.cargar()
+
+        for suscripcion in Suscripcion.objects.all():
+            self.assertIsNotNone(
+                suscripcion.fecha_fin,
+                "«%s» quedó sin fecha de fin" % suscripcion.licorera.nombre,
+            )
+            self.assertGreater(suscripcion.fecha_fin, timezone.localdate())
+
+    def test_una_de_las_dos_nace_dentro_del_plazo_de_aviso(self):
+        """
+        No es un capricho de los datos: es lo que hace que quien carga el juego
+        vea la franja de advertencia sin tener que mover una fecha a mano. Si
+        las dos vigencias se igualaran, esto fallaría y diría por qué.
+        """
+        self.cargar()
+
+        avisan = [s for s in Suscripcion.objects.all() if s.avisa_vencimiento()]
+        self.assertEqual(
+            len(avisan), 1,
+            "se esperaba exactamente una suscripción dentro de los %d días de aviso"
+            % Suscripcion.DIAS_DE_AVISO,
+        )
+        self.assertEqual(avisan[0].licorera.nombre, "Licorera El Vecino")
+
+    def test_las_dos_quedan_operativas(self):
+        """Cargar los datos no puede dejar a nadie sin poder registrar."""
+        self.cargar()
+
+        for suscripcion in Suscripcion.objects.all():
+            self.assertTrue(suscripcion.esta_vigente())
+
 
 class ProteccionDatosDemoTests(TestCase):
     """
@@ -299,6 +338,38 @@ class ScriptsSqlTests(TestCase):
 
         self.assertIn("FOREIGN KEY", sql.upper())
         self.assertIn("licorera_id", sql)
+
+    def test_distingue_la_migracion_de_datos_de_la_que_no_produjo_sentencias(self):
+        """
+        Las migraciones que salen vacías lo hacen por razones distintas, y el
+        script las llamaba a todas «migración de datos». Era cierto de la que
+        carga los planes con RunPython y falso de la que solo cambia un
+        `help_text`, que sí es de estructura aunque no llegue a la base.
+
+        El primer arreglo cambió una afirmación de más por otra: decía que las
+        demás cambian atributos del modelo, y hay migraciones sin una sola
+        operación. Por eso la prueba mira los tres casos, y el tercero comprueba
+        que el script NO le atribuye operaciones a quien no tiene ninguna.
+        """
+        contenido = (self.generar() / "01_estructura.sql").read_text(encoding="utf-8")
+
+        linea_datos = self.linea_de(contenido, "suscripciones.0002_datos_planes")
+        self.assertIn("migración de datos", linea_datos)
+
+        linea_metadatos = self.linea_de(contenido, "suscripciones.0004_alter_suscripcion_fecha_fin")
+        self.assertIn("AlterField", linea_metadatos)
+        self.assertNotIn("migración de datos", linea_metadatos)
+
+        linea_sin_operaciones = self.linea_de(contenido, "auth.0006_require_contenttypes_0002")
+        self.assertIn("sin operaciones", linea_sin_operaciones)
+
+    @staticmethod
+    def linea_de(contenido, migracion):
+        """La línea del informe que habla de esa migración; falla si no está."""
+        for linea in contenido.splitlines():
+            if linea.startswith("-- %s:" % migracion):
+                return linea
+        raise AssertionError("el script no menciona %s" % migracion)
 
     def test_la_carga_inicial_trae_los_roles_y_los_planes(self):
         contenido = self.sentencias(self.generar() / "02_carga_inicial.sql")

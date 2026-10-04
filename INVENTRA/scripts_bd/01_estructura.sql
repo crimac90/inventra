@@ -2,7 +2,7 @@
 --  INVENTRA — Inventario y ventas para licoreras
 --  Estructura de la base de datos (DDL)
 -- ============================================================
---  Generado el 2026-09-27 con py manage.py generar_scripts_sql
+--  Generado el 2026-10-03 con py manage.py generar_scripts_sql
 --  Django 5.2.17 · motor mysql · base «inventra»
 -- ============================================================
 
@@ -75,19 +75,19 @@ ALTER TABLE `auth_group_permissions` ADD CONSTRAINT `auth_group_permissio_permis
 --
 ALTER TABLE `auth_permission` MODIFY `name` varchar(255) NOT NULL;
 
--- auth.0003_alter_user_email_max_length: migración de datos, sin estructura
+-- auth.0003_alter_user_email_max_length: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
--- auth.0004_alter_user_username_opts: migración de datos, sin estructura
+-- auth.0004_alter_user_username_opts: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
--- auth.0005_alter_user_last_login_null: migración de datos, sin estructura
+-- auth.0005_alter_user_last_login_null: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
--- auth.0006_require_contenttypes_0002: migración de datos, sin estructura
+-- auth.0006_require_contenttypes_0002: sin operaciones; solo declara un orden de dependencias
 
--- auth.0007_alter_validators_add_error_messages: migración de datos, sin estructura
+-- auth.0007_alter_validators_add_error_messages: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
--- auth.0008_alter_user_username_max_length: migración de datos, sin estructura
+-- auth.0008_alter_user_username_max_length: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
--- auth.0009_alter_user_last_name_max_length: migración de datos, sin estructura
+-- auth.0009_alter_user_last_name_max_length: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
 
 -- ----------------------------------------------------------
@@ -100,7 +100,7 @@ ALTER TABLE `auth_group` MODIFY `name` varchar(150) NOT NULL;
 
 -- auth.0011_update_proxy_permissions: migración de datos, sin estructura
 
--- auth.0012_alter_user_first_name_max_length: migración de datos, sin estructura
+-- auth.0012_alter_user_first_name_max_length: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
 
 -- ----------------------------------------------------------
@@ -174,7 +174,9 @@ ALTER TABLE `usuario` ALTER COLUMN `correo_verificado` DROP DEFAULT;
 
 -- suscripciones.0002_datos_planes: migración de datos, sin estructura
 
--- suscripciones.0003_alter_licorera_direccion_alter_licorera_telefono_and_more: migración de datos, sin estructura
+-- suscripciones.0003_alter_licorera_direccion_alter_licorera_telefono_and_more: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
+
+-- suscripciones.0004_alter_suscripcion_fecha_fin: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
 
 -- ----------------------------------------------------------
@@ -264,11 +266,11 @@ ALTER TABLE `token_blacklist_outstandingtoken` MODIFY `id` bigint AUTO_INCREMENT
 ALTER TABLE `token_blacklist_blacklistedtoken` MODIFY `token_id` bigint NOT NULL;
 ALTER TABLE `token_blacklist_blacklistedtoken` ADD CONSTRAINT `token_blacklist_blacklistedtoken_token_id_3cc7fe56_fk` FOREIGN KEY (`token_id`) REFERENCES `token_blacklist_outstandingtoken` (`id`);
 
--- token_blacklist.0010_fix_migrate_to_bigautofield: migración de datos, sin estructura
+-- token_blacklist.0010_fix_migrate_to_bigautofield: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
--- token_blacklist.0011_linearizes_history: migración de datos, sin estructura
+-- token_blacklist.0011_linearizes_history: sin operaciones; solo declara un orden de dependencias
 
--- token_blacklist.0012_alter_outstandingtoken_user: migración de datos, sin estructura
+-- token_blacklist.0012_alter_outstandingtoken_user: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
--- token_blacklist.0013_alter_blacklistedtoken_options_and_more: migración de datos, sin estructura
+-- token_blacklist.0013_alter_blacklistedtoken_options_and_more: no produjo sentencias en este proyecto; sus operaciones (AlterModelOptions) no llegan a la base
 
