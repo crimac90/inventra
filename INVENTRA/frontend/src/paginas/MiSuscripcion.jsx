@@ -210,8 +210,15 @@ export default function MiSuscripcion() {
               {esAdministrador && !esElSuyo && esMasBarato && (
                 veredicto && veredicto.se_puede ? (
                   <div className="acciones">
+                    {/*
+                      Boton primario: cambiar de plan es LA accion de esta
+                      pantalla, y el punto 6.2 del documento fija que cada
+                      pantalla tiene una sola accion principal expresada asi.
+                      Estaba como secundario, de modo que la unica cosa que se
+                      puede hacer aqui era la que menos se veia.
+                    */}
                     <button
-                      className="btn btn-out btn-pequeno"
+                      className="btn btn-cta btn-pequeno"
                       type="button"
                       onClick={() => setPorCambiar(plan)}
                     >
