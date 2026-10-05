@@ -422,9 +422,13 @@ td.acciones-fila button {
 }
 
 /*
-  Franja de correo sin confirmar. Usa el color de advertencia, no el de error:
-  no hay nada roto, falta un paso. Se apoya en la clase `.aviso` de base.css y
-  solo añade la distribución en línea con su botón.
+  Franja de correo sin confirmar. Usa el tono de advertencia, no el de error:
+  no hay nada roto, falta un paso.
+
+  Ese tono lo resolvía aquí dentro, con el fondo de etiqueta neutra y una banda
+  naranja al costado, porque cuando se construyó no existía `.aviso.advertencia`.
+  Era el mismo significado pintado de otra manera. Ahora se declara con las dos
+  clases y aquí solo queda lo propio: la distribución en línea con su botón.
 */
 .aviso.verificacion {
   display: flex;
@@ -432,9 +436,6 @@ td.acciones-fila button {
   justify-content: space-between;
   gap: var(--e4);
   flex-wrap: wrap;
-  background: var(--chip);
-  color: var(--text);
-  border-left: 4px solid var(--warn);
 }
 
 .aviso.verificacion .link {

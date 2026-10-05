@@ -48,7 +48,7 @@ export default function AvisoVerificacion() {
   }
 
   return (
-    <div className="aviso verificacion" role="status">
+    <div className="aviso advertencia verificacion" role="status">
       <span>
         Falta confirmar tu correo. Te enviamos un enlace a <b>{usuario.correo}</b>; es la
         dirección a la que llegaría el enlace si algún día olvidas tu contraseña.

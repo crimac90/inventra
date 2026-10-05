@@ -58,7 +58,7 @@ h1.title{font-size:24px;font-weight:700;color:#1F3864;margin-bottom:4px}
 .li{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px}
 .li:last-child{border-bottom:0}
 .stock{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px}
-.st-ok{background:#E7F7EF;color:#0D804A}.st-low{background:#FEF2E2;color:#9A5B03}.st-out{background:#FDECEC;color:#B42318}
+.st-ok{background:#E7F7EF;color:#0D804A}.st-low{background:#FEF3E2;color:#9A5B03}.st-out{background:#FDECEC;color:#B42318}
 .dark .st-ok{background:#123024;color:#4ADE9B}.dark .st-low{background:#3A2A10;color:#F5B44E}.dark .st-out{background:#3A1717;color:#F58A82}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding:10px 8px;border-bottom:1px solid var(--border)}
@@ -129,7 +129,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 .bnav div.on{color:var(--navy2);font-weight:700}
 /* toast */
 .toast{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:11px;font-size:14px;font-weight:600;margin-bottom:12px}
-.toast.err{background:#FDECEC;color:#B42318}.toast.ok{background:#E7F7EF;color:#0E7A4E}
+.toast.err{background:#FDECEC;color:#B42318}.toast.warn{background:#FEF3E2;color:#9A5B03}.toast.ok{background:#E7F7EF;color:#0E7A4E}
 .empty{text-align:center;padding:34px;color:var(--muted)}
 .empty .e{width:52px;height:52px;border-radius:14px;background:var(--chip);margin:0 auto 12px}
 .wrap-dark{background:#0B0F18;border-radius:16px;padding:18px}
@@ -395,6 +395,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
  <div class="card" style="padding:22px">
    <div style="font-weight:700;margin-bottom:12px">Mensajes del sistema</div>
    <div class="toast ok">✓ Venta registrada correctamente.</div>
+   <div class="toast warn">! Tu plan vence en 2 días. Renuévalo para seguir registrando operaciones sin interrupción.</div>
    <div class="toast err">✕ No se pudo conectar. Revisa tu conexión e inténtalo de nuevo.</div>
    <div class="field" style="margin-top:6px"><label>Correo electrónico</label><input value="correo-invalido" style="border-color:var(--danger)"><div class="msg err">Ingresa un correo electrónico válido.</div></div>
    <div class="field"><label>Contraseña</label><input type="password" value="" style="border-color:var(--danger)"><div class="msg err">La contraseña es obligatoria.</div></div>

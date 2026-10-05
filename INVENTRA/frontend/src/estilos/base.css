@@ -34,6 +34,14 @@
   */
   --ok-suave: #e7f7ef;
   --ok-fuerte: #0d804a;
+  /*
+    Tono de advertencia. Los valores no se eligen aqui: son los que la figura 5
+    del documento de diseno ya dibuja para la alerta de existencias bajas, de
+    modo que el aviso y la etiqueta del mismo significado se vean igual. Dan
+    4,94:1 en modo claro y 7,59:1 en oscuro.
+  */
+  --warn-suave: #fef3e2;
+  --warn-fuerte: #9a5b03;
   --err-suave: #fdecec;
   --err-fuerte: #b42318;
 
@@ -96,6 +104,8 @@
 
   --ok-suave: #123024;
   --ok-fuerte: #4ade9b;
+  --warn-suave: #3a2a10;
+  --warn-fuerte: #f5b44e;
   --err-suave: #3a1717;
   --err-fuerte: #f58a82;
 
@@ -266,8 +276,17 @@ a.btn {
   color: var(--err-fuerte);
 }
 
-/* El aviso de bloque se usa para los errores que no pertenecen a un campo
-   concreto, como unas credenciales incorrectas. */
+/*
+  Aviso de bloque: el mensaje que no pertenece a un campo concreto.
+
+  El punto 6.4 del documento define cuatro tipos por su color, y lo que importa
+  es cual le toca a cada mensaje: el rojo dice «no se pudo», y usarlo para algo
+  que si funciona —un plan que vence en dos dias, una cuenta en mora que sigue
+  operando— alarma sin motivo y gasta el unico color que deberia asustar.
+
+  «Informacion» (azul secundario) esta definido en el documento y no construido,
+  porque todavia ningun mensaje lo necesita. Se construye el dia que aparezca.
+*/
 .aviso {
   border-radius: 11px;
   padding: 11px 13px;
@@ -284,6 +303,12 @@ a.btn {
 .aviso.ok {
   background: var(--ok-suave);
   color: var(--ok-fuerte);
+}
+
+/* Algo pide atencion y nada esta roto. */
+.aviso.advertencia {
+  background: var(--warn-suave);
+  color: var(--warn-fuerte);
 }
 
 .link {

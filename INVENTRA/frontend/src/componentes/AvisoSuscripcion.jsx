@@ -23,10 +23,7 @@
 import { useEffect, useState } from "react";
 
 import { consultarMiSuscripcion } from "../api/suscripciones";
-
-function dias(cantidad, singular, plural) {
-  return cantidad === 1 ? `1 ${singular}` : `${cantidad} ${plural}`;
-}
+import { plural as dias } from "../texto";
 
 export default function AvisoSuscripcion() {
   const [suscripcion, setSuscripcion] = useState(null);
@@ -52,10 +49,15 @@ export default function AvisoSuscripcion() {
     );
   }
 
+  /*
+    En mora el negocio SIGUE OPERANDO: es una advertencia, no un error. Estuvo
+    en rojo, que es el color de «no se pudo», mientras el sistema funcionaba con
+    normalidad (punto 6.4 del documento de diseño).
+  */
   if (suscripcion.estado === "en_mora") {
     const restantes = suscripcion.dias_para_suspension;
     return (
-      <div className="aviso err" role="status">
+      <div className="aviso advertencia" role="status">
         <b>Tu plan venció y sigue funcionando {dias(restantes, "día más", "días más")}.</b>{" "}
         Comunícate para renovarlo. Si no lo haces, podrás seguir consultando tu información,
         pero no registrar operaciones nuevas.
@@ -66,7 +68,7 @@ export default function AvisoSuscripcion() {
   if (suscripcion.es_prueba) {
     const restantes = suscripcion.dias_restantes;
     return (
-      <div className={suscripcion.avisa_vencimiento ? "aviso err" : "aviso ok"} role="status">
+      <div className={suscripcion.avisa_vencimiento ? "aviso advertencia" : "aviso ok"} role="status">
         <b>
           {restantes === 0
             ? "Hoy es el último día de tu prueba gratuita."
@@ -81,7 +83,7 @@ export default function AvisoSuscripcion() {
   if (suscripcion.avisa_vencimiento) {
     const restantes = suscripcion.dias_restantes;
     return (
-      <div className="aviso err" role="status">
+      <div className="aviso advertencia" role="status">
         <b>
           {restantes === 0
             ? "Tu plan vence hoy."
