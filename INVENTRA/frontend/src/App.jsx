@@ -19,7 +19,7 @@ import Usuarios from "./paginas/Usuarios";
 import Restablecer from "./paginas/Restablecer";
 import VerificarCorreo from "./paginas/VerificarCorreo";
 import RutaPrivada from "./sesion/RutaPrivada";
-import { ROLES_DE_NEGOCIO, ROL_DE_PLATAFORMA } from "./sesion/destino";
+import { ROLES_DE_NEGOCIO, ROL_DE_PLATAFORMA } from "./sesion/roles";
 
 export default function App() {
   return (

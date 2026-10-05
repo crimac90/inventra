@@ -11,8 +11,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import PanelMarca from "../componentes/PanelMarca";
-import { ErrorApi } from "../api/cliente";
-import { destinoTrasEntrar } from "../sesion/destino";
+import { mensajeDeError } from "../api/cliente";
+import { destinoTrasEntrar } from "../sesion/roles";
 import { useSesion } from "../sesion/ContextoSesion";
 
 const VINETAS = [
@@ -59,7 +59,7 @@ export default function Acceso() {
         bloqueada; el backend ya devuelve el texto adecuado y deliberadamente
         generico. Cualquier otro codigo es un problema distinto.
       */
-      setAviso(error instanceof ErrorApi ? error.mensaje : "Ocurrio un error inesperado.");
+      setAviso(mensajeDeError(error));
     } finally {
       setEnviando(false);
     }

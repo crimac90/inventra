@@ -74,9 +74,9 @@ export class ErrorApi extends Error {
     if (d.detail) return d.detail;
     if (Array.isArray(d.non_field_errors)) return d.non_field_errors.join(" ");
     if (this.codigo === 0) {
-      return "No se pudo conectar con el servidor. Comprueba que este en ejecucion.";
+      return "No se pudo conectar con el servidor. Comprueba que esté en ejecución.";
     }
-    return "Ocurrio un error inesperado. Intenta de nuevo.";
+    return "Ocurrió un error inesperado. Intenta de nuevo.";
   }
 
   /* Errores por campo, para pintarlos debajo de cada input. */
@@ -90,6 +90,21 @@ export class ErrorApi extends Error {
     }
     return salida;
   }
+}
+
+/*
+  El texto que se le muestra a la persona cuando algo falla.
+
+  Estaba escrito a mano NUEVE veces, en ocho pantallas, siempre igual: «si es un
+  ErrorApi, su mensaje; si no, uno genérico». Dos de esas nueve copias escribían
+  «Ocurrio» sin tilde, que es lo que pasa cuando una frase se reescribe en cada
+  sitio en lugar de llamarse desde uno.
+
+  El respaldo se puede cambiar cuando la pantalla sabe decir algo más útil que
+  «ocurrió un error inesperado» —por ejemplo, «no se pudo cargar el panel»—.
+*/
+export function mensajeDeError(error, respaldo = "Ocurrió un error inesperado.") {
+  return error instanceof ErrorApi ? error.mensaje : respaldo;
 }
 
 async function ejecutar(ruta, opciones, conToken) {

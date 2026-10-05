@@ -15,7 +15,7 @@
 import AvisoVerificacion from "./AvisoVerificacion";
 import BarraLateral from "./BarraLateral";
 import Cabecera from "./Cabecera";
-import { ROL_DE_PLATAFORMA } from "../sesion/destino";
+import { ROL_DE_PLATAFORMA } from "../sesion/roles";
 import { useSesion } from "../sesion/ContextoSesion";
 
 export default function Disposicion({ titulo, children }) {

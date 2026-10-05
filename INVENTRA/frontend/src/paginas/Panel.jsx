@@ -19,13 +19,9 @@ import { Link } from "react-router-dom";
 import AvisoSuscripcion from "../componentes/AvisoSuscripcion";
 import Disposicion from "../componentes/Disposicion";
 import { listarUsuarios } from "../api/seguridad";
+import { plural } from "../texto";
+import { ETIQUETA_DE_ROL } from "../sesion/roles";
 import { useSesion } from "../sesion/ContextoSesion";
-
-const ROLES = {
-  administrador_licorera: "Administrador de licorera",
-  vendedor: "Vendedor",
-  administrador_inventra: "Administrador de INVENTRA",
-};
 
 const MODULOS_PENDIENTES = [
   ["Inventario", "Catálogo, entradas por lote, valoración PEPS y alertas de existencias"],
@@ -77,14 +73,14 @@ export default function Panel() {
             <div className="k">Usuarios activos</div>
             <div className="v">{conteo ? conteo.activos : "—"}</div>
             <div className="d">
-              {conteo ? `${conteo.total} cuentas registradas` : "consultando…"}
+              {conteo ? plural(conteo.total, "cuenta registrada", "cuentas registradas") : "consultando…"}
             </div>
           </div>
 
           <div className="kpi">
             <div className="k">Tu rol</div>
             <div className="v" style={{ fontSize: "18px" }}>
-              {ROLES[usuario.rol]}
+              {ETIQUETA_DE_ROL[usuario.rol]}
             </div>
             <div className="d">acceso completo a la licorera</div>
           </div>
@@ -100,7 +96,7 @@ export default function Panel() {
           <dd>{usuario.correo}</dd>
 
           <dt>Rol</dt>
-          <dd>{ROLES[usuario.rol] || usuario.rol}</dd>
+          <dd>{ETIQUETA_DE_ROL[usuario.rol] || usuario.rol}</dd>
 
           <dt>Licorera</dt>
           <dd>{usuario.licorera_nombre || "Sin licorera asignada"}</dd>

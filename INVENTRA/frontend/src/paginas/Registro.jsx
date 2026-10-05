@@ -13,7 +13,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import PanelMarca from "../componentes/PanelMarca";
-import { ErrorApi } from "../api/cliente";
+import { ErrorApi, mensajeDeError } from "../api/cliente";
 import { registrarLicorera } from "../api/seguridad";
 import { useSesion } from "../sesion/ContextoSesion";
 
@@ -75,7 +75,7 @@ export default function Registro() {
         setErrores(error.porCampo);
         setAviso("Revisa los datos marcados.");
       } else {
-        setAviso(error instanceof ErrorApi ? error.mensaje : "Ocurrio un error inesperado.");
+        setAviso(mensajeDeError(error));
       }
     } finally {
       setEnviando(false);

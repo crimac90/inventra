@@ -20,7 +20,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import Disposicion from "../componentes/Disposicion";
 import Modal from "../componentes/Modal";
-import { ErrorApi } from "../api/cliente";
+import { mensajeDeError } from "../api/cliente";
+import { fecha, moneda } from "../formato";
 import {
   cambiarDePlan,
   consultarCambiosDePlan,
@@ -28,18 +29,6 @@ import {
   consultarPlanes,
 } from "../api/suscripciones";
 import { useSesion } from "../sesion/ContextoSesion";
-
-const MONEDA = new Intl.NumberFormat("es-CO", {
-  style: "currency",
-  currency: "COP",
-  maximumFractionDigits: 0,
-});
-
-function fecha(texto) {
-  if (!texto) return "—";
-  const [anio, mes, dia] = texto.split("-");
-  return `${dia}/${mes}/${anio}`;
-}
 
 /* Lo que incluye cada plan, dicho con lo que el propio plan declara. */
 function caracteristicas(plan) {
@@ -97,7 +86,7 @@ export default function MiSuscripcion() {
       // está en curso. Aquí no se interpreta el código, se muestra el texto.
       setAviso({
         tipo: "err",
-        texto: error instanceof ErrorApi ? error.mensaje : "Ocurrió un error inesperado.",
+        texto: mensajeDeError(error),
       });
     } finally {
       setOcupado(false);
@@ -185,7 +174,7 @@ export default function MiSuscripcion() {
                 {plan.nombre}{" "}
                 {esElSuyo && <span className="estado activo">Tu plan</span>}
               </h2>
-              <div className="hs">{MONEDA.format(plan.precio_mensual)} al mes</div>
+              <div className="hs">{moneda(plan.precio_mensual)} al mes</div>
 
               <dl className="datos">
                 {caracteristicas(plan).map((texto) => (
@@ -226,7 +215,11 @@ export default function MiSuscripcion() {
                     </button>
                   </div>
                 ) : (
-                  veredicto && <div className="hs">{veredicto.motivo}</div>
+                  veredicto && (
+                    <div className="hs" style={{ marginTop: "var(--e3)" }}>
+                      {veredicto.motivo}
+                    </div>
+                  )
                 )
               )}
             </div>

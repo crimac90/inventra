@@ -24,7 +24,7 @@ import Campo from "../componentes/Campo";
 import CampoSeleccion from "../componentes/CampoSeleccion";
 import Disposicion from "../componentes/Disposicion";
 import Modal from "../componentes/Modal";
-import { ErrorApi } from "../api/cliente";
+import { ErrorApi, mensajeDeError } from "../api/cliente";
 import {
   actualizarUsuario,
   consultarRoles,
@@ -34,6 +34,7 @@ import {
   reactivarUsuario,
 } from "../api/seguridad";
 import { consultarMiSuscripcion } from "../api/suscripciones";
+import { plural } from "../texto";
 import { useSesion } from "../sesion/ContextoSesion";
 
 const NOMBRES_DE_ROL = {
@@ -177,8 +178,8 @@ export default function Usuarios() {
         <div>
           <h1>Usuarios de la licorera</h1>
           <div className="hs" style={{ margin: "6px 0 0" }}>
-            {activos} {activos === 1 ? "cuenta activa" : "cuentas activas"} de {usuarios.length}{" "}
-            registradas.
+            {plural(activos, "cuenta activa", "cuentas activas")} de{" "}
+            {plural(usuarios.length, "registrada", "registradas")}.
           </div>
         </div>
 
@@ -432,8 +433,6 @@ function Formulario({ inicial, roles, ocupado, onGuardar, onCancelar }) {
 /* --- Traduccion de los errores de la API --------------------------------- */
 
 function textoDeError(error) {
-  if (!(error instanceof ErrorApi)) return "Ocurrió un error inesperado.";
-
   /*
     Los rechazos los explica el servidor, no esta pantalla.
 
@@ -448,9 +447,9 @@ function textoDeError(error) {
     El 404 se queda traducido a propósito: ahí el servidor dice «no encontrado»,
     que es cierto pero no dice qué no se encontró.
   */
-  if (error.codigo === 404) {
+  if (error instanceof ErrorApi && error.codigo === 404) {
     return "Ese usuario ya no existe.";
   }
 
-  return error.mensaje;
+  return mensajeDeError(error);
 }

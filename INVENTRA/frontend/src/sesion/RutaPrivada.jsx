@@ -17,7 +17,7 @@
 
 import { Navigate } from "react-router-dom";
 
-import { destinoTrasEntrar } from "./destino";
+import { destinoTrasEntrar } from "./roles";
 import { useSesion } from "./ContextoSesion";
 
 export default function RutaPrivada({ children, roles }) {

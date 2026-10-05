@@ -16,7 +16,7 @@ import { Link } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import PanelMarca from "../componentes/PanelMarca";
-import { ErrorApi } from "../api/cliente";
+import { mensajeDeError } from "../api/cliente";
 import { solicitarRecuperacion } from "../api/seguridad";
 
 const VINETAS = [
@@ -45,7 +45,7 @@ export default function Recuperar() {
         peticiones cuando se active—, nunca «ese correo no existe»: el backend
         responde 200 tanto si la cuenta existe como si no.
       */
-      setAviso(error instanceof ErrorApi ? error.mensaje : "Ocurrió un error inesperado.");
+      setAviso(mensajeDeError(error));
     } finally {
       setEnviando(false);
     }

@@ -20,7 +20,8 @@ import { useCallback, useEffect, useState } from "react";
 import Campo from "../componentes/Campo";
 import CampoSeleccion from "../componentes/CampoSeleccion";
 import Disposicion from "../componentes/Disposicion";
-import { ErrorApi } from "../api/cliente";
+import { mensajeDeError } from "../api/cliente";
+import { fecha, moneda } from "../formato";
 import {
   abrirPeriodo,
   consultarPlataforma,
@@ -28,18 +29,6 @@ import {
   darDeAltaLicorera,
 } from "../api/plataforma";
 import { consultarPlanes } from "../api/suscripciones";
-
-const MONEDA = new Intl.NumberFormat("es-CO", {
-  style: "currency",
-  currency: "COP",
-  maximumFractionDigits: 0,
-});
-
-function fecha(texto) {
-  if (!texto) return "—";
-  const [anio, mes, dia] = texto.split("-");
-  return `${dia}/${mes}/${anio}`;
-}
 
 /* La fecha de hoy en el formato que espera un campo de tipo date. */
 function hoy() {
@@ -80,7 +69,7 @@ export default function Plataforma() {
       .catch((error) =>
         setAviso({
           tipo: "err",
-          texto: error instanceof ErrorApi ? error.mensaje : "No se pudo cargar el panel.",
+          texto: mensajeDeError(error, "No se pudo cargar el panel."),
         }),
       );
   }, []);
@@ -98,7 +87,7 @@ export default function Plataforma() {
     } catch (error) {
       setAviso({
         tipo: "err",
-        texto: error instanceof ErrorApi ? error.mensaje : "Ocurrió un error inesperado.",
+        texto: mensajeDeError(error),
       });
     } finally {
       setOcupado(false);
@@ -153,7 +142,7 @@ export default function Plataforma() {
         <div className="kpi">
           <div className="k">Ingresos mensuales</div>
           <div className="v" style={{ fontSize: "22px" }}>
-            {MONEDA.format(m.ingresos_mensuales_recurrentes)}
+            {moneda(m.ingresos_mensuales_recurrentes)}
           </div>
           <div className="d">suma de lo contratado y vigente</div>
         </div>

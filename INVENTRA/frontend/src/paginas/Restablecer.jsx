@@ -17,7 +17,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import PanelMarca from "../componentes/PanelMarca";
-import { ErrorApi } from "../api/cliente";
+import { ErrorApi, mensajeDeError } from "../api/cliente";
 import { restablecerContrasena } from "../api/seguridad";
 
 const VINETAS = [
@@ -75,7 +75,7 @@ export default function Restablecer() {
         if (porCampo.password) setErrores({ password: porCampo.password });
         if (!porCampo.token && !porCampo.password) setAviso(error.mensaje);
       } else {
-        setAviso(error instanceof ErrorApi ? error.mensaje : "Ocurrió un error inesperado.");
+        setAviso(mensajeDeError(error));
       }
     } finally {
       setEnviando(false);

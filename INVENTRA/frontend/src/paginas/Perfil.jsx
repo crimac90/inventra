@@ -17,15 +17,10 @@ import { useNavigate } from "react-router-dom";
 
 import Disposicion from "../componentes/Disposicion";
 import Campo from "../componentes/Campo";
-import { ErrorApi } from "../api/cliente";
+import { ErrorApi, mensajeDeError } from "../api/cliente";
 import { actualizarPerfil, cambiarContrasena } from "../api/seguridad";
+import { ETIQUETA_DE_ROL } from "../sesion/roles";
 import { useSesion } from "../sesion/ContextoSesion";
-
-const ROLES = {
-  administrador_licorera: "Administrador de licorera",
-  vendedor: "Vendedor",
-  administrador_inventra: "Administrador de INVENTRA",
-};
 
 export default function Perfil() {
   const { usuario, setUsuario, salir } = useSesion();
@@ -51,7 +46,7 @@ export default function Perfil() {
           <dd>{usuario.correo}</dd>
 
           <dt>Rol</dt>
-          <dd>{ROLES[usuario.rol] || usuario.rol}</dd>
+          <dd>{ETIQUETA_DE_ROL[usuario.rol] || usuario.rol}</dd>
 
           <dt>Licorera</dt>
           <dd>{usuario.licorera_nombre || "Sin licorera asignada"}</dd>
@@ -96,7 +91,7 @@ function DatosPersonales({ usuario, setUsuario }) {
       } else {
         setAviso({
           tipo: "err",
-          texto: error instanceof ErrorApi ? error.mensaje : "Ocurrió un error inesperado.",
+          texto: mensajeDeError(error),
         });
       }
     } finally {
@@ -192,7 +187,7 @@ function CambioDeContrasena({ salir, navegar }) {
         });
         if (!porCampo.contrasena_actual && !porCampo.contrasena_nueva) setAviso(error.mensaje);
       } else {
-        setAviso(error instanceof ErrorApi ? error.mensaje : "Ocurrió un error inesperado.");
+        setAviso(mensajeDeError(error));
       }
     } finally {
       setGuardando(false);
