@@ -209,6 +209,57 @@ a.btn {
   width: 100%;
 }
 
+/*
+  Los tres estados que el punto 6.1 define y no estaban construidos: puntero
+  encima, presionado y foco. Son estados de interacción, de modo que no se ven
+  en ninguna figura ni en ninguna captura; se comprueban con el ratón y con el
+  tabulador.
+
+  POR QUE SE OSCURECE CON UN FILTRO Y NO CON UN COLOR NUEVO
+  El documento pide «el color de fondo se oscurece ligeramente» y «tono más
+  oscuro». Declarar dos hexadecimales nuevos por cada variante obligaría a
+  añadirlos a la paleta documentada —y la paleta es una lista de roles, no de
+  tonos derivados de otros—. Oscurecer el color que ya hay hace exactamente lo
+  que el documento describe sin inventar ninguno, y sigue funcionando en los dos
+  modos sin una segunda declaración.
+
+  Al oscurecer el fondo el texto blanco contrasta MÁS, no menos, así que ninguno
+  de los contrastes medidos empeora.
+*/
+.btn:hover:not(:disabled) {
+  filter: brightness(0.93);
+}
+
+/*
+  El secundario no tiene fondo que oscurecer. Se le da el fondo de etiqueta
+  suave, que ya está en la paleta con ese papel.
+*/
+.btn-out:hover:not(:disabled) {
+  background: var(--chip);
+}
+
+.btn:active:not(:disabled) {
+  filter: brightness(0.86);
+}
+
+/*
+  Anillo de foco. Hasta ahora solo lo tenían los campos, y el punto 6.1 dice que
+  los estados son los mismos para botones, campos, enlaces y navegación; la
+  sección 3 promete además que «los elementos interactivos muestran claramente
+  cuándo están enfocados».
+
+  Se usa `:focus-visible` y no `:focus` porque el documento describe el foco
+  como «el elemento se selecciona con el teclado o al escribir en él»: el
+  navegador lo muestra a quien navega con el tabulador y lo calla a quien acaba
+  de hacer clic, que ya sabe dónde pulsó.
+*/
+.btn:focus-visible,
+.link:focus-visible {
+  outline: none;
+  border-radius: var(--radio);
+  box-shadow: 0 0 0 3px var(--foco);
+}
+
 /* --- Campos de formulario ---------------------------------------------- */
 
 .field {

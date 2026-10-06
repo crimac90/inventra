@@ -64,6 +64,17 @@
   background: rgba(255, 255, 255, 0.07);
 }
 
+/*
+  El halo de foco de la aplicación es azul y aquí no se vería: la barra lateral
+  es azul oscura en los dos modos. Se usa blanco translúcido, que es la misma
+  convención que ya sigue el puntero encima, dos reglas más arriba, y la que el
+  CSS declara para todo lo que va sobre la barra.
+*/
+.nav:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+
 .nav.on {
   background: rgba(255, 255, 255, 0.13);
   color: #fff;
