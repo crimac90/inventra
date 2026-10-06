@@ -6,6 +6,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CambiarContrasenaView,
     CierreSesionView,
+    CorregirCorreoView,
     InicioSesionView,
     PerfilView,
     ReenviarVerificacionView,
@@ -29,6 +30,7 @@ urlpatterns = [
     path("salir/", CierreSesionView.as_view(), name="salir"),
     path("renovar/", RenovacionView.as_view(), name="renovar"),
     path("perfil/", PerfilView.as_view(), name="perfil"),
+    path("perfil/correo/", CorregirCorreoView.as_view(), name="corregir-correo"),
     path("cambiar-contrasena/", CambiarContrasenaView.as_view(), name="cambiar-contrasena"),
     path("recuperar/", SolicitarRecuperacionView.as_view(), name="recuperar"),
     path("restablecer/", RestablecerContrasenaView.as_view(), name="restablecer"),

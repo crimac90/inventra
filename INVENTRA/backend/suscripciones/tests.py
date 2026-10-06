@@ -223,6 +223,21 @@ class DatosDeDemostracionTests(TestCase):
         self.assertEqual(Licorera.objects.count(), 0)
         self.assertEqual(Usuario.objects.count(), 0)
 
+    def test_las_cuentas_de_demostracion_nacen_con_el_correo_confirmado(self):
+        """
+        Desde D-29 una cuenta sin confirmar no puede registrar nada, de modo que
+        un juego de datos sin confirmar no serviría para recorrer el sistema,
+        que es justamente para lo que existe. La verificación se demuestra
+        registrando una licorera nueva, que además es como ocurre de verdad.
+        """
+        self.cargar()
+
+        sin_confirmar = Usuario.objects.filter(
+            correo__endswith="@demo.inventra.co", correo_verificado=False)
+        self.assertFalse(sin_confirmar.exists(),
+                         "quedaron cuentas de demostración sin confirmar: %s"
+                         % list(sin_confirmar.values_list("correo", flat=True)))
+
     def test_toda_suscripcion_cargada_tiene_fecha_de_fin(self):
         """
         D-25: el estado se deriva de la fecha de fin, así que una suscripción
@@ -873,6 +888,16 @@ class PermisoDeEscrituraTests(TestCase):
         self.licorera = Licorera.objects.get(nombre=self.DATOS["nombre_negocio"])
         self.suscripcion = Suscripcion.objects.get(licorera=self.licorera)
         self.vendedor = Rol.objects.get(nombre=Rol.VENDEDOR)
+        self.duena = Usuario.objects.get(correo=self.DATOS["correo"])
+        # El registro por autoservicio deja la cuenta pendiente de confirmación,
+        # y desde D-29 eso también corta la escritura. Las pruebas de ESTA clase
+        # son del motivo «suscripción», así que se confirma aquí; el motivo
+        # «correo» tiene las suyas, más abajo.
+        self.confirmar_correo()
+
+    def confirmar_correo(self, valor=True):
+        self.duena.correo_verificado = valor
+        self.duena.save(update_fields=["correo_verificado"])
 
     def entrar(self):
         respuesta = self.client.post(
@@ -903,6 +928,49 @@ class PermisoDeEscrituraTests(TestCase):
         self.assertIn(PuedeRegistrarOperaciones, UsuarioViewSet.permission_classes)
 
     def test_con_la_suscripcion_vigente_se_puede_crear(self):
+        self.assertEqual(self.crear_vendedor().status_code, status.HTTP_201_CREATED)
+
+    # -- El segundo motivo del mismo permiso: el correo sin confirmar (D-29) --
+
+    def test_sin_confirmar_el_correo_no_se_puede_crear(self):
+        """
+        La prueba gratuita entrega quince días del plan Pro. Entregarlos a una
+        dirección que nadie demostró controlar es entregarlos a un desconocido,
+        y todo lo que esa cuenta registre queda guardado a su nombre.
+        """
+        self.confirmar_correo(False)
+        respuesta = self.crear_vendedor()
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+        # «detail», no «detalle»: este rechazo no lo escribe una vista nuestra
+        # sino el propio marco, que usa su nombre de campo. La interfaz lee los
+        # dos (`mensajeDeError` en cliente.js), así que al usuario le llega igual.
+        self.assertIn("confirmar tu correo", respuesta.json()["detail"])
+
+    def test_sin_confirmar_el_correo_si_se_puede_consultar(self):
+        """La misma mitad del requisito que vale para la suspensión."""
+        self.confirmar_correo(False)
+        respuesta = self.client.get(reverse("usuario-list"), **self.entrar())
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+    def test_con_los_dos_motivos_el_mensaje_habla_del_correo(self):
+        """
+        El orden es una decisión, no una casualidad (D-29): el correo es la
+        condición más básica y la única que la persona resuelve sola en un
+        minuto. Mandar a renovar el plan a quien además no ha confirmado su
+        correo es mandarlo a lo caro antes que a lo inmediato.
+        """
+        self.confirmar_correo(False)
+        self.vencer(1)
+        respuesta = self.crear_vendedor()
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+        detalle = respuesta.json()["detail"]
+        self.assertIn("confirmar tu correo", detalle)
+        self.assertNotIn("suscripción", detalle)
+
+    def test_al_confirmar_el_correo_se_puede_registrar(self):
+        self.confirmar_correo(False)
+        self.assertEqual(self.crear_vendedor().status_code, status.HTTP_403_FORBIDDEN)
+        self.confirmar_correo(True)
         self.assertEqual(self.crear_vendedor().status_code, status.HTTP_201_CREATED)
 
     def test_una_prueba_vencida_no_deja_crear(self):

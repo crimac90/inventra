@@ -20,19 +20,12 @@ from .correo import enviar_correo_recuperacion, enviar_correo_verificacion
 from .models import Rol, Usuario
 from .permissions import EsAdministradorDeLicorera
 from .serializers import (
-    CambiarContrasenaSerializer,
-    CierreSesionSerializer,
-    InicioSesionSerializer,
-    PerfilActualizarSerializer,
-    RenovacionSerializer,
-    RestablecerContrasenaSerializer,
-    RolSerializer,
-    SolicitarRecuperacionSerializer,
-    UsuarioActualizarSerializer,
-    UsuarioCrearSerializer,
-    UsuarioSerializer,
-    VerificarCorreoSerializer,
-)
+    CambiarContrasenaSerializer, CierreSesionSerializer,
+    CorregirCorreoSerializer, InicioSesionSerializer,
+    PerfilActualizarSerializer, RenovacionSerializer,
+    RestablecerContrasenaSerializer, RolSerializer,
+    SolicitarRecuperacionSerializer, UsuarioActualizarSerializer,
+    UsuarioCrearSerializer, UsuarioSerializer, VerificarCorreoSerializer)
 
 registro = logging.getLogger(__name__)
 
@@ -120,6 +113,43 @@ class PerfilView(APIView):
         return Response(UsuarioSerializer(request.user).data)
 
 
+class CorregirCorreoView(APIView):
+    """
+    Corrección del propio correo, solo mientras la cuenta no esté confirmada.
+
+    Lleva límite por origen aunque exija sesión: cada cambio dispara un correo
+    a una dirección que escribe quien pide, y sin tope sería una forma de
+    mandarle mensajes a un tercero uno detrás de otro. El tope es el mismo de
+    la recuperación, que es el otro botón del sistema con esa forma.
+    """
+
+    permission_classes = [IsAuthenticated]
+    throttle_scope = "recuperacion"
+
+    def patch(self, request):
+        if request.user.correo_verificado:
+            return Response(
+                {"detalle": "Tu correo ya está confirmado. Para cambiarlo, pídeselo "
+                            "al administrador de tu licorera."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        serializador = CorregirCorreoSerializer(
+            data=request.data, context={"usuario": request.user}
+        )
+        serializador.is_valid(raise_exception=True)
+        usuario = serializador.guardar()
+        # Fuera de cualquier transacción y después de guardar: si el servicio de
+        # correo está caído, la corrección no se pierde y el enlace se puede
+        # pedir otra vez con el botón de reenviar.
+        enviar_correo_verificacion(usuario)
+        return Response(
+            {"detalle": "Correo actualizado. Te enviamos el enlace de confirmación "
+                        "a la dirección nueva."},
+            status=status.HTTP_200_OK,
+        )
+
+
 class RolesView(APIView):
     """Catálogo de roles asignables dentro de una licorera (RF-SEG-05)."""
 
@@ -165,6 +195,20 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         if self.action in ("update", "partial_update"):
             return UsuarioActualizarSerializer
         return UsuarioSerializer
+
+    def perform_update(self, serializador):
+        """
+        Si el administrador cambió el correo de alguien, esa cuenta vuelve a
+        quedar pendiente de confirmación y hay que enviarle el enlace nuevo
+        (decisión D-29).
+
+        El serializador es quien sabe si el correo cambió —compara con el valor
+        anterior antes de guardarlo—; aquí solo se manda el correo, porque
+        enviar no es tarea suya.
+        """
+        usuario = serializador.save()
+        if getattr(serializador, "cambio_de_correo", False):
+            enviar_correo_verificacion(usuario)
 
     def create(self, request, *args, **kwargs):
         """Antes de crear, comprueba que el plan contratado admita un usuario más."""

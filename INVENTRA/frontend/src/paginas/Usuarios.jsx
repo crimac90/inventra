@@ -35,6 +35,7 @@ import {
 } from "../api/seguridad";
 import { consultarMiSuscripcion } from "../api/suscripciones";
 import { plural } from "../texto";
+import { motivoParaNoRegistrar } from "../sesion/permisos";
 import { useSesion } from "../sesion/ContextoSesion";
 
 const NOMBRES_DE_ROL = {
@@ -65,11 +66,14 @@ export default function Usuarios() {
   const [porInactivar, setPorInactivar] = useState(null);
   const [ocupado, setOcupado] = useState(false);
   /*
-    Si la suscripcion no esta vigente, el negocio consulta pero no registra
-    (RF-SUS-03). Empieza en `true` y la carga lo corrige: suponer lo contrario
-    escondería los botones un instante a quien sí puede usarlos.
+    Quien puede registrar y quien no lo decide `motivoParaNoRegistrar`, que
+    conoce los DOS motivos del permiso del servidor —el correo sin confirmar y
+    la suscripcion vencida— y en el mismo orden. Aqui solo se guarda la
+    suscripcion, que es el dato que hay que pedir; el correo ya viene en el
+    usuario de la sesion. Mientras no llegue se supone que si puede: esconder
+    los botones un instante a quien si puede usarlos es peor.
   */
-  const [puedeRegistrar, setPuedeRegistrar] = useState(true);
+  const [suscripcion, setSuscripcion] = useState(null);
 
   /*
     `useCallback` conserva la misma función entre redibujados. Hace falta porque
@@ -92,7 +96,7 @@ export default function Usuarios() {
       y el backend rechaza si no, que es donde la regla está de verdad.
     */
     consultarMiSuscripcion()
-      .then((suscripcion) => vigente && setPuedeRegistrar(suscripcion.puede_operar))
+      .then((datos) => vigente && setSuscripcion(datos))
       .catch(() => {});
 
     Promise.all([listarUsuarios(), consultarRoles()])
@@ -171,6 +175,8 @@ export default function Usuarios() {
   }
 
   const activos = usuarios.filter((u) => u.activo).length;
+  const motivo = motivoParaNoRegistrar(yo, suscripcion, "crear ni modificar cuentas");
+  const puedeRegistrar = motivo === null;
 
   return (
     <Disposicion titulo="Usuarios">
@@ -196,11 +202,9 @@ export default function Usuarios() {
         entero, se rellenaba y el rechazo llegaba al final, con el trabajo ya
         hecho. Ahora el motivo va delante y lleva a donde se arregla.
       */}
-      {!cargando && !puedeRegistrar && (
+      {!cargando && motivo && (
         <div className="aviso err" role="status">
-          Tu suscripción no está vigente, así que la lista se puede consultar pero no se
-          pueden crear ni modificar cuentas.{" "}
-          <Link to="/mi-suscripcion">Ver mi suscripción</Link>
+          {motivo.texto} <Link to={motivo.enlace.a}>{motivo.enlace.etiqueta}</Link>
         </div>
       )}
 

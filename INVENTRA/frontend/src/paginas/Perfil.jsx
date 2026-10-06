@@ -10,6 +10,13 @@
   muestra igualmente, pero como datos de consulta, con la explicacion de quien si
   puede cambiarlos. Ocultarlos sin mas dejaria al usuario preguntandose donde
   estan.
+
+  LA EXCEPCION DEL CORREO (D-29). Mientras la cuenta siga pendiente de confirmar,
+  su titular SI puede corregir la direccion desde aqui. No es una concesion: quien
+  se registra por autoservicio es el unico administrador de su licorera, de modo
+  que si escribio mal su correo no hay nadie por encima que se lo arregle y la
+  cuenta queda muerta —no puede confirmar, y sin confirmar no puede registrar—.
+  En cuanto queda confirmada, la puerta se cierra y el servidor responde 409.
 */
 
 import { useState } from "react";
@@ -18,13 +25,19 @@ import { useNavigate } from "react-router-dom";
 import Disposicion from "../componentes/Disposicion";
 import Campo from "../componentes/Campo";
 import { ErrorApi, mensajeDeError } from "../api/cliente";
-import { actualizarPerfil, cambiarContrasena } from "../api/seguridad";
+import {
+  actualizarPerfil,
+  cambiarContrasena,
+  consultarPerfil,
+  corregirCorreo,
+} from "../api/seguridad";
 import { ETIQUETA_DE_ROL } from "../sesion/roles";
 import { useSesion } from "../sesion/ContextoSesion";
 
 export default function Perfil() {
   const { usuario, setUsuario, salir } = useSesion();
   const navegar = useNavigate();
+  const pendiente = !usuario.correo_verificado;
 
   return (
     <Disposicion titulo="Mi perfil">
@@ -37,13 +50,23 @@ export default function Perfil() {
       <div className="tarjeta">
         <h2>Datos de tu cuenta</h2>
         <div className="hs">
-          Estos datos solo los puede modificar el administrador de tu licorera, porque el
-          correo es tu identificador de acceso y el rol define lo que puedes hacer.
+          {pendiente
+            ? "El rol y la licorera los asigna quien administra tu licorera. El correo todavía puedes corregirlo tú, porque aún no está confirmado."
+            : "Estos datos solo los puede modificar el administrador de tu licorera, porque el correo es tu identificador de acceso y el rol define lo que puedes hacer."}
         </div>
 
         <dl className="datos">
           <dt>Correo</dt>
-          <dd>{usuario.correo}</dd>
+          <dd>
+            {usuario.correo}
+            {/* Misma etiqueta y mismo patron que la marca «Tú» de la lista de
+                usuarios, para no inventar una forma nueva de decir lo mismo. */}
+            {pendiente && (
+              <span className="tag" style={{ marginLeft: 8 }}>
+                Sin confirmar
+              </span>
+            )}
+          </dd>
 
           <dt>Rol</dt>
           <dd>{ETIQUETA_DE_ROL[usuario.rol] || usuario.rol}</dd>
@@ -51,6 +74,8 @@ export default function Perfil() {
           <dt>Licorera</dt>
           <dd>{usuario.licorera_nombre || "Sin licorera asignada"}</dd>
         </dl>
+
+        {pendiente && <CorreccionDelCorreo usuario={usuario} setUsuario={setUsuario} />}
       </div>
     </Disposicion>
   );
@@ -258,6 +283,81 @@ function CambioDeContrasena({ salir, navegar }) {
         <span style={{ color: "var(--muted)", fontSize: "13px" }}>
           Se cerrará la sesión al terminar.
         </span>
+      </div>
+    </form>
+  );
+}
+
+/* --- Correccion del correo mientras la cuenta siga pendiente (D-29) ------- */
+
+function CorreccionDelCorreo({ usuario, setUsuario }) {
+  const [correo, setCorreo] = useState(usuario.correo);
+  const [error, setError] = useState("");
+  const [aviso, setAviso] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  // Mandar la misma direccion no arregla nada y el servidor lo rechaza: el
+  // boton se queda quieto hasta que haya un cambio real.
+  const hayCambio = correo.trim() !== "" && correo.trim() !== usuario.correo;
+
+  async function enviar(evento) {
+    evento.preventDefault();
+    setError("");
+    setAviso("");
+    setGuardando(true);
+
+    try {
+      const respuesta = await corregirCorreo(correo.trim());
+      /*
+        El servidor responde con el aviso y no con el usuario, asi que se vuelve
+        a pedir el perfil: la sesion tiene que quedarse con la direccion nueva, o
+        la franja de arriba seguiria nombrando la vieja. Son dos peticiones para
+        una operacion que se hace una vez en la vida de la cuenta.
+      */
+      setUsuario(await consultarPerfil());
+      setAviso(respuesta?.detalle || "Correo actualizado. Te enviamos el enlace nuevo.");
+    } catch (fallo) {
+      if (fallo instanceof ErrorApi && fallo.codigo === 400) {
+        setError(fallo.porCampo.correo || fallo.mensaje);
+      } else {
+        setError(mensajeDeError(fallo));
+      }
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={enviar} noValidate style={{ marginTop: "18px" }}>
+      <h3>¿Escribiste mal tu correo?</h3>
+      <div className="hs">
+        Corrígelo y te enviamos el enlace de confirmación a la dirección nueva. Podrás hacerlo
+        hasta que confirmes; después tendrá que cambiarlo quien administra tu licorera.
+      </div>
+
+      {aviso && (
+        <div className="aviso ok" role="status">
+          {aviso}
+        </div>
+      )}
+
+      <Campo
+        id="correo_corregido"
+        etiqueta="Correo electrónico"
+        tipo="email"
+        autoComplete="email"
+        valor={correo}
+        onChange={(v) => {
+          setCorreo(v);
+          setError("");
+        }}
+        error={error}
+      />
+
+      <div className="acciones">
+        <button className="btn btn-cta" type="submit" disabled={!hayCambio || guardando}>
+          {guardando ? "Guardando…" : "Guardar y reenviar el enlace"}
+        </button>
       </div>
     </form>
   );

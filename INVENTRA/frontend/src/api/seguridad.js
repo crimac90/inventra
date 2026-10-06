@@ -106,3 +106,12 @@ export function verificarCorreo(token) {
 export function reenviarVerificacion() {
   return api.post("/seguridad/reenviar-verificacion/", {});
 }
+
+/*
+  Corrige la propia dirección mientras la cuenta siga pendiente (D-29). El
+  servidor cierra esta puerta en cuanto el correo queda confirmado, porque desde
+  ese momento cambiarlo es cosa del administrador (RF-SEG-06).
+*/
+export function corregirCorreo(correo) {
+  return api.patch("/seguridad/perfil/correo/", { correo });
+}

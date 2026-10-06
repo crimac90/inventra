@@ -157,6 +157,12 @@ class Command(BaseCommand):
             rol=Rol.objects.get(nombre=nombre_rol),
             licorera=licorera,
             telefono=telefono,
+            # Confirmadas (D-29). Desde que el correo sin confirmar impide
+            # registrar, un juego de datos sin confirmar no serviría para
+            # recorrer el sistema, que es justamente para lo que existe. La
+            # verificación se demuestra registrando una licorera nueva, que es
+            # además como ocurre en la realidad.
+            correo_verificado=True,
         )
         self.anunciar("usuario", correo, True)
 

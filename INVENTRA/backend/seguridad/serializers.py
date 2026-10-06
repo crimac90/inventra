@@ -253,6 +253,24 @@ class UsuarioActualizarSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Ya existe una cuenta registrada con este correo.")
         return correo
 
+    def update(self, instance, validated_data):
+        """
+        Si cambia el correo, la cuenta vuelve a quedar pendiente de confirmación
+        (decisión D-29).
+
+        Sin esto quedaba una puerta abierta: una cuenta ya confirmada se movía a
+        otra dirección y seguía contando como confirmada, de modo que la marca
+        dejaba de significar «alguien demostró leer ESTE correo». El enlace
+        anterior tampoco vale, porque se firma con el identificador y el correo
+        juntos; el envío del nuevo lo hace la vista, que es quien sabe mandar
+        correos.
+        """
+        nuevo = validated_data.get("correo")
+        self.cambio_de_correo = bool(nuevo) and nuevo != instance.correo
+        if self.cambio_de_correo:
+            instance.correo_verificado = False
+        return super().update(instance, validated_data)
+
 
 # ---------------------------------------------------------------------------
 # Recuperación de contraseña (RF-SEG-04)
@@ -320,18 +338,61 @@ class RestablecerContrasenaSerializer(serializers.Serializer):
         """
         Asigna la contraseña nueva y libera el bloqueo por intentos fallidos: quien
         olvidó su contraseña y agotó los intentos debe poder volver a entrar.
+
+        Y DA EL CORREO POR CONFIRMADO (decisión D-29). Abrir este enlace prueba
+        exactamente lo mismo que abrir el de verificación: que quien lo abrió
+        lee esa bandeja de entrada. Pedir después la confirmación sería exigir
+        dos veces la misma prueba, y dejaría sin poder registrar nada a quien
+        entró por el alta directa del Administrador INVENTRA, cuya cuenta nace
+        sin contraseña utilizable y se estrena precisamente por aquí.
         """
         usuario = self.validated_data["usuario"]
         usuario.set_password(self.validated_data["password"])
         usuario.intentos_fallidos = 0
         usuario.bloqueado_hasta = None
-        usuario.save(update_fields=["password", "intentos_fallidos", "bloqueado_hasta"])
+        usuario.correo_verificado = True
+        usuario.save(update_fields=["password", "intentos_fallidos", "bloqueado_hasta",
+                                    "correo_verificado"])
         return usuario
 
 
 # ---------------------------------------------------------------------------
 # Perfil propio (RF-SEG-06)
 # ---------------------------------------------------------------------------
+
+class CorregirCorreoSerializer(serializers.Serializer):
+    """
+    Corrección del propio correo mientras la cuenta no esté confirmada (D-29).
+
+    POR QUÉ EXISTE, SIENDO QUE EL CORREO LO CAMBIA EL ADMINISTRADOR
+    RF-SEG-06 reserva ese cambio al Administrador de licorera, y así está
+    construido. Pero queda un caso sin salida: quien se registra por
+    autoservicio ES el administrador de su licorera, el único, y si escribió mal
+    su dirección no hay nadie por encima que se la corrija. Al exigir el correo
+    confirmado para registrar, ese caso pasa de incómodo a cuenta inservible.
+
+    POR QUÉ SOLO MIENTRAS NO ESTÉ CONFIRMADA
+    Una vez confirmada, el correo es el identificador de una cuenta que alguien
+    demostró controlar, y cambiarlo vuelve a ser cosa del administrador. Esta
+    puerta se cierra sola en cuanto se usa bien.
+    """
+
+    correo = serializers.EmailField(max_length=100)
+
+    def validate_correo(self, valor):
+        correo = valor.strip().lower()
+        usuario = self.context["usuario"]
+        if correo == usuario.correo:
+            raise serializers.ValidationError("Ese ya es tu correo actual.")
+        if Usuario.objects.filter(correo=correo).exists():
+            raise serializers.ValidationError("Ya existe una cuenta registrada con este correo.")
+        return correo
+
+    def guardar(self):
+        usuario = self.context["usuario"]
+        usuario.correo = self.validated_data["correo"]
+        usuario.save(update_fields=["correo"])
+        return usuario
 
 class PerfilActualizarSerializer(serializers.ModelSerializer):
     """

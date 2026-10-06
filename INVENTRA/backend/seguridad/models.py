@@ -69,6 +69,11 @@ class UsuarioManager(BaseUserManager):
         )
         extras.setdefault("rol", rol)
         extras.setdefault("licorera", None)
+        # Nace con el correo confirmado (D-29): la dirección la escribe quien
+        # administra el servidor, no quien se registra, y a esta cuenta no se le
+        # entrega ninguna prueba gratuita. Exigirle la confirmación dejaría al
+        # operador de la plataforma sin poder dar de alta ni renovar a nadie.
+        extras.setdefault("correo_verificado", True)
         return self.create_user(correo, nombre_completo, password, **extras)
 
 

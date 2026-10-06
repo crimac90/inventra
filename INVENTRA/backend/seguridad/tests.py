@@ -215,6 +215,10 @@ class GestionUsuariosTests(TestCase):
             correo="admin@aurora.com", nombre_completo="Administradora Aurora",
             password=self.CLAVE, licorera=self.licorera,
             rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
+            # Esta clase prueba la gestión de usuarios, no la confirmación del
+            # correo: sin esto el permiso cortaría todas sus escrituras y los
+            # fallos hablarían de otra cosa (D-29).
+            correo_verificado=True,
         )
         self.url_lista = reverse("usuario-list")
 
@@ -317,6 +321,7 @@ class LimitePorPlanTests(TestCase):
         self.administrador = Usuario.objects.create_user(
             correo="admin@basica.com", nombre_completo="Administrador", password=self.CLAVE,
             licorera=self.licorera, rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
+            correo_verificado=True,   # la prueba es del tope del plan (D-29)
         )
         respuesta = self.client.post(
             reverse("ingresar"),
@@ -805,3 +810,181 @@ class VerificacionCorreoTests(TestCase):
         self.assertEqual(self.verificar(token).status_code, status.HTTP_200_OK)
         self.usuario.refresh_from_db()
         self.assertTrue(self.usuario.correo_verificado)
+
+
+class CorreoSinConfirmarTests(TestCase):
+    """
+    Lo que se puede hacer con el correo todavía sin confirmar (decisión D-29).
+
+    Tres piezas que se sostienen entre sí: el titular puede corregir su propia
+    dirección mientras siga pendiente, cambiarla deja la cuenta pendiente otra
+    vez, y abrir cualquier enlace enviado a ese correo —el de verificación o el
+    de la contraseña— cuenta como prueba de que se controla.
+    """
+
+    CLAVE = "Licorera2026"
+
+    def setUp(self):
+        cache.clear()
+        # Con suscripción vigente a propósito: el permiso de escritura corta por
+        # dos motivos y aquí se examina el del correo. Montada sin suscripción,
+        # la petición moriría por el otro motivo y la prueba no miraría nada.
+        self.licorera = crear_licorera("Correos", plan_nombre="Pro")
+        self.titular = Usuario.objects.create_user(
+            correo="mal.escrito@prueba.com", nombre_completo="Dueña de Prueba",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
+        )
+        self.url = reverse("corregir-correo")
+        mail.outbox = []
+
+    def entrar(self, correo=None):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": correo or self.titular.correo, "password": self.CLAVE},
+            content_type="application/json",
+        )
+        return {"HTTP_AUTHORIZATION": "Bearer %s" % respuesta.json()["acceso"]}
+
+    def corregir(self, correo):
+        return self.client.patch(
+            self.url, {"correo": correo},
+            content_type="application/json", **self.entrar())
+
+    # -- Corregir el propio correo ---------------------------------------
+
+    def test_el_titular_corrige_su_correo_mientras_siga_pendiente(self):
+        """
+        El caso que esta puerta existe para resolver: quien se registra por
+        autoservicio ES el único administrador de su licorera, así que no hay
+        nadie por encima que le corrija la dirección.
+        """
+        respuesta = self.corregir("bien.escrito@prueba.com")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.titular.refresh_from_db()
+        self.assertEqual(self.titular.correo, "bien.escrito@prueba.com")
+        self.assertFalse(self.titular.correo_verificado)
+
+    def test_el_enlace_nuevo_va_a_la_direccion_nueva(self):
+        """Mandarlo a la dirección vieja sería dejar la cuenta igual de muerta."""
+        self.corregir("bien.escrito@prueba.com")
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["bien.escrito@prueba.com"])
+
+    def test_con_el_correo_ya_confirmado_la_puerta_esta_cerrada(self):
+        """
+        Una vez confirmado, el correo identifica una cuenta que alguien demostró
+        controlar y cambiarlo vuelve a ser cosa del administrador (RF-SEG-06).
+        """
+        self.titular.correo_verificado = True
+        self.titular.save(update_fields=["correo_verificado"])
+
+        respuesta = self.corregir("otro@prueba.com")
+        self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
+        self.titular.refresh_from_db()
+        self.assertEqual(self.titular.correo, "mal.escrito@prueba.com")
+
+    def test_no_se_puede_tomar_el_correo_de_otra_cuenta(self):
+        Usuario.objects.create_user(
+            correo="ocupado@prueba.com", nombre_completo="Otra", password=self.CLAVE,
+            licorera=self.licorera, rol=Rol.objects.get(nombre=Rol.VENDEDOR),
+        )
+        respuesta = self.corregir("ocupado@prueba.com")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(len(mail.outbox), 0)
+
+    # -- Las dos formas de demostrar que se controla la dirección ---------
+
+    def test_restablecer_la_contrasena_confirma_el_correo(self):
+        """
+        Abrir el enlace de la contraseña prueba exactamente lo mismo que abrir
+        el de verificación: que quien lo abrió lee esa bandeja. Pedir después la
+        confirmación sería exigir dos veces la misma prueba, y dejaría sin poder
+        registrar a quien entró por el alta directa, cuya cuenta nace sin
+        contraseña utilizable y se estrena justamente por aquí.
+        """
+        respuesta = self.client.post(
+            reverse("restablecer"),
+            {
+                "uid": urlsafe_base64_encode(force_bytes(self.titular.pk)),
+                "token": default_token_generator.make_token(self.titular),
+                "password": "OtraClave2026",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.titular.refresh_from_db()
+        self.assertTrue(self.titular.correo_verificado)
+
+    def test_el_operador_de_la_plataforma_nace_confirmado(self):
+        """
+        Su dirección la escribe quien administra el servidor, no quien se
+        registra, y no recibe ninguna prueba gratuita. Sin esto, el operador no
+        podría dar de alta ni renovar a nadie.
+        """
+        operador = Usuario.objects.create_superuser(
+            correo="plataforma@inventra.co", nombre_completo="Operador",
+            password=self.CLAVE)
+
+        self.assertTrue(operador.correo_verificado)
+
+    # -- Cambiarlo desde la gestión de usuarios ---------------------------
+
+    def test_si_el_administrador_cambia_un_correo_la_cuenta_vuelve_a_quedar_pendiente(self):
+        """
+        Sin esto quedaba una puerta abierta: una cuenta confirmada se movía a
+        otra dirección y seguía contando como confirmada, con lo que la marca
+        dejaba de significar «alguien demostró leer ESTE correo».
+        """
+        self.titular.correo_verificado = True
+        self.titular.save(update_fields=["correo_verificado"])
+        vendedor = Usuario.objects.create_user(
+            correo="vendedor@prueba.com", nombre_completo="Vendedor",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.VENDEDOR), correo_verificado=True,
+        )
+        mail.outbox = []
+
+        respuesta = self.client.patch(
+            reverse("usuario-detail", args=[vendedor.id]),
+            {"correo": "vendedor.nuevo@prueba.com"},
+            content_type="application/json", **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        vendedor.refresh_from_db()
+        self.assertEqual(vendedor.correo, "vendedor.nuevo@prueba.com")
+        self.assertFalse(vendedor.correo_verificado)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["vendedor.nuevo@prueba.com"])
+
+    def test_cambiar_otro_dato_no_toca_la_confirmacion(self):
+        """
+        La contraparte de la anterior, y la que impide pasarse de frenada: si
+        cualquier edición dejara la cuenta pendiente, corregir un teléfono
+        bloquearía a su dueño.
+        """
+        self.titular.correo_verificado = True
+        self.titular.save(update_fields=["correo_verificado"])
+        vendedor = Usuario.objects.create_user(
+            correo="vendedor@prueba.com", nombre_completo="Vendedor",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.VENDEDOR), correo_verificado=True,
+        )
+        mail.outbox = []
+
+        respuesta = self.client.patch(
+            reverse("usuario-detail", args=[vendedor.id]),
+            {"telefono": "3001112233"},
+            content_type="application/json", **self.entrar())
+
+        # Sin esta línea la prueba pasaría también con la petición rechazada:
+        # un 403 deja la marca intacta y el buzón vacío igual que un cambio
+        # inofensivo, de modo que mediría lo contrario de lo que dice medir.
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        vendedor.refresh_from_db()
+        self.assertTrue(vendedor.correo_verificado)
+        self.assertEqual(len(mail.outbox), 0)
