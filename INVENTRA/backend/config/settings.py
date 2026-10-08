@@ -49,6 +49,8 @@ INSTALLED_APPS = [
     # Del proyecto, una por módulo funcional
     "suscripciones",                 # SUS: licoreras, planes y suscripciones
     "seguridad",                     # SEG: usuarios y roles
+    "sedes",                         # SED: solo la tabla y la sede principal (D-30)
+    "inventario",                    # INV: catálogo, lotes y kardex
 ]
 
 MIDDLEWARE = [

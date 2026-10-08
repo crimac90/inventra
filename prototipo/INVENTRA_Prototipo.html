@@ -238,11 +238,11 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
      <div style="display:flex;gap:12px;margin-bottom:16px"><input class="search" placeholder="Buscar por nombre o código…" style="flex:1"><div class="chips"><span class="chip on">Todos</span><span class="chip">Existencias bajas</span><span class="chip">Agotados</span></div></div>
      <div class="panel" style="padding:6px 16px">
      <table><thead><tr><th>Producto</th><th>Categoría</th><th>Precio venta</th><th>Existencias</th><th>Estado</th><th></th></tr></thead><tbody>
-       <tr><td>Aguardiente Antioqueño 750ml</td><td><span class="tag">Aguardientes</span></td><td>$52.000</td><td>24</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
-       <tr><td>Ron Medellín Añejo 750ml</td><td><span class="tag">Rones</span></td><td>$48.500</td><td>15</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
-       <tr><td>Cerveza Águila 330ml</td><td><span class="tag">Cervezas</span></td><td>$3.500</td><td>4</td><td><span class="stock st-low">Existencias bajas</span></td><td><a class="link">Editar</a></td></tr>
-       <tr><td>Whisky Buchanan's 750ml</td><td><span class="tag">Whiskies</span></td><td>$185.000</td><td>9</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
-       <tr><td>Ron Viejo de Caldas 750ml</td><td><span class="tag">Rones</span></td><td>$46.000</td><td>0</td><td><span class="stock st-out">Agotado</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Aguardiente Antioqueño 750ml</td><td><span class="tag">Aguardiente</span></td><td>$52.000</td><td>24</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Ron Medellín Añejo 750ml</td><td><span class="tag">Ron</span></td><td>$48.500</td><td>15</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Cerveza Águila 330ml</td><td><span class="tag">Cerveza</span></td><td>$3.500</td><td>4</td><td><span class="stock st-low">Existencias bajas</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Whisky Buchanan's 750ml</td><td><span class="tag">Whisky</span></td><td>$185.000</td><td>9</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Ron Viejo de Caldas 750ml</td><td><span class="tag">Ron</span></td><td>$46.000</td><td>0</td><td><span class="stock st-out">Agotado</span></td><td><a class="link">Editar</a></td></tr>
      </tbody></table></div>
    </div>
  </div>
@@ -255,13 +255,12 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
  <div style="color:var(--muted);font-size:14px;margin-bottom:20px">Completa la información del producto.</div>
  <div class="field"><label>Nombre del producto</label><input placeholder="Aguardiente Antioqueño 750ml"></div>
  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-   <div class="field"><label>Categoría</label><select><option>Aguardientes</option><option>Rones</option><option>Cervezas</option><option>Whiskies</option><option>Vinos</option></select></div>
-   <div class="field"><label>Presentación</label><input placeholder="Botella 750ml"></div>
-   <div class="field"><label>Precio de compra</label><input placeholder="$0"></div>
+   <div class="field"><label>Categoría</label><select><option>Aguardiente</option><option>Ron</option><option>Cerveza</option><option>Whisky</option><option>Vino</option><option>Otros</option></select></div>
+   <div class="field"><label>Presentación</label><select><option>Media</option><option selected>Botella</option><option>Litro</option><option>Garrafa</option><option>Unidad</option></select></div>
    <div class="field"><label>Precio de venta</label><input placeholder="$0"></div>
-   <div class="field"><label>Existencias iniciales</label><input placeholder="0"></div>
    <div class="field"><label>Existencias mínimas (alerta)</label><input placeholder="5"></div>
  </div>
+ <div class="hs" style="font-size:13px;margin:-6px 0 14px">Las existencias y el costo no se capturan aquí: entran con cada lote de mercancía.</div>
  <div class="field"><label>Código de barras</label><input placeholder="7701234567890"></div>
  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px"><button class="btn btn-out">Cancelar</button><button class="btn btn-cta">Guardar producto</button></div>
 </div>
@@ -272,7 +271,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
  <div class="tb"><div class="logo"><span class="mk"></span> INVENTRA</div><div class="r"><span class="pill">Sede: Centro</span><span class="avatar">CM</span></div></div>
  <div class="posbody">
    <div class="products"><input class="search" placeholder="Buscar producto o escanear código…">
-     <div class="chips" style="margin-top:12px"><span class="chip on">Todos</span><span class="chip">Cervezas</span><span class="chip">Aguardientes</span><span class="chip">Rones</span><span class="chip">Whiskies</span></div>
+     <div class="chips" style="margin-top:12px"><span class="chip on">Todos</span><span class="chip">Cerveza</span><span class="chip">Aguardiente</span><span class="chip">Ron</span><span class="chip">Whisky</span></div>
      <div class="grid">
        <div class="prod"><div class="nm">Aguardiente Antioqueño 750ml</div><div class="pr">$52.000</div><span class="stock st-ok">Existencias: 24</span></div>
        <div class="prod"><div class="nm">Ron Medellín Añejo 750ml</div><div class="pr">$48.500</div><span class="stock st-ok">Existencias: 15</span></div>

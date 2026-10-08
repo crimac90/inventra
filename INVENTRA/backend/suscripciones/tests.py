@@ -23,6 +23,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 
+from sedes.models import Sede
 from seguridad.models import Rol, Usuario
 
 from .models import Licorera, Plan, Suscripcion
@@ -205,6 +206,9 @@ class DatosDeDemostracionTests(TestCase):
 
         self.assertEqual(Licorera.objects.count(), 2)
         self.assertEqual(Usuario.objects.count(), 4)
+        # La sede se añadió después que el resto (D-30) y es lo último que se
+        # creó: si algo se duplicara al repetir la orden, sería esto.
+        self.assertEqual(Sede.objects.count(), 2)
 
     def test_las_cuentas_sirven_para_entrar(self):
         self.cargar()
@@ -222,6 +226,9 @@ class DatosDeDemostracionTests(TestCase):
 
         self.assertEqual(Licorera.objects.count(), 0)
         self.assertEqual(Usuario.objects.count(), 0)
+        # Si las sedes no se retiraran, la licorera tampoco podría borrarse: la
+        # llave está declarada con PROTECT y la orden fallaría a medias.
+        self.assertEqual(Sede.objects.count(), 0)
 
     def test_las_cuentas_de_demostracion_nacen_con_el_correo_confirmado(self):
         """
@@ -276,6 +283,20 @@ class DatosDeDemostracionTests(TestCase):
 
         for suscripcion in Suscripcion.objects.all():
             self.assertTrue(suscripcion.esta_vigente())
+
+    def test_las_dos_licoreras_nacen_con_su_sede(self):
+        """
+        Sin sede no se puede registrar inventario (D-30), así que un juego de
+        datos sin sedes no serviría para recorrer INV, que es justo para lo que
+        existe.
+        """
+        self.cargar()
+
+        for licorera in Licorera.objects.all():
+            self.assertIsNotNone(
+                Sede.principal_de(licorera),
+                "«%s» quedó sin sede principal" % licorera.nombre,
+            )
 
 
 class ProteccionDatosDemoTests(TestCase):

@@ -2,7 +2,7 @@
 --  INVENTRA — Inventario y ventas para licoreras
 --  Estructura de la base de datos (DDL)
 -- ============================================================
---  Generado el 2026-10-03 con py manage.py generar_scripts_sql
+--  Generado el 2026-10-08 con py manage.py generar_scripts_sql
 --  Django 5.2.17 · motor mysql · base «inventra»
 -- ============================================================
 
@@ -121,6 +121,59 @@ CREATE TABLE `suscripcion` (`id` bigint AUTO_INCREMENT NOT NULL PRIMARY KEY, `es
 ALTER TABLE `suscripcion` ADD CONSTRAINT `suscripcion_licorera_id_e266ca4f_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
 ALTER TABLE `suscripcion` ADD CONSTRAINT `suscripcion_plan_id_1321714a_fk_plan_id` FOREIGN KEY (`plan_id`) REFERENCES `plan` (`id`);
 
+-- suscripciones.0002_datos_planes: migración de datos, sin estructura
+
+-- suscripciones.0003_alter_licorera_direccion_alter_licorera_telefono_and_more: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
+
+-- suscripciones.0004_alter_suscripcion_fecha_fin: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
+
+
+-- ----------------------------------------------------------
+-- inventario.0001_initial
+-- ----------------------------------------------------------
+--
+-- Create model Categoria
+--
+CREATE TABLE `categoria` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre` varchar(50) NOT NULL, `activo` bool NOT NULL, `licorera_id` bigint NOT NULL);
+--
+-- Create model Producto
+--
+CREATE TABLE `producto` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre` varchar(120) NOT NULL, `presentacion` varchar(10) NOT NULL, `codigo_barras` varchar(50) NULL, `precio_venta` numeric(12, 2) NOT NULL, `stock_minimo` integer UNSIGNED NOT NULL CHECK (`stock_minimo` >= 0), `activo` bool NOT NULL, `fecha_creacion` datetime(6) NOT NULL, `categoria_id` integer NOT NULL, `licorera_id` bigint NOT NULL);
+--
+-- Create constraint categoria_unica_por_licorera on model categoria
+--
+ALTER TABLE `categoria` ADD CONSTRAINT `categoria_unica_por_licorera` UNIQUE (`licorera_id`, `nombre`);
+--
+-- Create constraint codigo_barras_unico_por_licorera on model producto
+--
+-- (no-op)
+ALTER TABLE `categoria` ADD CONSTRAINT `categoria_licorera_id_59b4122c_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
+ALTER TABLE `producto` ADD CONSTRAINT `producto_categoria_id_67131168_fk_categoria_id` FOREIGN KEY (`categoria_id`) REFERENCES `categoria` (`id`);
+ALTER TABLE `producto` ADD CONSTRAINT `producto_licorera_id_26bf4b68_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
+
+
+-- ----------------------------------------------------------
+-- inventario.0002_remove_producto_codigo_barras_unico_por_licorera_and_more
+-- ----------------------------------------------------------
+--
+-- Remove constraint codigo_barras_unico_por_licorera from model producto
+--
+-- (no-op)
+--
+-- Create constraint codigo_barras_unico_por_licorera on model producto
+--
+ALTER TABLE `producto` ADD CONSTRAINT `codigo_barras_unico_por_licorera` UNIQUE (`licorera_id`, `codigo_barras`);
+
+
+-- ----------------------------------------------------------
+-- sedes.0001_initial
+-- ----------------------------------------------------------
+--
+-- Create model Sede
+--
+CREATE TABLE `sede` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre` varchar(80) NOT NULL, `direccion` varchar(150) NULL, `telefono` varchar(20) NULL, `activo` bool NOT NULL, `licorera_id` bigint NOT NULL);
+ALTER TABLE `sede` ADD CONSTRAINT `sede_licorera_id_d41300a4_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
+
 
 -- ----------------------------------------------------------
 -- seguridad.0001_initial
@@ -171,12 +224,6 @@ ALTER TABLE `usuario` ALTER COLUMN `correo_verificado` DROP DEFAULT;
 -- Alter field telefono on usuario
 --
 -- (no-op)
-
--- suscripciones.0002_datos_planes: migración de datos, sin estructura
-
--- suscripciones.0003_alter_licorera_direccion_alter_licorera_telefono_and_more: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
-
--- suscripciones.0004_alter_suscripcion_fecha_fin: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
 
 -- ----------------------------------------------------------

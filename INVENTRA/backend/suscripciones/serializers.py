@@ -15,6 +15,8 @@ from rest_framework import serializers
 
 from seguridad.models import Rol, Usuario
 
+from .puesta_en_marcha import preparar_licorera_nueva
+
 from .models import Licorera, Plan, Suscripcion
 
 
@@ -89,6 +91,10 @@ class RegistroLicoreraSerializer(serializers.Serializer):
             nombre=datos_validados["nombre_negocio"],
             correo=datos_validados["correo"],
         )
+        # Toda licorera nace con su sede y sus categorías: sin ellas el negocio
+        # no podría registrar inventario. Lo que hay que crear vive en un solo
+        # sitio, porque son tres las puertas por las que nace una licorera.
+        preparar_licorera_nueva(licorera)
 
         Suscripcion.objects.create(
             licorera=licorera,
@@ -229,6 +235,7 @@ class AltaLicoreraSerializer(serializers.Serializer):
             telefono=datos.get("telefono") or "",
             correo=datos["correo"],
         )
+        preparar_licorera_nueva(licorera)
 
         suscripcion = Suscripcion.objects.create(
             licorera=licorera,

@@ -33,6 +33,9 @@ from django.utils import timezone
 
 from seguridad.models import Rol, Usuario
 
+from inventario.models import Categoria
+from sedes.models import Sede
+from suscripciones.puesta_en_marcha import preparar_licorera_nueva
 from suscripciones.models import Licorera, Plan, Suscripcion
 from suscripciones.texto import plural
 
@@ -122,6 +125,13 @@ class Command(BaseCommand):
             )
             self.anunciar("licorera", licorera.nombre, creada)
 
+            # La sede y las categorías con las que nace toda licorera. La
+            # función es repetible, porque esta orden también lo es.
+            nueva_sede = not licorera.sedes.exists()
+            preparar_licorera_nueva(licorera)
+            if nueva_sede:
+                self.anunciar("sede", f"{licorera.nombre} → {Sede.NOMBRE_PRINCIPAL}", True)
+
             if not licorera.suscripciones.exists():
                 hoy = timezone.localdate()
                 vence = hoy + timedelta(days=DIAS_DE_VIGENCIA[datos["nombre"]])
@@ -178,6 +188,14 @@ class Command(BaseCommand):
         suscripciones = Suscripcion.objects.filter(
             licorera__correo__endswith=DOMINIO
         ).delete()[0]
+        # Las sedes y las categorías van antes que la licorera, por la misma
+        # razón que las suscripciones: las llaves están declaradas con PROTECT y
+        # la base se niega a borrar una licorera con filas colgando. El orden
+        # dentro de este bloque va de las hojas a la raíz.
+        sedes = Sede.objects.filter(licorera__correo__endswith=DOMINIO).delete()[0]
+        categorias = Categoria.objects.filter(
+            licorera__correo__endswith=DOMINIO
+        ).delete()[0]
         licoreras = Licorera.objects.filter(correo__endswith=DOMINIO).delete()[0]
 
         self.stdout.write(
@@ -186,6 +204,8 @@ class Command(BaseCommand):
                 # los mensajes de la aplicación vale para lo que sale por consola.
                 f"Retirado: {plural(usuarios, 'usuario')}, "
                 f"{plural(suscripciones, 'suscripción', 'suscripciones')}, "
+                f"{plural(sedes, 'sede')}, "
+                f"{plural(categorias, 'categoría', 'categorías')}, "
                 f"{plural(licoreras, 'licorera')}."
             )
         )
