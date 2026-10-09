@@ -7,16 +7,21 @@ suscripción vigente (D-29). Se engancha con una línea, y por eso la regla no h
 que volver a escribirla aquí.
 """
 
+from django.core.exceptions import ValidationError as ErrorDeValidacion
 from django.db.models import Q
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
 from seguridad.permissions import EsAdministradorDeLicorera
 from suscripciones.permissions import PuedeRegistrarOperaciones
 
-from .models import Categoria, Producto
-from .serializers import CategoriaSerializer, ProductoGuardarSerializer, ProductoSerializer
+from .existencias import existencias_por_producto
+from .models import Categoria, EntradaMercancia, Producto
+from .operaciones import registrar_entrada
+from .serializers import (
+    CategoriaSerializer, EntradaCrearSerializer, EntradaSerializer,
+    ProductoGuardarSerializer, ProductoSerializer)
 
 
 class CategoriasView(ListAPIView):
@@ -102,9 +107,16 @@ class ProductoViewSet(viewsets.ModelViewSet):
         return ProductoSerializer
 
     def get_serializer_context(self):
-        """La licorera sale de la sesión, nunca de la petición."""
+        """
+        La licorera sale de la sesión, nunca de la petición.
+
+        Y con ella viajan las existencias de todo el catálogo, calculadas de una
+        sola consulta: así la lista no pregunta una vez por fila.
+        """
         contexto = super().get_serializer_context()
         contexto["licorera"] = self.request.user.licorera
+        if self.request.method in ("GET", "HEAD"):
+            contexto["existencias"] = existencias_por_producto(self.request.user.licorera)
         return contexto
 
     def create(self, request, *args, **kwargs):
@@ -134,3 +146,62 @@ class ProductoViewSet(viewsets.ModelViewSet):
         producto.activo = False
         producto.save(update_fields=["activo"])
         return Response({"detalle": "Producto inactivado."}, status=status.HTTP_200_OK)
+
+
+class EntradaMercanciaViewSet(mixins.CreateModelMixin,
+                              mixins.ListModelMixin,
+                              mixins.RetrieveModelMixin,
+                              viewsets.GenericViewSet):
+    """
+    Entradas de mercancía (RF-INV-05).
+
+    NO HAY EDITAR NI BORRAR, y es a propósito. Una entrada ya registrada movió
+    existencias y dejó su rastro en el kardex; cambiarla a posteriori haría que
+    el saldo guardado de los movimientos posteriores dejara de cuadrar. Lo que
+    corrige una entrada equivocada es un ajuste con su motivo (RF-INV-06), que
+    es lo que hace un sistema de inventario serio y lo que deja ver qué pasó.
+    """
+
+    serializer_class = EntradaSerializer
+
+    def get_permissions(self):
+        permisos = list(self.permission_classes)
+        if self.request.method not in ("GET", "HEAD", "OPTIONS"):
+            permisos += [EsAdministradorDeLicorera, PuedeRegistrarOperaciones]
+        return [permiso() for permiso in permisos]
+
+    def get_queryset(self):
+        return (
+            EntradaMercancia.objects
+            .filter(licorera=self.request.user.licorera)
+            .select_related("usuario")
+            .prefetch_related("lotes__producto")
+        )
+
+    def get_serializer_context(self):
+        contexto = super().get_serializer_context()
+        contexto["licorera"] = self.request.user.licorera
+        return contexto
+
+    def create(self, request, *args, **kwargs):
+        serializador = EntradaCrearSerializer(data=request.data,
+                                              context=self.get_serializer_context())
+        serializador.is_valid(raise_exception=True)
+        datos = serializador.validated_data
+
+        try:
+            entrada = registrar_entrada(
+                licorera=request.user.licorera,
+                usuario=request.user,
+                lineas=datos["lineas"],
+                proveedor=datos.get("proveedor"),
+                observacion=datos.get("observacion"),
+            )
+        except ErrorDeValidacion as error:
+            # Las reglas que vigila la operación —sede inexistente, producto
+            # ajeno, cantidad o costo imposibles— se devuelven como lo que son:
+            # datos rechazados, no un fallo del servidor.
+            return Response({"detalle": "; ".join(error.messages)},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(EntradaSerializer(entrada).data, status=status.HTTP_201_CREATED)

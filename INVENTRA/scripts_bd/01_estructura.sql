@@ -129,6 +129,31 @@ ALTER TABLE `suscripcion` ADD CONSTRAINT `suscripcion_plan_id_1321714a_fk_plan_i
 
 
 -- ----------------------------------------------------------
+-- seguridad.0001_initial
+-- ----------------------------------------------------------
+--
+-- Create model Rol
+--
+CREATE TABLE `rol` (`id` bigint AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre` varchar(30) NOT NULL UNIQUE, `descripcion` varchar(150) NOT NULL);
+--
+-- Create model Usuario
+--
+CREATE TABLE `usuario` (`id` bigint AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre_completo` varchar(100) NOT NULL, `correo` varchar(100) NOT NULL UNIQUE, `telefono` varchar(20) NULL, `contrasena_hash` varchar(255) NOT NULL, `intentos_fallidos` smallint UNSIGNED NOT NULL CHECK (`intentos_fallidos` >= 0), `bloqueado_hasta` datetime(6) NULL, `activo` bool NOT NULL, `fecha_creacion` datetime(6) NOT NULL, `ultimo_acceso` datetime(6) NULL, `licorera_id` bigint NULL, `rol_id` bigint NOT NULL);
+ALTER TABLE `usuario` ADD CONSTRAINT `usuario_licorera_id_01ee3245_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
+ALTER TABLE `usuario` ADD CONSTRAINT `usuario_rol_id_ac58b608_fk_rol_id` FOREIGN KEY (`rol_id`) REFERENCES `rol` (`id`);
+
+
+-- ----------------------------------------------------------
+-- sedes.0001_initial
+-- ----------------------------------------------------------
+--
+-- Create model Sede
+--
+CREATE TABLE `sede` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre` varchar(80) NOT NULL, `direccion` varchar(150) NULL, `telefono` varchar(20) NULL, `activo` bool NOT NULL, `licorera_id` bigint NOT NULL);
+ALTER TABLE `sede` ADD CONSTRAINT `sede_licorera_id_d41300a4_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
+
+
+-- ----------------------------------------------------------
 -- inventario.0001_initial
 -- ----------------------------------------------------------
 --
@@ -166,28 +191,31 @@ ALTER TABLE `producto` ADD CONSTRAINT `codigo_barras_unico_por_licorera` UNIQUE 
 
 
 -- ----------------------------------------------------------
--- sedes.0001_initial
+-- inventario.0003_entradamercancia_loteinventario_movimientoinventario
 -- ----------------------------------------------------------
 --
--- Create model Sede
+-- Create model EntradaMercancia
 --
-CREATE TABLE `sede` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre` varchar(80) NOT NULL, `direccion` varchar(150) NULL, `telefono` varchar(20) NULL, `activo` bool NOT NULL, `licorera_id` bigint NOT NULL);
-ALTER TABLE `sede` ADD CONSTRAINT `sede_licorera_id_d41300a4_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
-
-
--- ----------------------------------------------------------
--- seguridad.0001_initial
--- ----------------------------------------------------------
+CREATE TABLE `entrada_mercancia` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `proveedor` varchar(100) NULL, `fecha` datetime(6) NOT NULL, `observacion` varchar(255) NULL, `licorera_id` bigint NOT NULL, `sede_id` integer NOT NULL, `usuario_id` bigint NOT NULL);
 --
--- Create model Rol
+-- Create model LoteInventario
 --
-CREATE TABLE `rol` (`id` bigint AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre` varchar(30) NOT NULL UNIQUE, `descripcion` varchar(150) NOT NULL);
+CREATE TABLE `lote_inventario` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `origen` varchar(15) NOT NULL, `cantidad_inicial` integer UNSIGNED NOT NULL CHECK (`cantidad_inicial` >= 0), `cantidad_disponible` integer UNSIGNED NOT NULL CHECK (`cantidad_disponible` >= 0), `costo_unitario` numeric(12, 2) NOT NULL, `fecha_ingreso` datetime(6) NOT NULL, `entrada_id` integer NULL, `producto_id` integer NOT NULL, `sede_id` integer NOT NULL);
 --
--- Create model Usuario
+-- Create model MovimientoInventario
 --
-CREATE TABLE `usuario` (`id` bigint AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre_completo` varchar(100) NOT NULL, `correo` varchar(100) NOT NULL UNIQUE, `telefono` varchar(20) NULL, `contrasena_hash` varchar(255) NOT NULL, `intentos_fallidos` smallint UNSIGNED NOT NULL CHECK (`intentos_fallidos` >= 0), `bloqueado_hasta` datetime(6) NULL, `activo` bool NOT NULL, `fecha_creacion` datetime(6) NOT NULL, `ultimo_acceso` datetime(6) NULL, `licorera_id` bigint NULL, `rol_id` bigint NOT NULL);
-ALTER TABLE `usuario` ADD CONSTRAINT `usuario_licorera_id_01ee3245_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
-ALTER TABLE `usuario` ADD CONSTRAINT `usuario_rol_id_ac58b608_fk_rol_id` FOREIGN KEY (`rol_id`) REFERENCES `rol` (`id`);
+CREATE TABLE `movimiento_inventario` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `tipo` varchar(16) NOT NULL, `cantidad` integer NOT NULL, `costo_unitario` numeric(12, 2) NULL, `documento_tipo` varchar(10) NOT NULL, `documento_id` bigint NOT NULL, `motivo` varchar(255) NULL, `saldo_resultante` integer UNSIGNED NOT NULL CHECK (`saldo_resultante` >= 0), `fecha` datetime(6) NOT NULL, `licorera_id` bigint NOT NULL, `lote_id` integer NULL, `producto_id` integer NOT NULL, `sede_id` integer NOT NULL, `usuario_id` bigint NOT NULL);
+ALTER TABLE `entrada_mercancia` ADD CONSTRAINT `entrada_mercancia_licorera_id_ef31828a_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
+ALTER TABLE `entrada_mercancia` ADD CONSTRAINT `entrada_mercancia_sede_id_40200be9_fk_sede_id` FOREIGN KEY (`sede_id`) REFERENCES `sede` (`id`);
+ALTER TABLE `entrada_mercancia` ADD CONSTRAINT `entrada_mercancia_usuario_id_223a7e75_fk_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id`);
+ALTER TABLE `lote_inventario` ADD CONSTRAINT `lote_inventario_entrada_id_c45cc5ca_fk_entrada_mercancia_id` FOREIGN KEY (`entrada_id`) REFERENCES `entrada_mercancia` (`id`);
+ALTER TABLE `lote_inventario` ADD CONSTRAINT `lote_inventario_producto_id_01a8a1c9_fk_producto_id` FOREIGN KEY (`producto_id`) REFERENCES `producto` (`id`);
+ALTER TABLE `lote_inventario` ADD CONSTRAINT `lote_inventario_sede_id_6cf74f46_fk_sede_id` FOREIGN KEY (`sede_id`) REFERENCES `sede` (`id`);
+ALTER TABLE `movimiento_inventario` ADD CONSTRAINT `movimiento_inventario_licorera_id_0937b387_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
+ALTER TABLE `movimiento_inventario` ADD CONSTRAINT `movimiento_inventario_lote_id_d15ba6a0_fk_lote_inventario_id` FOREIGN KEY (`lote_id`) REFERENCES `lote_inventario` (`id`);
+ALTER TABLE `movimiento_inventario` ADD CONSTRAINT `movimiento_inventario_producto_id_4b5abd46_fk_producto_id` FOREIGN KEY (`producto_id`) REFERENCES `producto` (`id`);
+ALTER TABLE `movimiento_inventario` ADD CONSTRAINT `movimiento_inventario_sede_id_57a6110a_fk_sede_id` FOREIGN KEY (`sede_id`) REFERENCES `sede` (`id`);
+ALTER TABLE `movimiento_inventario` ADD CONSTRAINT `movimiento_inventario_usuario_id_d3de09d8_fk_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id`);
 
 -- seguridad.0002_datos_roles: migración de datos, sin estructura
 

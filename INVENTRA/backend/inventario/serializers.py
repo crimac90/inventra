@@ -2,7 +2,7 @@
 
 from rest_framework import serializers
 
-from .models import Categoria, Producto
+from .models import Categoria, EntradaMercancia, LoteInventario, Producto
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
@@ -15,22 +15,31 @@ class ProductoSerializer(serializers.ModelSerializer):
     """
     Lo que la pantalla ve de un producto.
 
-    No lleva existencias: se derivan de los lotes y los lotes son el bloque
-    siguiente. Cuando existan, se añaden aquí y en un solo sitio.
+    Las existencias no son una columna: se derivan de los lotes. Llegan por el
+    contexto, en un diccionario calculado de una sola consulta para toda la
+    lista; preguntarlas producto a producto haría una consulta por fila.
     """
 
     categoria_nombre = serializers.CharField(source="categoria.nombre", read_only=True)
     presentacion_nombre = serializers.CharField(
         source="get_presentacion_display", read_only=True)
+    existencias = serializers.SerializerMethodField()
 
     class Meta:
         model = Producto
         fields = (
             "id", "nombre", "categoria", "categoria_nombre",
             "presentacion", "presentacion_nombre", "codigo_barras",
-            "precio_venta", "stock_minimo", "activo", "fecha_creacion",
+            "precio_venta", "stock_minimo", "existencias", "activo", "fecha_creacion",
         )
         read_only_fields = ("activo", "fecha_creacion")
+
+    def get_existencias(self, producto):
+        """
+        Cero cuando el producto no tiene lotes, que es lo que significa: una
+        referencia registrada de la que todavía no ha entrado mercancía.
+        """
+        return self.context.get("existencias", {}).get(producto.id, 0)
 
 
 class ProductoGuardarSerializer(serializers.ModelSerializer):
@@ -85,3 +94,79 @@ class ProductoGuardarSerializer(serializers.ModelSerializer):
 
     def create(self, datos):
         return Producto.objects.create(licorera=self.context["licorera"], **datos)
+
+
+class LineaDeEntradaSerializer(serializers.Serializer):
+    """Una línea de la entrada, que será un lote con su costo propio."""
+
+    producto = serializers.PrimaryKeyRelatedField(queryset=Producto.objects.all())
+    cantidad = serializers.IntegerField(min_value=1)
+    costo_unitario = serializers.DecimalField(max_digits=12, decimal_places=2,
+                                              min_value=0)
+
+    def validate_producto(self, valor):
+        """
+        Solo productos activos de la propia licorera: recibir mercancía de una
+        referencia descontinuada es casi siempre un error, y de otra licorera es
+        imposible.
+
+        La comprobación va aquí y NO limitando el `queryset` del campo en el
+        constructor, que es como está resuelto en el formulario de producto. La
+        diferencia es que este serializador es un hijo dentro de otro: cuando se
+        construye todavía no está enganchado a su padre, de modo que en ese
+        momento `self.context` está vacío y el filtro habría dejado el catálogo
+        en cero. Al validar sí está, porque el contexto se busca subiendo hasta
+        el serializador raíz.
+        """
+        licorera = self.context.get("licorera")
+        if licorera is not None and valor.licorera_id != licorera.id:
+            raise serializers.ValidationError("Ese producto no es de tu catálogo.")
+        if not valor.activo:
+            raise serializers.ValidationError(
+                "«%s» está inactivo: reactívalo antes de recibir mercancía." % valor.nombre)
+        return valor
+
+
+class EntradaCrearSerializer(serializers.Serializer):
+    """
+    El formulario de la entrada de mercancía (RF-INV-05).
+
+    Ni la licorera ni la sede ni el usuario son campos: salen de la sesión.
+    """
+
+    proveedor = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    observacion = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    lineas = LineaDeEntradaSerializer(many=True)
+
+    def validate_lineas(self, valor):
+        if not valor:
+            raise serializers.ValidationError("Agrega al menos un producto.")
+
+        vistos = [linea["producto"].id for linea in valor]
+        if len(vistos) != len(set(vistos)):
+            # Dos líneas del mismo producto en una entrada crearían dos lotes
+            # con el mismo momento de ingreso, y el orden de consumo entre ellos
+            # quedaría decidido por el desempate y no por una razón. Casi
+            # siempre es un descuido al escribir el formulario.
+            raise serializers.ValidationError(
+                "Hay un producto repetido: súmalo en una sola línea.")
+        return valor
+
+
+class LoteSerializer(serializers.ModelSerializer):
+    producto_nombre = serializers.CharField(source="producto.nombre", read_only=True)
+
+    class Meta:
+        model = LoteInventario
+        fields = ("id", "producto", "producto_nombre", "cantidad_inicial",
+                  "cantidad_disponible", "costo_unitario", "fecha_ingreso")
+
+
+class EntradaSerializer(serializers.ModelSerializer):
+    lotes = LoteSerializer(many=True, read_only=True)
+    usuario_nombre = serializers.CharField(source="usuario.nombre_completo", read_only=True)
+
+    class Meta:
+        model = EntradaMercancia
+        fields = ("id", "proveedor", "observacion", "fecha",
+                  "usuario", "usuario_nombre", "lotes")

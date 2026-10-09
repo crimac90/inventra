@@ -7,6 +7,7 @@ Se ejecutan con `py manage.py test inventario`.
 from datetime import timedelta
 
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
@@ -17,7 +18,12 @@ from seguridad.models import Rol, Usuario
 from suscripciones.models import Licorera, Plan, Suscripcion
 from suscripciones.puesta_en_marcha import preparar_licorera_nueva
 
-from .models import Categoria, Producto
+from sedes.models import Sede
+
+from .existencias import existencias_de
+from .kardex import registrar_movimiento
+from .models import Categoria, EntradaMercancia, LoteInventario, MovimientoInventario, Producto
+from .operaciones import registrar_entrada
 
 CLAVE = "Licorera2026"
 
@@ -391,3 +397,291 @@ class QuienPuedeTocarElCatalogoTests(CatalogoBase):
 
         respuesta = self.client.get(reverse("producto-list"), **self.entrar())
         self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+
+class EntradaDeMercanciaTests(CatalogoBase):
+    """La llegada de mercancía y los lotes que crea (RF-INV-05)."""
+
+    def setUp(self):
+        super().setUp()
+        self.ron = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria,
+            nombre="Ron Medellín Añejo 750 ml",
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=48500, stock_minimo=5)
+        self.cerveza = Producto.objects.create(
+            licorera=self.licorera,
+            categoria=Categoria.objects.get(licorera=self.licorera, nombre="Cerveza"),
+            nombre="Cerveza Águila 330 ml",
+            presentacion=Producto.Presentacion.UNIDAD,
+            precio_venta=3500, stock_minimo=24)
+        self.sede = Sede.principal_de(self.licorera)
+
+    def registrar(self, lineas=None, **extra):
+        cuerpo = {
+            "proveedor": "Distribuidora del Valle",
+            "lineas": lineas if lineas is not None else [
+                {"producto": self.ron.id, "cantidad": 12, "costo_unitario": "38000.00"},
+                {"producto": self.cerveza.id, "cantidad": 48, "costo_unitario": "2100.00"},
+            ],
+        }
+        cuerpo.update(extra)
+        return self.client.post(reverse("entrada-list"), cuerpo,
+                                content_type="application/json", **self.entrar())
+
+    def test_cada_linea_crea_un_lote_con_su_costo(self):
+        respuesta = self.registrar()
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        entrada = EntradaMercancia.objects.get(id=respuesta.json()["id"])
+        self.assertEqual(entrada.lotes.count(), 2)
+        self.assertEqual(
+            str(entrada.lotes.get(producto=self.ron).costo_unitario), "38000.00")
+        self.assertEqual(
+            str(entrada.lotes.get(producto=self.cerveza).costo_unitario), "2100.00")
+
+    def test_la_entrada_sube_las_existencias(self):
+        self.registrar()
+
+        self.assertEqual(existencias_de(self.ron, self.sede), 12)
+        self.assertEqual(existencias_de(self.cerveza, self.sede), 48)
+
+    def test_la_mercancia_llega_a_la_sede_del_negocio(self):
+        self.registrar()
+        self.assertTrue(
+            LoteInventario.objects.filter(producto=self.ron, sede=self.sede).exists())
+
+    def test_cada_linea_deja_su_movimiento_en_el_kardex(self):
+        self.registrar()
+
+        movimientos = MovimientoInventario.objects.filter(producto=self.ron)
+        self.assertEqual(movimientos.count(), 1)
+        movimiento = movimientos.first()
+        self.assertEqual(movimiento.tipo, MovimientoInventario.Tipo.ENTRADA)
+        self.assertEqual(movimiento.cantidad, 12)
+        self.assertEqual(movimiento.saldo_resultante, 12)
+        self.assertEqual(movimiento.documento_tipo,
+                         MovimientoInventario.Documento.ENTRADA)
+
+    def test_el_saldo_del_kardex_acumula_entre_entradas(self):
+        """
+        El saldo resultante es una foto del DESPUÉS, no de la entrada suelta.
+        Si se calculara antes de mover los lotes, la segunda entrada diría 12.
+        """
+        self.registrar(lineas=[{"producto": self.ron.id, "cantidad": 12,
+                                "costo_unitario": "38000.00"}])
+        self.registrar(lineas=[{"producto": self.ron.id, "cantidad": 6,
+                                "costo_unitario": "42000.00"}])
+
+        saldos = list(
+            MovimientoInventario.objects.filter(producto=self.ron)
+            .order_by("id").values_list("saldo_resultante", flat=True))
+        self.assertEqual(saldos, [12, 18])
+
+    def test_una_compra_posterior_no_cambia_el_costo_de_la_anterior(self):
+        """
+        El corazón del PEPS (RF-INV-10): cada lote conserva su costo real. Si el
+        costo viviera en el producto, la segunda compra habría reescrito hacia
+        atrás lo que costó la primera.
+        """
+        self.registrar(lineas=[{"producto": self.ron.id, "cantidad": 12,
+                                "costo_unitario": "38000.00"}])
+        self.registrar(lineas=[{"producto": self.ron.id, "cantidad": 6,
+                                "costo_unitario": "42000.00"}])
+
+        costos = [str(c) for c in LoteInventario.objects
+                  .filter(producto=self.ron).order_by("id")
+                  .values_list("costo_unitario", flat=True)]
+        self.assertEqual(costos, ["38000.00", "42000.00"])
+
+    def test_el_catalogo_muestra_las_existencias_derivadas(self):
+        self.registrar()
+        filas = {p["nombre"]: p["existencias"]
+                 for p in self.client.get(reverse("producto-list"),
+                                          **self.entrar()).json()["results"]}
+
+        self.assertEqual(filas["Ron Medellín Añejo 750 ml"], 12)
+        self.assertEqual(filas["Cerveza Águila 330 ml"], 48)
+
+    def test_un_producto_sin_lotes_tiene_cero(self):
+        """No es un vacío ni un error: es una referencia de la que no ha entrado nada."""
+        filas = {p["nombre"]: p["existencias"]
+                 for p in self.client.get(reverse("producto-list"),
+                                          **self.entrar()).json()["results"]}
+        self.assertEqual(filas["Ron Medellín Añejo 750 ml"], 0)
+
+    # -- Lo que se rechaza ------------------------------------------------
+
+    def test_una_entrada_sin_lineas_se_rechaza(self):
+        self.assertEqual(self.registrar(lineas=[]).status_code,
+                         status.HTTP_400_BAD_REQUEST)
+
+    def test_el_mismo_producto_dos_veces_se_rechaza(self):
+        respuesta = self.registrar(lineas=[
+            {"producto": self.ron.id, "cantidad": 6, "costo_unitario": "38000.00"},
+            {"producto": self.ron.id, "cantidad": 6, "costo_unitario": "39000.00"},
+        ])
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_no_se_recibe_mercancia_de_un_producto_ajeno(self):
+        otra = crear_negocio("Itagui")
+        ajeno = Producto.objects.create(
+            licorera=otra, categoria=Categoria.objects.filter(licorera=otra).first(),
+            nombre="Ajeno", presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=1)
+
+        respuesta = self.registrar(lineas=[{"producto": ajeno.id, "cantidad": 1,
+                                            "costo_unitario": "100.00"}])
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_la_cantidad_tiene_que_ser_positiva(self):
+        respuesta = self.registrar(lineas=[{"producto": self.ron.id, "cantidad": 0,
+                                            "costo_unitario": "38000.00"}])
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_el_costo_no_puede_ser_negativo(self):
+        respuesta = self.registrar(lineas=[{"producto": self.ron.id, "cantidad": 1,
+                                            "costo_unitario": "-5.00"}])
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_una_entrada_no_se_edita_ni_se_borra(self):
+        """
+        Lo que corrige una entrada equivocada es un ajuste con su motivo. Si se
+        pudiera editar, el saldo guardado de los movimientos posteriores dejaría
+        de cuadrar y el kardex mentiría sobre el pasado.
+        """
+        entrada = EntradaMercancia.objects.get(id=self.registrar().json()["id"])
+        direccion = reverse("entrada-detail", args=[entrada.id])
+
+        self.assertEqual(
+            self.client.patch(direccion, {"proveedor": "Otro"},
+                              content_type="application/json",
+                              **self.entrar()).status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.delete(direccion, **self.entrar()).status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_solo_se_ven_las_entradas_propias(self):
+        self.registrar()
+        otra = crear_negocio("Jerico")
+        ajena = crear_usuario(otra, "jerico@prueba.com", Rol.ADMINISTRADOR_LICORERA)
+
+        propias = self.client.get(reverse("entrada-list"), **self.entrar()).json()
+        ajenas = self.client.get(reverse("entrada-list"),
+                                 **self.entrar(ajena.correo)).json()
+        self.assertEqual(propias["count"], 1)
+        self.assertEqual(ajenas["count"], 0)
+
+    def test_el_vendedor_no_recibe_mercancia(self):
+        vendedor = crear_usuario(self.licorera, "vendedor@prueba.com", Rol.VENDEDOR)
+        respuesta = self.client.post(
+            reverse("entrada-list"),
+            {"lineas": [{"producto": self.ron.id, "cantidad": 1,
+                         "costo_unitario": "100.00"}]},
+            content_type="application/json", **self.entrar(vendedor.correo))
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_con_la_suscripcion_vencida_no_se_recibe_mercancia(self):
+        suscripcion = self.licorera.suscripcion_actual()
+        suscripcion.fecha_fin = timezone.localdate() - timedelta(days=30)
+        suscripcion.save(update_fields=["fecha_fin"])
+
+        self.assertEqual(self.registrar().status_code, status.HTTP_403_FORBIDDEN)
+
+    # -- La operación, por dentro -----------------------------------------
+
+    def test_si_una_linea_falla_no_queda_nada_a_medias(self):
+        """
+        La entrada es una transacción. Se llama a la operación directamente,
+        saltándose el formulario, porque es ahí donde puede llegar una línea
+        imposible: desde una carga de datos o desde el código de mañana.
+        """
+        with self.assertRaises(ValidationError):
+            registrar_entrada(
+                licorera=self.licorera, usuario=self.administrador,
+                lineas=[
+                    {"producto": self.ron, "cantidad": 10, "costo_unitario": 38000},
+                    {"producto": self.cerveza, "cantidad": 5, "costo_unitario": -1},
+                ])
+
+        self.assertEqual(EntradaMercancia.objects.count(), 0)
+        self.assertEqual(LoteInventario.objects.count(), 0)
+        self.assertEqual(MovimientoInventario.objects.count(), 0)
+
+    def test_sin_sede_no_se_puede_recibir(self):
+        """
+        No debería ocurrir —toda licorera nace con la suya (D-30)—, pero la
+        operación lo comprueba en vez de dar por hecho que está.
+        """
+        huerfana = Licorera.objects.create(nombre="Sin sede", correo="sin@prueba.com")
+        producto = Producto.objects.create(
+            licorera=huerfana, categoria=Categoria.sembrar(huerfana)[0],
+            nombre="X", presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=1)
+
+        with self.assertRaises(ValidationError):
+            registrar_entrada(licorera=huerfana, usuario=self.administrador,
+                              lineas=[{"producto": producto, "cantidad": 1,
+                                       "costo_unitario": 100}])
+
+
+class KardexTests(CatalogoBase):
+    """La única puerta por la que se escribe un movimiento (RF-INV-09)."""
+
+    def setUp(self):
+        super().setUp()
+        self.producto = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria, nombre="Ron",
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=48500, stock_minimo=5)
+        self.sede = Sede.principal_de(self.licorera)
+
+    def movimiento(self, **cambios):
+        datos = {
+            "producto": self.producto, "sede": self.sede,
+            "tipo": MovimientoInventario.Tipo.ENTRADA, "cantidad": 10,
+            "usuario": self.administrador,
+            "documento_tipo": MovimientoInventario.Documento.ENTRADA,
+            "documento_id": 1,
+        }
+        datos.update(cambios)
+        return registrar_movimiento(**datos)
+
+    def test_el_signo_lo_pone_el_kardex_y_no_quien_llama(self):
+        """
+        Quien llama dice QUÉ pasó, no cómo se anota. Registrar una venta con
+        cantidad positiva es un error fácil y silencioso —el saldo subiría—, y
+        aquí no se puede cometer.
+        """
+        salida = self.movimiento(tipo=MovimientoInventario.Tipo.VENTA,
+                                 documento_tipo=MovimientoInventario.Documento.VENTA,
+                                 cantidad=4)
+        self.assertEqual(salida.cantidad, -4)
+
+    def test_la_cantidad_siempre_se_pide_en_positivo(self):
+        with self.assertRaises(ValidationError):
+            self.movimiento(cantidad=-3)
+        with self.assertRaises(ValidationError):
+            self.movimiento(cantidad=0)
+
+    def test_un_ajuste_exige_motivo(self):
+        with self.assertRaises(ValidationError):
+            self.movimiento(tipo=MovimientoInventario.Tipo.AJUSTE_NEGATIVO,
+                            documento_tipo=MovimientoInventario.Documento.AJUSTE,
+                            cantidad=2)
+
+    def test_un_ajuste_con_motivo_se_registra(self):
+        anotado = self.movimiento(tipo=MovimientoInventario.Tipo.AJUSTE_POSITIVO,
+                                  documento_tipo=MovimientoInventario.Documento.AJUSTE,
+                                  cantidad=2, motivo="Conteo físico")
+        self.assertEqual(anotado.motivo, "Conteo físico")
+
+    def test_un_motivo_en_blanco_no_cuenta_como_motivo(self):
+        with self.assertRaises(ValidationError):
+            self.movimiento(tipo=MovimientoInventario.Tipo.AJUSTE_NEGATIVO,
+                            documento_tipo=MovimientoInventario.Documento.AJUSTE,
+                            cantidad=2, motivo="   ")
+
+    def test_una_entrada_no_exige_motivo(self):
+        """La contraparte, y la que impide pasarse de frenada."""
+        self.assertIsNone(self.movimiento().motivo)
