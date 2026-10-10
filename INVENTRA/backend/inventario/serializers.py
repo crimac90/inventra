@@ -2,7 +2,8 @@
 
 from rest_framework import serializers
 
-from .models import Categoria, EntradaMercancia, LoteInventario, Producto
+from .models import (
+    Categoria, EntradaMercancia, LoteInventario, MovimientoInventario, Producto)
 
 
 class CategoriaSerializer(serializers.ModelSerializer):
@@ -170,3 +171,22 @@ class EntradaSerializer(serializers.ModelSerializer):
         model = EntradaMercancia
         fields = ("id", "proveedor", "observacion", "fecha",
                   "usuario", "usuario_nombre", "lotes")
+
+
+class MovimientoSerializer(serializers.ModelSerializer):
+    """
+    Una línea del kardex (RF-INV-09).
+
+    Lleva el saldo tal como se guardó el día del movimiento, no uno recalculado:
+    el kardex tiene que poder leerse como quedó, aunque después cambie cualquier
+    otra cosa.
+    """
+
+    tipo_nombre = serializers.CharField(source="get_tipo_display", read_only=True)
+    usuario_nombre = serializers.CharField(source="usuario.nombre_completo", read_only=True)
+
+    class Meta:
+        model = MovimientoInventario
+        fields = ("id", "fecha", "tipo", "tipo_nombre", "cantidad", "costo_unitario",
+                  "documento_tipo", "documento_id", "usuario", "usuario_nombre",
+                  "motivo", "saldo_resultante")

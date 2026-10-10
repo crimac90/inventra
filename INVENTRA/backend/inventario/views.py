@@ -10,6 +10,7 @@ que volver a escribirla aquí.
 from django.core.exceptions import ValidationError as ErrorDeValidacion
 from django.db.models import Q
 from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 
@@ -17,11 +18,11 @@ from seguridad.permissions import EsAdministradorDeLicorera
 from suscripciones.permissions import PuedeRegistrarOperaciones
 
 from .existencias import existencias_por_producto
-from .models import Categoria, EntradaMercancia, Producto
+from .models import Categoria, EntradaMercancia, MovimientoInventario, Producto
 from .operaciones import registrar_entrada
 from .serializers import (
     CategoriaSerializer, EntradaCrearSerializer, EntradaSerializer,
-    ProductoGuardarSerializer, ProductoSerializer)
+    MovimientoSerializer, ProductoGuardarSerializer, ProductoSerializer)
 
 
 class CategoriasView(ListAPIView):
@@ -133,6 +134,26 @@ class ProductoViewSet(viewsets.ModelViewSet):
         serializador.is_valid(raise_exception=True)
         serializador.save()
         return Response(ProductoSerializer(producto).data)
+
+    @action(detail=True, methods=["get"])
+    def kardex(self, request, pk=None):
+        """
+        El historial de movimientos de una referencia (RF-INV-09).
+
+        Va aquí, colgando del producto, y no como una dirección suelta: el
+        kardex no se consulta en abstracto, se consulta de algo. Es de solo
+        lectura para todos, incluido el administrador: un kardex que se puede
+        editar no sirve para rendir cuentas de nada.
+        """
+        producto = self.get_object()
+        movimientos = (
+            MovimientoInventario.objects
+            .filter(producto=producto)
+            .select_related("usuario")
+        )
+        pagina = self.paginate_queryset(movimientos)
+        serializador = MovimientoSerializer(pagina, many=True)
+        return self.get_paginated_response(serializador.data)
 
     def destroy(self, request, *args, **kwargs):
         """

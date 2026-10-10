@@ -24,6 +24,7 @@ from .existencias import existencias_de
 from .kardex import registrar_movimiento
 from .models import Categoria, EntradaMercancia, LoteInventario, MovimientoInventario, Producto
 from .operaciones import registrar_entrada
+from .peps import consumir, costo_total
 
 CLAVE = "Licorera2026"
 
@@ -685,3 +686,223 @@ class KardexTests(CatalogoBase):
     def test_una_entrada_no_exige_motivo(self):
         """La contraparte, y la que impide pasarse de frenada."""
         self.assertIsNone(self.movimiento().motivo)
+
+
+class PepsTests(CatalogoBase):
+    """
+    El consumo de lotes por antigüedad (RF-INV-10).
+
+    Es la pieza con más riesgo del proyecto, así que se prueba sola y a fondo
+    antes de que nadie la use: el punto de venta solo la va a llamar.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.producto = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria, nombre="Ron",
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=48500, stock_minimo=5)
+        self.sede = Sede.principal_de(self.licorera)
+
+    def recibir(self, cantidad, costo):
+        return registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.producto, "cantidad": cantidad,
+                     "costo_unitario": costo}])
+
+    def sacar(self, cantidad, **cambios):
+        datos = {
+            "producto": self.producto, "sede": self.sede, "cantidad": cantidad,
+            "tipo": MovimientoInventario.Tipo.VENTA,
+            "usuario": self.administrador,
+            "documento_tipo": MovimientoInventario.Documento.VENTA,
+            "documento_id": 1,
+        }
+        datos.update(cambios)
+        return consumir(**datos)
+
+    def test_sale_del_lote_mas_antiguo(self):
+        self.recibir(10, 38000)
+        self.recibir(10, 42000)
+
+        consumos = self.sacar(4)
+
+        self.assertEqual(len(consumos), 1)
+        self.assertEqual(consumos[0].cantidad, 4)
+        self.assertEqual(consumos[0].costo_unitario, 38000)
+
+    def test_una_salida_puede_cruzar_dos_lotes(self):
+        """
+        El caso que distingue un PEPS de una resta: doce unidades cuando el
+        primer lote tiene diez salen de los dos, y cada tramo lleva su costo.
+        """
+        self.recibir(10, 38000)
+        self.recibir(10, 42000)
+
+        consumos = self.sacar(12)
+
+        self.assertEqual([(c.cantidad, c.costo_unitario) for c in consumos],
+                         [(10, 38000), (2, 42000)])
+        self.assertEqual(costo_total(consumos), 10 * 38000 + 2 * 42000)
+
+    def test_el_lote_agotado_queda_en_cero_y_no_se_borra(self):
+        """Un lote vacío conserva su historia: el kardex lo sigue citando."""
+        self.recibir(10, 38000)
+        self.recibir(10, 42000)
+        self.sacar(12)
+
+        lotes = list(LoteInventario.objects.filter(producto=self.producto)
+                     .order_by("id").values_list("cantidad_disponible", flat=True))
+        self.assertEqual(lotes, [0, 8])
+
+    def test_el_consumo_descuenta_las_existencias(self):
+        self.recibir(10, 38000)
+        self.sacar(3)
+        self.assertEqual(existencias_de(self.producto, self.sede), 7)
+
+    def test_no_se_puede_sacar_mas_de_lo_que_hay(self):
+        self.recibir(5, 38000)
+
+        with self.assertRaises(ValidationError):
+            self.sacar(6)
+
+    def test_si_no_alcanza_no_se_saca_nada(self):
+        """
+        La mitad que importa: un rechazo que hubiera vaciado el primer lote
+        antes de darse cuenta dejaría el inventario peor que antes de pedir.
+        """
+        self.recibir(5, 38000)
+
+        with self.assertRaises(ValidationError):
+            self.sacar(6)
+
+        self.assertEqual(existencias_de(self.producto, self.sede), 5)
+        self.assertEqual(
+            MovimientoInventario.objects.filter(
+                tipo=MovimientoInventario.Tipo.VENTA).count(), 0)
+
+    def test_sin_existencias_tampoco(self):
+        with self.assertRaises(ValidationError):
+            self.sacar(1)
+
+    def test_la_cantidad_tiene_que_ser_positiva(self):
+        self.recibir(5, 38000)
+        with self.assertRaises(ValidationError):
+            self.sacar(0)
+
+    def test_cada_tramo_deja_su_propio_movimiento(self):
+        """
+        Un movimiento por lote y no uno por salida: un movimiento único no
+        podría llevar costo, porque una salida que cruza dos compras no tiene
+        un solo costo.
+        """
+        self.recibir(10, 38000)
+        self.recibir(10, 42000)
+        self.sacar(12)
+
+        ventas = list(
+            MovimientoInventario.objects
+            .filter(tipo=MovimientoInventario.Tipo.VENTA)
+            .order_by("id").values_list("cantidad", "costo_unitario", "saldo_resultante"))
+        self.assertEqual(ventas, [(-10, 38000, 10), (-2, 42000, 8)])
+
+    def test_corregir_el_costo_de_un_lote_no_cambia_lo_ya_salido(self):
+        """
+        La no retroactividad de RF-INV-10: el costo se copia al salir. La
+        utilidad de un mes cerrado no cambia porque hoy se corrija una factura.
+        """
+        self.recibir(10, 38000)
+        self.sacar(4)
+
+        lote = LoteInventario.objects.get(producto=self.producto)
+        lote.costo_unitario = 99000
+        lote.save(update_fields=["costo_unitario"])
+
+        movimiento = MovimientoInventario.objects.get(
+            tipo=MovimientoInventario.Tipo.VENTA)
+        self.assertEqual(movimiento.costo_unitario, 38000)
+
+    def test_con_la_misma_fecha_desempata_el_orden_de_creacion(self):
+        """
+        Dos lotes pueden compartir la fecha de ingreso al microsegundo. Sin un
+        segundo criterio, el orden de consumo lo decidiría la base ese día y la
+        misma venta podría costar distinto cada vez. Aquí las fechas se igualan
+        a mano para forzar el empate, que es difícil de provocar por azar y muy
+        fácil de sufrir en producción.
+        """
+        self.recibir(5, 1000)
+        self.recibir(5, 3000)
+
+        primero = LoteInventario.objects.filter(producto=self.producto).order_by("id").first()
+        LoteInventario.objects.filter(producto=self.producto).update(
+            fecha_ingreso=primero.fecha_ingreso)
+
+        consumos = self.sacar(7)
+        self.assertEqual([(c.cantidad, c.costo_unitario) for c in consumos],
+                         [(5, 1000), (2, 3000)])
+
+    def test_el_peps_no_toca_los_lotes_de_otra_sede_ni_de_otro_producto(self):
+        otro = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria, nombre="Otro",
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=1)
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": otro, "cantidad": 9, "costo_unitario": 500}])
+        self.recibir(10, 38000)
+
+        self.sacar(10)
+
+        self.assertEqual(existencias_de(otro, self.sede), 9)
+
+
+class ConsultaDelKardexTests(CatalogoBase):
+    """El historial de una referencia (RF-INV-09)."""
+
+    def setUp(self):
+        super().setUp()
+        self.producto = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria, nombre="Ron",
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=48500, stock_minimo=5)
+        self.sede = Sede.principal_de(self.licorera)
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.producto, "cantidad": 10,
+                     "costo_unitario": 38000}])
+
+    def pedir(self, producto=None, correo=None):
+        return self.client.get(
+            reverse("producto-kardex", args=[(producto or self.producto).id]),
+            **self.entrar(correo))
+
+    def test_devuelve_los_movimientos_de_la_referencia(self):
+        respuesta = self.pedir()
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        filas = respuesta.json()["results"]
+        self.assertEqual(len(filas), 1)
+        self.assertEqual(filas[0]["tipo"], MovimientoInventario.Tipo.ENTRADA)
+        self.assertEqual(filas[0]["cantidad"], 10)
+        self.assertEqual(filas[0]["saldo_resultante"], 10)
+
+    def test_el_vendedor_puede_consultarlo(self):
+        vendedor = crear_usuario(self.licorera, "vendedor@prueba.com", Rol.VENDEDOR)
+        self.assertEqual(self.pedir(correo=vendedor.correo).status_code,
+                         status.HTTP_200_OK)
+
+    def test_no_se_ve_el_kardex_de_otra_licorera(self):
+        otra = crear_negocio("Marinilla")
+        ajeno = Producto.objects.create(
+            licorera=otra, categoria=Categoria.objects.filter(licorera=otra).first(),
+            nombre="Ajeno", presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=1)
+
+        self.assertEqual(self.pedir(producto=ajeno).status_code,
+                         status.HTTP_404_NOT_FOUND)
+
+    def test_el_kardex_es_de_solo_lectura(self):
+        respuesta = self.client.post(
+            reverse("producto-kardex", args=[self.producto.id]), {},
+            content_type="application/json", **self.entrar())
+        self.assertEqual(respuesta.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
