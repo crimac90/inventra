@@ -2,6 +2,8 @@
 
 from rest_framework import serializers
 
+from .existencias import existencias_totales
+
 from .models import (
     Categoria, EntradaMercancia, LoteInventario, MovimientoInventario, Producto)
 
@@ -39,8 +41,16 @@ class ProductoSerializer(serializers.ModelSerializer):
         """
         Cero cuando el producto no tiene lotes, que es lo que significa: una
         referencia registrada de la que todavía no ha entrado mercancía.
+
+        En los listados el dato viene calculado dentro de la consulta, de una
+        sola vez para todas las filas. Al devolver un producto suelto —recién
+        creado o recién editado— esa columna no está, y entonces sí se pregunta:
+        es una consulta más en una operación que ya hizo varias, no una por fila.
         """
-        return self.context.get("existencias", {}).get(producto.id, 0)
+        disponibles = getattr(producto, "disponibles", None)
+        if disponibles is not None:
+            return disponibles
+        return existencias_totales(producto)
 
 
 class ProductoGuardarSerializer(serializers.ModelSerializer):
@@ -190,3 +200,27 @@ class MovimientoSerializer(serializers.ModelSerializer):
         fields = ("id", "fecha", "tipo", "tipo_nombre", "cantidad", "costo_unitario",
                   "documento_tipo", "documento_id", "usuario", "usuario_nombre",
                   "motivo", "saldo_resultante")
+
+
+class AjusteSerializer(serializers.Serializer):
+    """
+    El formulario del ajuste de existencias (RF-INV-06).
+
+    Dos campos y nada más, que es lo que pide el requisito: la diferencia y el
+    motivo. El costo de un ajuste hacia arriba no se pregunta (D-32).
+    """
+
+    cantidad = serializers.IntegerField(
+        help_text="Diferencia: positiva si sobraron unidades, negativa si faltaron.")
+    motivo = serializers.CharField(max_length=255)
+
+    def validate_cantidad(self, valor):
+        if valor == 0:
+            raise serializers.ValidationError(
+                "El ajuste no cambia nada: la diferencia es cero.")
+        return valor
+
+    def validate_motivo(self, valor):
+        if not valor.strip():
+            raise serializers.ValidationError("Escribe el motivo del ajuste.")
+        return valor.strip()

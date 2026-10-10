@@ -1280,7 +1280,6 @@ class CambioDePlanTests(TestCase):
 
     def test_bajar_cierra_la_fila_anterior_y_abre_otra(self):
         self.contratar_pro()
-        vence = self.suscripcion.fecha_fin
         respuesta = self.pedir(self.basico)
         self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
 

@@ -120,7 +120,7 @@ class Command(BaseCommand):
                 lineas.append(f"-- {app}.{nombre}: {self.motivo_sin_sentencias(app, nombre)}\n")
                 continue
 
-            lineas.append(f"\n-- ----------------------------------------------------------")
+            lineas.append("\n-- ----------------------------------------------------------")
             lineas.append(f"-- {app}.{nombre}")
             lineas.append("-- ----------------------------------------------------------")
             lineas.append(sql)

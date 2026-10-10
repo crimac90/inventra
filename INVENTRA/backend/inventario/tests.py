@@ -20,7 +20,7 @@ from suscripciones.puesta_en_marcha import preparar_licorera_nueva
 
 from sedes.models import Sede
 
-from .existencias import existencias_de
+from .existencias import existencias_de, existencias_totales
 from .kardex import registrar_movimiento
 from .models import Categoria, EntradaMercancia, LoteInventario, MovimientoInventario, Producto
 from .operaciones import registrar_entrada
@@ -906,3 +906,221 @@ class ConsultaDelKardexTests(CatalogoBase):
             reverse("producto-kardex", args=[self.producto.id]), {},
             content_type="application/json", **self.entrar())
         self.assertEqual(respuesta.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class AjusteDeExistenciasTests(CatalogoBase):
+    """Merma, rotura y conteo físico (RF-INV-06)."""
+
+    def setUp(self):
+        super().setUp()
+        self.producto = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria, nombre="Ron",
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=48500, stock_minimo=5)
+        self.sede = Sede.principal_de(self.licorera)
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.producto, "cantidad": 10,
+                     "costo_unitario": 38000}])
+
+    def ajustar(self, cantidad, motivo="Conteo físico", producto=None, correo=None):
+        return self.client.post(
+            reverse("producto-ajustar", args=[(producto or self.producto).id]),
+            {"cantidad": cantidad, "motivo": motivo},
+            content_type="application/json", **self.entrar(correo))
+
+    def test_un_ajuste_negativo_descuenta(self):
+        respuesta = self.ajustar(-3, motivo="Dos botellas rotas y una vencida")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(existencias_de(self.producto, self.sede), 7)
+
+    def test_el_ajuste_negativo_toma_el_costo_del_lote(self):
+        """
+        Una merma vale lo que costó la mercancía perdida, no el precio al que
+        se iba a vender. Por eso consume lotes como una venta.
+        """
+        self.ajustar(-3, motivo="Rotura")
+
+        movimiento = MovimientoInventario.objects.get(
+            tipo=MovimientoInventario.Tipo.AJUSTE_NEGATIVO)
+        self.assertEqual(movimiento.costo_unitario, 38000)
+        self.assertEqual(movimiento.cantidad, -3)
+        self.assertEqual(movimiento.motivo, "Rotura")
+
+    def test_no_se_puede_ajustar_por_debajo_de_cero(self):
+        respuesta = self.ajustar(-11, motivo="Conteo")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(existencias_de(self.producto, self.sede), 10)
+
+    def test_un_ajuste_positivo_crea_un_lote_al_costo_del_ultimo(self):
+        """
+        D-32: unas unidades que aparecen en un conteo son mercancía ya
+        comprada, y su costo más probable es el de la compra más reciente.
+        """
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.producto, "cantidad": 5,
+                     "costo_unitario": 42000}])
+
+        self.ajustar(3, motivo="Aparecieron en bodega")
+
+        lote = LoteInventario.objects.get(
+            origen=LoteInventario.Origen.AJUSTE_POSITIVO)
+        self.assertEqual(lote.costo_unitario, 42000)
+        self.assertEqual(lote.cantidad_disponible, 3)
+        self.assertEqual(existencias_de(self.producto, self.sede), 18)
+
+    def test_sin_una_compra_previa_el_ajuste_positivo_se_rechaza(self):
+        """
+        No se inventa un costo: lo que corresponde ahí es registrar la entrada
+        con el costo real, y el mensaje lo dice.
+        """
+        nuevo = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria, nombre="Sin compras",
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=1)
+
+        respuesta = self.ajustar(5, motivo="Conteo", producto=nuevo)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("entrada de mercancía", respuesta.json()["detalle"])
+        self.assertEqual(existencias_totales(nuevo), 0)
+
+    def test_el_ajuste_exige_motivo(self):
+        self.assertEqual(self.ajustar(-1, motivo="   ").status_code,
+                         status.HTTP_400_BAD_REQUEST)
+
+    def test_un_ajuste_de_cero_se_rechaza(self):
+        self.assertEqual(self.ajustar(0).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_el_vendedor_no_ajusta(self):
+        vendedor = crear_usuario(self.licorera, "vendedor@prueba.com", Rol.VENDEDOR)
+        self.assertEqual(self.ajustar(-1, correo=vendedor.correo).status_code,
+                         status.HTTP_403_FORBIDDEN)
+
+    def test_con_la_suscripcion_vencida_no_se_ajusta(self):
+        suscripcion = self.licorera.suscripcion_actual()
+        suscripcion.fecha_fin = timezone.localdate() - timedelta(days=30)
+        suscripcion.save(update_fields=["fecha_fin"])
+
+        self.assertEqual(self.ajustar(-1).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_no_se_ajusta_un_producto_de_otra_licorera(self):
+        otra = crear_negocio("Rionegro")
+        ajeno = Producto.objects.create(
+            licorera=otra, categoria=Categoria.objects.filter(licorera=otra).first(),
+            nombre="Ajeno", presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=1)
+
+        self.assertEqual(self.ajustar(-1, producto=ajeno).status_code,
+                         status.HTTP_404_NOT_FOUND)
+
+    def test_el_ajuste_queda_en_el_kardex_con_su_motivo(self):
+        self.ajustar(-2, motivo="Botellas rotas en el traslado")
+
+        kardex = self.client.get(
+            reverse("producto-kardex", args=[self.producto.id]),
+            **self.entrar()).json()["results"]
+        ultimo = [m for m in kardex
+                  if m["tipo"] == MovimientoInventario.Tipo.AJUSTE_NEGATIVO][0]
+        self.assertEqual(ultimo["motivo"], "Botellas rotas en el traslado")
+        self.assertEqual(ultimo["saldo_resultante"], 8)
+
+
+class NivelDeExistenciasTests(CatalogoBase):
+    """El filtro por nivel (RF-INV-02) y la alerta del panel (RF-INV-07)."""
+
+    def setUp(self):
+        super().setUp()
+        self.sede = Sede.principal_de(self.licorera)
+        self.sobrado = self.crear_producto("Con existencias de sobra", minimo=5, entran=20)
+        self.justo = self.crear_producto("En el mínimo", minimo=5, entran=5)
+        self.bajo = self.crear_producto("Por debajo del mínimo", minimo=10, entran=3)
+        self.agotado = self.crear_producto("Agotado", minimo=5, entran=0)
+
+    def crear_producto(self, nombre, minimo, entran):
+        producto = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria, nombre=nombre,
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=minimo)
+        if entran:
+            registrar_entrada(
+                licorera=self.licorera, usuario=self.administrador,
+                lineas=[{"producto": producto, "cantidad": entran,
+                         "costo_unitario": 500}])
+        return producto
+
+    def nombres(self, **filtros):
+        respuesta = self.client.get(reverse("producto-list"), filtros, **self.entrar())
+        return {fila["nombre"] for fila in respuesta.json()["results"]}
+
+    def test_el_filtro_de_agotados_solo_trae_los_de_cero(self):
+        self.assertEqual(self.nombres(existencias="agotado"), {"Agotado"})
+
+    def test_el_filtro_de_bajos_no_incluye_los_agotados(self):
+        """
+        Agotado y bajo se separan a propósito: lo que ya no se puede vender es
+        más urgente que lo que solo hay que reponer, y mezclarlos esconde lo
+        primero entre lo segundo.
+        """
+        self.assertEqual(self.nombres(existencias="bajo"),
+                         {"En el mínimo", "Por debajo del mínimo"})
+
+    def test_el_que_esta_justo_en_el_minimo_cuenta_como_bajo(self):
+        """«Igual o inferior», dice el requisito. El borde entra."""
+        self.assertIn("En el mínimo", self.nombres(existencias="bajo"))
+
+    def test_sin_filtro_salen_todos(self):
+        self.assertEqual(len(self.nombres()), 4)
+
+    def test_un_producto_sin_lotes_cuenta_como_agotado_y_no_desaparece(self):
+        """
+        La suma de un producto sin lotes está vacía, no es cero. Sin convertirla
+        a cero, esta referencia se caería de la lista y del filtro.
+        """
+        self.assertIn("Agotado", self.nombres())
+        self.assertIn("Agotado", self.nombres(existencias="agotado"))
+
+    # -- La alerta del panel ----------------------------------------------
+
+    def alertas(self, correo=None):
+        return self.client.get(reverse("alertas-inventario"), **self.entrar(correo))
+
+    def test_la_alerta_incluye_los_agotados(self):
+        """
+        El requisito dice «igual o inferior al mínimo», y cero lo es. Una
+        referencia agotada es el caso más urgente del mismo problema.
+        """
+        nombres = [fila["nombre"] for fila in self.alertas().json()]
+        self.assertEqual(set(nombres),
+                         {"Agotado", "En el mínimo", "Por debajo del mínimo"})
+
+    def test_la_alerta_ordena_por_lo_mas_urgente(self):
+        existencias = [fila["existencias"] for fila in self.alertas().json()]
+        self.assertEqual(existencias, sorted(existencias))
+
+    def test_la_alerta_no_avisa_de_referencias_descontinuadas(self):
+        """Avisar de reponer algo que ya no se vende es ruido, y el ruido se deja de leer."""
+        self.agotado.activo = False
+        self.agotado.save(update_fields=["activo"])
+
+        nombres = [fila["nombre"] for fila in self.alertas().json()]
+        self.assertNotIn("Agotado", nombres)
+
+    def test_la_alerta_es_de_la_propia_licorera(self):
+        otra = crear_negocio("Sabaneta")
+        Producto.objects.create(
+            licorera=otra, categoria=Categoria.objects.filter(licorera=otra).first(),
+            nombre="Ajeno agotado", presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=5)
+
+        nombres = [fila["nombre"] for fila in self.alertas().json()]
+        self.assertNotIn("Ajeno agotado", nombres)
+
+    def test_el_vendedor_ve_las_alertas(self):
+        """Es quien está en el mostrador y el primero que nota que algo se acabó."""
+        vendedor = crear_usuario(self.licorera, "vendedor@prueba.com", Rol.VENDEDOR)
+        self.assertEqual(self.alertas(correo=vendedor.correo).status_code,
+                         status.HTTP_200_OK)

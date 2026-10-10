@@ -14,6 +14,7 @@ from sedes.models import Sede
 
 from .kardex import registrar_movimiento
 from .models import EntradaMercancia, LoteInventario, MovimientoInventario
+from .peps import consumir
 
 
 @transaction.atomic
@@ -80,3 +81,78 @@ def registrar_entrada(*, licorera, usuario, lineas, proveedor=None, observacion=
         )
 
     return entrada
+
+
+@transaction.atomic
+def ajustar_existencias(*, producto, usuario, cantidad, motivo, sede=None):
+    """
+    Corrige las existencias por merma, rotura o conteo físico (RF-INV-06).
+
+    `cantidad` es la diferencia: positiva si en el conteo sobraron unidades,
+    negativa si faltaron. El motivo es obligatorio —lo exige el requisito y lo
+    vuelve a exigir el kardex— porque una existencia que cambió y nadie sabe
+    explicar es exactamente lo que un inventario sirve para evitar.
+
+    Las dos direcciones no son simétricas:
+
+    - **Hacia abajo** se consumen lotes por antigüedad, igual que una venta:
+      las unidades que se perdieron son las más viejas, y hay que saber cuánto
+      costaron para que la pérdida valga lo que valió.
+    - **Hacia arriba** nace un lote nuevo. Como el MER exige que todo lote
+      tenga costo y el formulario de ajuste no pregunta ninguno (D-32), se toma
+      el del último lote de esa referencia: unas unidades que aparecen en un
+      conteo son mercancía que ya se compró, y su costo más probable es el de
+      la compra más reciente. Si nunca hubo una compra, el ajuste se rechaza:
+      lo que corresponde ahí es registrar la entrada con su costo real.
+    """
+    if cantidad == 0:
+        raise ValidationError("El ajuste no cambia nada: la diferencia es cero.")
+    if not (motivo or "").strip():
+        raise ValidationError("Escribe el motivo del ajuste.")
+
+    if sede is None:
+        sede = Sede.principal_de(producto.licorera)
+    if sede is None:
+        raise ValidationError("La licorera no tiene ninguna sede que ajustar.")
+
+    if cantidad < 0:
+        consumir(
+            producto=producto, sede=sede, cantidad=-cantidad,
+            tipo=MovimientoInventario.Tipo.AJUSTE_NEGATIVO,
+            usuario=usuario,
+            documento_tipo=MovimientoInventario.Documento.AJUSTE,
+            # El ajuste no tiene documento propio: el movimiento ES el
+            # documento, así que se apunta a sí mismo con el identificador del
+            # producto, que es lo que permite agrupar sus líneas al leerlo.
+            documento_id=producto.id,
+            motivo=motivo,
+        )
+        return
+
+    ultimo = (
+        LoteInventario.objects
+        .filter(producto=producto, sede=sede)
+        .order_by("-fecha_ingreso", "-id")
+        .first()
+    )
+    if ultimo is None:
+        raise ValidationError(
+            "«%s» no tiene ninguna entrada registrada, así que no hay un costo con el "
+            "que valorar las unidades encontradas. Regístralas como entrada de mercancía."
+            % producto.nombre)
+
+    lote = LoteInventario.objects.create(
+        producto=producto, sede=sede,
+        origen=LoteInventario.Origen.AJUSTE_POSITIVO,
+        cantidad_inicial=cantidad, cantidad_disponible=cantidad,
+        costo_unitario=ultimo.costo_unitario,
+    )
+    registrar_movimiento(
+        producto=producto, sede=sede,
+        tipo=MovimientoInventario.Tipo.AJUSTE_POSITIVO,
+        cantidad=cantidad, usuario=usuario, lote=lote,
+        costo_unitario=lote.costo_unitario,
+        documento_tipo=MovimientoInventario.Documento.AJUSTE,
+        documento_id=producto.id,
+        motivo=motivo,
+    )

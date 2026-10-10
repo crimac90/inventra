@@ -8,7 +8,7 @@ que volver a escribirla aquí.
 """
 
 from django.core.exceptions import ValidationError as ErrorDeValidacion
-from django.db.models import Q
+from django.db.models import F, Q
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView
@@ -17,12 +17,13 @@ from rest_framework.response import Response
 from seguridad.permissions import EsAdministradorDeLicorera
 from suscripciones.permissions import PuedeRegistrarOperaciones
 
-from .existencias import existencias_por_producto
+from .existencias import con_existencias
 from .models import Categoria, EntradaMercancia, MovimientoInventario, Producto
-from .operaciones import registrar_entrada
+from .operaciones import ajustar_existencias, registrar_entrada
 from .serializers import (
-    CategoriaSerializer, EntradaCrearSerializer, EntradaSerializer,
-    MovimientoSerializer, ProductoGuardarSerializer, ProductoSerializer)
+    AjusteSerializer, CategoriaSerializer, EntradaCrearSerializer,
+    EntradaSerializer, MovimientoSerializer, ProductoGuardarSerializer,
+    ProductoSerializer)
 
 
 class CategoriasView(ListAPIView):
@@ -75,11 +76,15 @@ class ProductoViewSet(viewsets.ModelViewSet):
         hoy no hay de dónde sacar la existencia, y un filtro que no filtra sería
         peor que no tenerlo.
         """
-        consulta = (
+        # El `order_by` es explícito y no heredado del modelo a propósito: al
+        # agrupar para sumar los lotes, Django deja de considerar ordenada la
+        # consulta aunque el modelo declare su orden, y la paginación avisa de
+        # que las páginas podrían salir barajadas.
+        consulta = con_existencias(
             Producto.objects
             .filter(licorera=self.request.user.licorera)
             .select_related("categoria")
-        )
+        ).order_by("nombre")
 
         parametros = self.request.query_params
 
@@ -100,6 +105,18 @@ class ProductoViewSet(viewsets.ModelViewSet):
         if estado in ("activo", "inactivo"):
             consulta = consulta.filter(activo=(estado == "activo"))
 
+        # Los dos filtros rápidos que dibuja el prototipo sobre la tabla. Se
+        # separan «agotado» de «bajo» a propósito: agotado es cero, y bajo es
+        # «queda algo, pero igual o menos que el mínimo». Mezclarlos escondería
+        # lo urgente —lo que ya no se puede vender— entre lo que solo hay que
+        # reponer.
+        nivel = parametros.get("existencias")
+        if nivel == "agotado":
+            consulta = consulta.filter(disponibles=0)
+        elif nivel == "bajo":
+            consulta = consulta.filter(disponibles__gt=0,
+                                       disponibles__lte=F("stock_minimo"))
+
         return consulta
 
     def get_serializer_class(self):
@@ -111,13 +128,11 @@ class ProductoViewSet(viewsets.ModelViewSet):
         """
         La licorera sale de la sesión, nunca de la petición.
 
-        Y con ella viajan las existencias de todo el catálogo, calculadas de una
-        sola consulta: así la lista no pregunta una vez por fila.
+        Las existencias ya no viajan por aquí: vienen calculadas dentro de la
+        propia consulta (`con_existencias`), que es una sola para toda la lista.
         """
         contexto = super().get_serializer_context()
         contexto["licorera"] = self.request.user.licorera
-        if self.request.method in ("GET", "HEAD"):
-            contexto["existencias"] = existencias_por_producto(self.request.user.licorera)
         return contexto
 
     def create(self, request, *args, **kwargs):
@@ -154,6 +169,30 @@ class ProductoViewSet(viewsets.ModelViewSet):
         pagina = self.paginate_queryset(movimientos)
         serializador = MovimientoSerializer(pagina, many=True)
         return self.get_paginated_response(serializador.data)
+
+    @action(detail=True, methods=["post"])
+    def ajustar(self, request, pk=None):
+        """
+        Corrige las existencias de una referencia (RF-INV-06).
+
+        Cuelga del producto, como el kardex: un ajuste no existe en abstracto.
+        """
+        producto = self.get_object()
+        serializador = AjusteSerializer(data=request.data)
+        serializador.is_valid(raise_exception=True)
+
+        try:
+            ajustar_existencias(
+                producto=producto, usuario=request.user,
+                cantidad=serializador.validated_data["cantidad"],
+                motivo=serializador.validated_data["motivo"],
+            )
+        except ErrorDeValidacion as error:
+            return Response({"detalle": "; ".join(error.messages)},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        producto.refresh_from_db()
+        return Response(ProductoSerializer(producto).data, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):
         """
@@ -226,3 +265,31 @@ class EntradaMercanciaViewSet(mixins.CreateModelMixin,
                             status=status.HTTP_400_BAD_REQUEST)
 
         return Response(EntradaSerializer(entrada).data, status=status.HTTP_201_CREATED)
+
+
+class AlertasDeInventarioView(ListAPIView):
+    """
+    Las referencias que hay que reponer (RF-INV-07).
+
+    El requisito pide una alerta «cuando la existencia sea igual o inferior a
+    su mínimo configurado», así que incluye las agotadas: una referencia en
+    cero es el caso más urgente del mismo problema, no uno distinto.
+
+    Solo mira productos activos: avisar de que hay que reponer una referencia
+    descontinuada sería ruido, y el ruido es lo que hace que una alerta se
+    deje de leer.
+    """
+
+    serializer_class = ProductoSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return (
+            con_existencias(
+                Producto.objects
+                .filter(licorera=self.request.user.licorera, activo=True)
+                .select_related("categoria")
+            )
+            .filter(disponibles__lte=F("stock_minimo"))
+            .order_by("disponibles", "nombre")
+        )

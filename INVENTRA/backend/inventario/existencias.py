@@ -10,7 +10,8 @@ y la columna es una copia, llevada un paso más allá: aquí ni siquiera hay cop
 que mantener al día, así que no hay forma de que se quede atrasada.
 """
 
-from django.db.models import Sum
+from django.db.models import Sum, Value
+from django.db.models.functions import Coalesce
 
 from .models import LoteInventario
 
@@ -25,18 +26,29 @@ def existencias_de(producto, sede):
     return total or 0
 
 
-def existencias_por_producto(licorera, sede=None):
-    """
-    Un diccionario {id de producto: unidades} para toda la licorera.
+def existencias_totales(producto):
+    """Unidades disponibles de un producto, sumando todas sus sedes."""
+    total = (
+        LoteInventario.objects
+        .filter(producto=producto)
+        .aggregate(total=Sum("cantidad_disponible"))["total"]
+    )
+    return total or 0
 
-    Existe por una razón concreta: la lista del catálogo necesita la existencia
-    de cada fila, y preguntarla producto a producto haría una consulta por fila.
-    Con veinte referencias no se nota; con dos mil, la pantalla deja de abrir.
+
+def con_existencias(consulta):
     """
-    consulta = LoteInventario.objects.filter(producto__licorera=licorera)
-    if sede is not None:
-        consulta = consulta.filter(sede=sede)
-    return {
-        fila["producto_id"]: fila["total"]
-        for fila in consulta.values("producto_id").annotate(total=Sum("cantidad_disponible"))
-    }
+    Añade a una consulta de productos la columna calculada `disponibles`.
+
+    Es la misma suma de arriba, hecha dentro de la consulta en vez de una vez
+    por fila. La lista del catálogo necesita la existencia de cada producto y
+    preguntarla una por una haría una consulta por fila: con veinte referencias
+    no se nota, con dos mil la pantalla deja de abrir.
+
+    `Coalesce` convierte en cero el vacío que devuelve la suma cuando un
+    producto no tiene ningún lote. Sin eso, una referencia recién registrada
+    saldría con un hueco en vez de con el cero que le corresponde, y cualquier
+    filtro por nivel de existencias la dejaría fuera.
+    """
+    return consulta.annotate(
+        disponibles=Coalesce(Sum("lotes__cantidad_disponible"), Value(0)))
