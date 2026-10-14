@@ -10,6 +10,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import Acceso from "./paginas/Acceso";
 import MiSuscripcion from "./paginas/MiSuscripcion";
+import Inventario from "./paginas/Inventario";
 import Panel from "./paginas/Panel";
 import Perfil from "./paginas/Perfil";
 import Plataforma from "./paginas/Plataforma";
@@ -50,6 +51,14 @@ export default function App() {
         element={
           <RutaPrivada roles={ROLES_DE_NEGOCIO}>
             <Panel />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/inventario"
+        element={
+          <RutaPrivada roles={ROLES_DE_NEGOCIO}>
+            <Inventario />
           </RutaPrivada>
         }
       />

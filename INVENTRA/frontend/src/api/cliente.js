@@ -22,9 +22,9 @@ const CLAVE_REFRESCO = "inventra.refresco";
   del navegador. Si no la marco se usa sessionStorage, que se borra al cerrar la
   pestana. Esa casilla, entonces, no es decorativa: decide cuanto dura la sesion.
 
-  Nota de seguridad que conviene tener clara: guardar el token en el navegador lo
-  deja al alcance del codigo que corra en la pagina, asi que un ataque de tipo
-  XSS podria leerlo. La alternativa —una cookie marcada httpOnly— exige que el
+  El compromiso de seguridad que esto supone: guardar el token en el navegador
+  lo deja al alcance del codigo que corra en la pagina, asi que un ataque de
+  tipo XSS podria leerlo. La alternativa —una cookie marcada httpOnly— exige que el
   backend la emita y complica el consumo desde otro dominio. Para el alcance de
   este proyecto se documenta el compromiso y se mitiga por el otro lado: tokens
   de acceso de vida corta y refresco rotatorio con lista negra.
@@ -76,7 +76,14 @@ export class ErrorApi extends Error {
     if (this.codigo === 0) {
       return "No se pudo conectar con el servidor. Comprueba que esté en ejecución.";
     }
-    return "Ocurrió un error inesperado. Intenta de nuevo.";
+    /*
+      Este texto y el respaldo de `mensajeDeError` no dicen lo mismo a
+      proposito, aunque antes fueran casi identicos. Son dos caminos distintos
+      —aqui hubo respuesta del servidor y no se pudo sacar nada util de ella;
+      alli ni siquiera llego a haber respuesta— y con el mismo texto era
+      imposible saber cual se habia disparado al depurar un fallo.
+    */
+    return "El servidor respondió algo que no se pudo interpretar. Intenta de nuevo.";
   }
 
   /* Errores por campo, para pintarlos debajo de cada input. */

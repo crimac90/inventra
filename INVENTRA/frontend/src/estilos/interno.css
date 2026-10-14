@@ -323,14 +323,31 @@ td.acciones-fila button {
   border-radius: 12px;
 }
 
-.estado.activo {
+/*
+  Los colores se agrupan en vez de repetirse: «disponible» y «activo» significan
+  cosas distintas y se ven igual, y lo mismo pasa con «agotado» e «inactivo». Dos
+  reglas con los mismos valores se separarian en cuanto alguien cambiara una.
+*/
+.estado.activo,
+.estado.disponible {
   background: var(--ok-suave);
   color: var(--ok-fuerte);
 }
 
-.estado.inactivo {
+.estado.inactivo,
+.estado.agotado {
   background: var(--err-suave);
   color: var(--err-fuerte);
+}
+
+/*
+  Existencias bajas lleva el naranja de advertencia y no el rojo, siguiendo el
+  punto 6.4: todavia se puede vender, hay que reponer. El rojo queda para lo que
+  ya no se puede hacer, que es vender una referencia agotada.
+*/
+.estado.bajo {
+  background: var(--warn-suave);
+  color: var(--warn-fuerte);
 }
 
 .tag {
@@ -451,4 +468,91 @@ td.acciones-fila button {
 
 .aviso.verificacion .link {
   flex: none;
+}
+
+/*
+  Dos campos por fila dentro de una tarjeta, como dibuja el formulario de
+  producto. Se repliega a una sola columna en movil, siguiendo el punto de
+  quiebre del apartado 5.3.
+*/
+.rejilla-dos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--e3);
+}
+
+@media (max-width: 640px) {
+  .rejilla-dos {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Buscador y filtros rapidos sobre una tabla (punto 8.3) -------------- */
+
+.filtros {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  margin-bottom: var(--e4);
+  flex-wrap: wrap;
+}
+
+.buscador {
+  flex: 1 1 260px;
+  min-width: 200px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radio);
+}
+
+.buscador::placeholder {
+  color: var(--muted);
+}
+
+.buscador:focus-visible {
+  outline: none;
+  border-color: var(--navy2);
+  box-shadow: 0 0 0 3px var(--foco);
+}
+
+.chips {
+  display: flex;
+  gap: var(--e2);
+  flex-wrap: wrap;
+}
+
+/*
+  Un filtro rapido es un boton, no un enlace: cambia lo que se ve y no lleva a
+  otro sitio. Se declara como boton para que el teclado lo alcance con el
+  tabulador y lo active con la barra espaciadora.
+*/
+.chip {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.chip:hover:not(.on) {
+  background: var(--chip);
+}
+
+.chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--foco);
+}
+
+.chip.on {
+  background: var(--navy2);
+  border-color: var(--navy2);
+  color: #FFFFFF;
 }

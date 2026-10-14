@@ -97,7 +97,7 @@ const ICONOS = {
 const MODULOS = [
   { clave: "panel", texto: "Panel", ruta: "/panel" },
   { clave: "usuarios", texto: "Usuarios", ruta: "/usuarios", soloAdministrador: true },
-  { clave: "inventario", texto: "Inventario" },
+  { clave: "inventario", texto: "Inventario", ruta: "/inventario" },
   { clave: "ventas", texto: "Ventas" },
   { clave: "reportes", texto: "Reportes" },
   { clave: "sedes", texto: "Sedes" },

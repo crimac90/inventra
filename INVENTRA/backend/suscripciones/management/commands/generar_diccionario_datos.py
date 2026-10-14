@@ -51,7 +51,7 @@ completo tal como se concibieron. Este anexo describe lo que hay construido hast
 ## Dos convenciones del marco de trabajo
 
 Hay dos diferencias sistemáticas entre los tipos del diseño y los de la base construida. No
-son descuidos; conviene saber explicarlas.
+son descuidos: cada una responde a una razón, que se explica a continuación.
 
 **Las llaves primarias y foráneas son `bigint`, no `int unsigned`.** Es el tipo que Django
 aplica por defecto a los identificadores automáticos, para no agotar el rango en tablas que

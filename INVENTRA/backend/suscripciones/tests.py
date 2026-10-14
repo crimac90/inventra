@@ -1148,11 +1148,15 @@ class ModulosSegunElPlanTests(TestCase):
         estados = self.consultar()
         self.assertEqual(estados["panel"], "disponible")
         self.assertEqual(estados["usuarios"], "disponible")
+        # Inventario se unió el 14/10/2026, al estrenar su pantalla. La entrada
+        # del menú no se enciende cuando la lógica está lista, sino cuando hay
+        # una pantalla a la que llevar.
+        self.assertEqual(estados["inventario"], "disponible")
 
     def test_lo_que_falta_por_construir_aparece_como_pronto(self):
         estados = self.consultar()
-        self.assertEqual(estados["inventario"], "pronto")
         self.assertEqual(estados["ventas"], "pronto")
+        self.assertEqual(estados["reportes"], "pronto")
 
     def test_con_plan_pro_sedes_esta_pendiente_de_construir(self):
         """La prueba corre sobre Pro, así que multisede sí entra en su plan."""

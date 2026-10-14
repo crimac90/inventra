@@ -580,8 +580,8 @@ class LimiteDePeticionesTests(TestCase):
     """
     Comprueba el límite de peticiones por origen (decisión D-11).
 
-    Conviene tener clara la diferencia con el bloqueo de RF-SEG-02, porque
-    parecen lo mismo y protegen de cosas distintas:
+    La diferencia con el bloqueo de RF-SEG-02 es sutil y decisiva: parecen el
+    mismo mecanismo y protegen de cosas distintas.
 
     | Defensa | Cuenta por | De qué protege |
     |---|---|---|

@@ -54,7 +54,7 @@ class Modulo:
 MODULOS = [
     Modulo("panel", "Panel", construido=True),
     Modulo("usuarios", "Usuarios", construido=True),
-    Modulo("inventario", "Inventario", construido=False),
+    Modulo("inventario", "Inventario", construido=True),
     Modulo("ventas", "Ventas", construido=False),
     Modulo("reportes", "Reportes", construido=False),
     Modulo("sedes", "Sedes", construido=False,

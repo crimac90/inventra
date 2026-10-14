@@ -31,13 +31,20 @@ import {
   consultarPerfil,
   corregirCorreo,
 } from "../api/seguridad";
-import { ETIQUETA_DE_ROL } from "../sesion/roles";
+import { ETIQUETA_DE_ROL, ROL_ADMINISTRADOR_LICORERA } from "../sesion/roles";
 import { useSesion } from "../sesion/ContextoSesion";
 
 export default function Perfil() {
   const { usuario, setUsuario, salir } = useSesion();
   const navegar = useNavigate();
   const pendiente = !usuario.correo_verificado;
+  /*
+    Quien administra una licorera NO tiene por encima a otro administrador: es
+    el suyo. Decirle que «lo cambiará quien administra tu licorera» le manda a
+    pedirselo a si mismo. Para el, la salida real es el soporte de INVENTRA, que
+    es lo que ya dice la pregunta frecuente del manual.
+  */
+  const esAdministrador = usuario.rol === ROL_ADMINISTRADOR_LICORERA;
 
   return (
     <Disposicion titulo="Mi perfil">
@@ -51,8 +58,10 @@ export default function Perfil() {
         <h2>Datos de tu cuenta</h2>
         <div className="hs">
           {pendiente
-            ? "El rol y la licorera los asigna quien administra tu licorera. El correo todavía puedes corregirlo tú, porque aún no está confirmado."
-            : "Estos datos solo los puede modificar el administrador de tu licorera, porque el correo es tu identificador de acceso y el rol define lo que puedes hacer."}
+            ? "El rol y la licorera se fijaron al crear tu cuenta y no se editan desde aquí. El correo todavía puedes corregirlo tú, porque aún no está confirmado."
+            : esAdministrador
+              ? "El rol y la licorera se fijaron al crear tu cuenta y no se editan desde aquí. El correo es tu identificador de acceso en toda la plataforma; para cambiarlo, comunícate con INVENTRA."
+              : "Estos datos solo los puede modificar el administrador de tu licorera, porque el correo es tu identificador de acceso y el rol define lo que puedes hacer."}
         </div>
 
         <dl className="datos">
@@ -75,7 +84,13 @@ export default function Perfil() {
           <dd>{usuario.licorera_nombre || "Sin licorera asignada"}</dd>
         </dl>
 
-        {pendiente && <CorreccionDelCorreo usuario={usuario} setUsuario={setUsuario} />}
+        {pendiente && (
+          <CorreccionDelCorreo
+            usuario={usuario}
+            setUsuario={setUsuario}
+            esAdministrador={esAdministrador}
+          />
+        )}
       </div>
     </Disposicion>
   );
@@ -290,7 +305,7 @@ function CambioDeContrasena({ salir, navegar }) {
 
 /* --- Correccion del correo mientras la cuenta siga pendiente (D-29) ------- */
 
-function CorreccionDelCorreo({ usuario, setUsuario }) {
+function CorreccionDelCorreo({ usuario, setUsuario, esAdministrador }) {
   const [correo, setCorreo] = useState(usuario.correo);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
@@ -332,7 +347,10 @@ function CorreccionDelCorreo({ usuario, setUsuario }) {
       <h3>¿Escribiste mal tu correo?</h3>
       <div className="hs">
         Corrígelo y te enviamos el enlace de confirmación a la dirección nueva. Podrás hacerlo
-        hasta que confirmes; después tendrá que cambiarlo quien administra tu licorera.
+        hasta que confirmes;{" "}
+        {esAdministrador
+          ? "después tendrás que pedírselo al soporte de INVENTRA."
+          : "después tendrá que cambiarlo quien administra tu licorera."}
       </div>
 
       {aviso && (

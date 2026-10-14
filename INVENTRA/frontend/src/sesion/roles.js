@@ -18,7 +18,8 @@
 export const ROL_DE_PLATAFORMA = "administrador_inventra";
 
 /* Los roles que pertenecen a una licorera. */
-export const ROLES_DE_NEGOCIO = ["administrador_licorera", "vendedor"];
+export const ROL_ADMINISTRADOR_LICORERA = "administrador_licorera";
+export const ROLES_DE_NEGOCIO = [ROL_ADMINISTRADOR_LICORERA, "vendedor"];
 
 /* Como se le escribe cada rol a la persona. */
 export const ETIQUETA_DE_ROL = {
