@@ -11,7 +11,7 @@
   puede cambiarlos. Ocultarlos sin mas dejaria al usuario preguntandose donde
   estan.
 
-  LA EXCEPCION DEL CORREO (D-29). Mientras la cuenta siga pendiente de confirmar,
+  LA EXCEPCION DEL CORREO. Mientras la cuenta siga pendiente de confirmar,
   su titular SI puede corregir la direccion desde aqui. No es una concesion: quien
   se registra por autoservicio es el unico administrador de su licorera, de modo
   que si escribio mal su correo no hay nadie por encima que se lo arregle y la
@@ -303,7 +303,7 @@ function CambioDeContrasena({ salir, navegar }) {
   );
 }
 
-/* --- Correccion del correo mientras la cuenta siga pendiente (D-29) ------- */
+/* --- Correccion del correo mientras la cuenta siga pendiente  ------- */
 
 function CorreccionDelCorreo({ usuario, setUsuario, esAdministrador }) {
   const [correo, setCorreo] = useState(usuario.correo);

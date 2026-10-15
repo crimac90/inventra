@@ -2,7 +2,7 @@
 Crea la sede principal de las licoreras que ya existían.
 
 El mismo caso que las categorías del inventario: la sede se crea al registrar
-una licorera (D-30), y las que ya estaban en la base cuando se añadió la tabla
+una licorera, y las que ya estaban en la base cuando se añadió la tabla
 se quedaron sin ninguna. Sin sede no se puede registrar inventario, porque las
 existencias son por sede.
 

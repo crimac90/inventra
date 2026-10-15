@@ -4,16 +4,15 @@
   Dos cosas, en este orden: en que estado esta la suscripcion y hasta cuando
   vale, y despues que planes hay y cual se puede contratar.
 
-  POR QUE EL CAMBIO SOLO BAJA
   Bajar de plan no cuesta dinero y lo hace el negocio desde aqui; subir implica
-  cobrar y lo ejecuta el Administrador INVENTRA al confirmar el pago (D-23). La
+  cobrar y lo ejecuta el Administrador INVENTRA al confirmar el pago. La
   pantalla no esconde el plan superior: lo muestra y dice como se contrata, que
   es lo que el negocio necesita saber.
 
-  Los textos de los rechazos NO se escriben aqui. El servidor sabe por que dijo
+  Los textos de los rechazos no se escriben aqui. El servidor sabe por que dijo
   que no —cuantos usuarios sobran, que la prueba esta en curso— y esta pantalla
-  solo lo muestra. Traducir un codigo de estado a una frase fija fue un error
-  que ya se corrigio una vez en la gestion de usuarios.
+  solo lo muestra: traducir un codigo de estado a una frase fija diria menos de
+  lo que el servidor ya dijo.
 */
 
 import { useCallback, useEffect, useState } from "react";

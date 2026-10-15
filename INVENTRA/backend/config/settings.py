@@ -49,7 +49,7 @@ INSTALLED_APPS = [
     # Del proyecto, una por módulo funcional
     "suscripciones",                 # SUS: licoreras, planes y suscripciones
     "seguridad",                     # SEG: usuarios y roles
-    "sedes",                         # SED: solo la tabla y la sede principal (D-30)
+    "sedes",                         # SED: solo la tabla y la sede principal 
     "inventario",                    # INV: catálogo, lotes y kardex
 ]
 
@@ -141,7 +141,7 @@ PASSWORD_RESET_TIMEOUT = 30 * 60
 
 # El enlace que confirma el correo dura tres días, no treinta minutos: se lee
 # cuando la persona abre su bandeja, que puede ser al día siguiente, y mientras
-# tanto la cuenta funciona igual (D-10). El de la contraseña es corto porque
+# tanto la cuenta funciona igual. El de la contraseña es corto porque
 # abre la puerta de una cuenta; este solo confirma una dirección.
 EMAIL_VERIFICATION_TIMEOUT = 3 * 24 * 60 * 60
 

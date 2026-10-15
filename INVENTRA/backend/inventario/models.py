@@ -1,7 +1,6 @@
 """
 Catálogo de productos de una licorera (módulo INV).
 
-QUÉ NO ESTÁ AQUÍ, Y POR QUÉ
 Dos columnas que cualquiera esperaría en un producto y que el MER deja fuera a
 propósito:
 
@@ -135,16 +134,13 @@ class Producto(models.Model):
             # mismo aguardiente y comparten su código de barras, así que un
             # único global dejaría al segundo sin poder registrarlo.
             #
-            # SIN CONDICIÓN, Y ESO IMPORTA. La primera versión llevaba
-            # `condition=Q(codigo_barras__isnull=False)` para excluir los
-            # productos sin código. Al migrar, Django avisó (W036) de que MySQL
-            # no admite restricciones únicas con condición y de que, por tanto,
-            # **no iba a crearla**: habría quedado una protección que parece
-            # estar y no está, con la validación viviendo solo en el servidor
-            # de la aplicación. La condición además sobraba: en SQL dos nulos no
-            # son iguales entre sí, de modo que un índice único normal ya
-            # permite tantos productos sin código como haga falta. Al quitarla,
-            # la restricción se crea de verdad y los nulos siguen conviviendo.
+            # Va sin condición, y eso importa. MySQL no admite restricciones
+            # únicas con condición: declarar una con
+            # `condition=Q(codigo_barras__isnull=False)` haría que Django
+            # avisara (W036) y NO la creara, dejando una protección que parece
+            # estar y no está. La condición tampoco hace falta: en SQL dos
+            # nulos no son iguales entre sí, así que un índice único normal
+            # admite tantos productos sin código como haga falta.
             models.UniqueConstraint(
                 fields=["licorera", "codigo_barras"],
                 name="codigo_barras_unico_por_licorera",
@@ -203,8 +199,7 @@ class LoteInventario(models.Model):
     """
     Un lote de mercancía con su costo congelado. **El corazón del PEPS.**
 
-    POR QUÉ EL COSTO VIVE AQUÍ Y NO EN EL PRODUCTO
-    Porque el mismo ron comprado en marzo a 38.000 y en junio a 42.000 son dos
+        El costo vive en el lote y no en el producto. El mismo ron comprado en marzo a 38.000 y en junio a 42.000 son dos
     costos reales distintos, y lo que se vendió en abril salió del primero. Un
     costo único por producto obligaría a elegir cuál, y al elegir el último
     falsearía hacia atrás la utilidad de todo lo vendido antes (RF-INV-10).
@@ -245,7 +240,7 @@ class LoteInventario(models.Model):
     # `sede_id`, esta columna admite vacío y siempre lo estaría, así que
     # añadirla el día que SED llegue es una migración barata y sin riesgo. El
     # origen «traslado» sí se declara arriba, porque el MER lo fija y un valor
-    # de lista que nadie usa no cuesta nada (D-31).
+    # de lista que nadie usa no cuesta nada.
     cantidad_inicial = models.PositiveIntegerField(
         help_text="Unidades con las que nació el lote.",
     )

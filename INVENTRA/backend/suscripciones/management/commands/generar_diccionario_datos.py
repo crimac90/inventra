@@ -1,7 +1,6 @@
 """
 Genera el diccionario de datos del sistema CONSTRUIDO, leyendo los modelos.
 
-POR QUÉ EXISTE ESTE ARCHIVO SI YA HAY UN MER
 El MER es el documento de DISEÑO: describe las veinticuatro entidades del
 sistema completo tal como se pensaron antes de programar, y se entregó con su
 revisión 1. Este anexo describe lo que hay CONSTRUIDO, y se genera desde los

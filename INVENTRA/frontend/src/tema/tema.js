@@ -5,7 +5,6 @@
   con la preferencia del sistema operativo y que recuerde la eleccion del usuario
   en ese dispositivo.
 
-  QUIEN DECIDE Y QUIEN PINTA
   Este archivo decide y escribe `data-tema` en el elemento <html>; el CSS solo
   mira ese atributo. La alternativa era dejar que el CSS resolviera tambien la
   preferencia del sistema con `prefers-color-scheme`, pero entonces la lista de
@@ -13,13 +12,11 @@
   contrario al del sistema obliga a pelear con la especificidad. Con un solo
   atributo, la lista de colores vive una vez y la decision tambien.
 
-  QUE SE GUARDA
   Solo se guarda una eleccion explicita, «claro» u «oscuro». Mientras el usuario
   no elija, no hay nada guardado y manda el sistema operativo, incluso si cambia
   a mitad de sesion. Guardar «sistema» como si fuera un valor mas seria lo mismo
   con un dato de mas.
 
-  EL ALMACENAMIENTO PUEDE FALLAR
   En una ventana privada o con las cookies bloqueadas, `localStorage` lanza al
   leer o al escribir. La interfaz no puede caerse por no poder recordar un color,
   asi que cada acceso va protegido y, si falla, se sigue con el modo del sistema.

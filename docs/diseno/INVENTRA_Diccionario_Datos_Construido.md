@@ -106,7 +106,7 @@ Cuentas de acceso al sistema (RF-SEG-01, 02, 04, 06 y 07).
 | `rol_id` | bigint | No | FK → `rol` | Rol que define sus permisos. |
 | `nombre_completo` | varchar(100) | No | — | Nombre de la persona. |
 | `correo` | varchar(100) | No | UQ | Identificador de acceso; único en toda la plataforma. |
-| `correo_verificado` | bool | No | — | Si la persona confirmó su correo abriendo el enlace que se le envió. Una cuenta sin verificar entra al sistema, pero ve un aviso (D-10). |
+| `correo_verificado` | bool | No | — | Si la persona confirmó su correo abriendo el enlace que se le envió. Una cuenta sin verificar entra al sistema, pero ve un aviso. |
 | `telefono` | varchar(20) | Sí | — | Teléfono de contacto. |
 | `contrasena_hash` | varchar(255) | No | — | Contraseña cifrada con hash adaptativo; nunca en texto plano (RNF-02). |
 | `intentos_fallidos` | smallint UNSIGNED | No | — | Contador para el bloqueo tras cinco intentos (RF-SEG-02). |

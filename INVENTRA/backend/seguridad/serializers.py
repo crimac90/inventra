@@ -256,7 +256,7 @@ class UsuarioActualizarSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """
         Si cambia el correo, la cuenta vuelve a quedar pendiente de confirmación
-        (decisión D-29).
+        .
 
         Sin esto quedaba una puerta abierta: una cuenta ya confirmada se movía a
         otra dirección y seguía contando como confirmada, de modo que la marca
@@ -339,7 +339,7 @@ class RestablecerContrasenaSerializer(serializers.Serializer):
         Asigna la contraseña nueva y libera el bloqueo por intentos fallidos: quien
         olvidó su contraseña y agotó los intentos debe poder volver a entrar.
 
-        Y DA EL CORREO POR CONFIRMADO (decisión D-29). Abrir este enlace prueba
+        Y DA EL CORREO POR CONFIRMADO. Abrir este enlace prueba
         exactamente lo mismo que abrir el de verificación: que quien lo abrió
         lee esa bandeja de entrada. Pedir después la confirmación sería exigir
         dos veces la misma prueba, y dejaría sin poder registrar nada a quien
@@ -362,18 +362,16 @@ class RestablecerContrasenaSerializer(serializers.Serializer):
 
 class CorregirCorreoSerializer(serializers.Serializer):
     """
-    Corrección del propio correo mientras la cuenta no esté confirmada (D-29).
+    Corrección del propio correo mientras la cuenta no esté confirmada.
 
-    POR QUÉ EXISTE, SIENDO QUE EL CORREO LO CAMBIA EL ADMINISTRADOR
-    RF-SEG-06 reserva ese cambio al Administrador de licorera, y así está
+        RF-SEG-06 reserva ese cambio al Administrador de licorera, y así está
     construido. Pero queda un caso sin salida: quien se registra por
     autoservicio ES el administrador de su licorera, el único, y si escribió mal
     su dirección no hay nadie por encima que se la corrija. Al exigir el correo
     confirmado para registrar, ese caso pasa de incómodo a cuenta inservible.
 
-    POR QUÉ SOLO MIENTRAS NO ESTÉ CONFIRMADA
-    Una vez confirmada, el correo es el identificador de una cuenta que alguien
-    demostró controlar, y cambiarlo vuelve a ser cosa del administrador. Esta
+    Una vez confirmada, el correo es el identificador de una cuenta que
+    alguien demostró controlar, y cambiarlo vuelve a ser cosa del administrador. Esta
     puerta se cierra sola en cuanto se usa bien.
     """
 
@@ -454,7 +452,7 @@ ENLACE_VERIFICACION_INVALIDO = (
 
 class VerificarCorreoSerializer(serializers.Serializer):
     """
-    Confirma la dirección de correo de una cuenta (D-10).
+    Confirma la dirección de correo de una cuenta.
 
     No pide autenticación: quien abre el enlace puede estar en otro navegador o
     en el teléfono, sin sesión. Lo que autoriza la operación es la firma del

@@ -57,11 +57,10 @@ def enviar_correo_recuperacion(usuario):
 
 
 # ---------------------------------------------------------------------------
-# Verificación del correo (D-10, bloque 1 del módulo SUS)
+# Verificación del correo 
 # ---------------------------------------------------------------------------
 #
-# POR QUÉ NO SE REUTILIZA EL TOKEN DE LA RECUPERACIÓN
-# El de la recuperación (`default_token_generator`) calcula su firma con la
+# No se reutiliza el token de la recuperación. El de la recuperación (`default_token_generator`) calcula su firma con la
 # contraseña y la fecha del último ingreso, y eso aquí estorba dos veces: quien
 # se registra entra de inmediato al panel —lo que actualiza el último ingreso y
 # dejaría inservible el enlace recién enviado— y el enlace debe seguir sirviendo

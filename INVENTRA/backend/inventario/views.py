@@ -3,7 +3,7 @@ Vistas del catálogo (RF-INV-01 a 04).
 
 El permiso de escritura es el mismo que estrenó SUS: `PuedeRegistrarOperaciones`
 deja consultar siempre y solo deja registrar con el correo confirmado y la
-suscripción vigente (D-29). Se engancha con una línea, y por eso la regla no hay
+suscripción vigente. Se engancha con una línea, y por eso la regla no hay
 que volver a escribirla aquí.
 """
 
@@ -59,7 +59,7 @@ class ProductoViewSet(viewsets.ModelViewSet):
         Leer el catálogo lo necesita también el vendedor, así que basta con
         tener sesión. Registrar y modificar son del administrador, y además
         pasan por el permiso de escritura de SUS, que mira el correo y la
-        suscripción (D-29). Se añade `list(...)` a propósito: la lista que
+        suscripción. Se añade `list(...)` a propósito: la lista que
         viene de la configuración no es siempre del mismo tipo, y concatenar
         una tupla con una lista falla.
         """
@@ -72,9 +72,10 @@ class ProductoViewSet(viewsets.ModelViewSet):
         """
         Aislamiento entre negocios y los filtros de RF-INV-02.
 
-        El filtro por nivel de existencias llega con los lotes, en el bloque 4:
-        hoy no hay de dónde sacar la existencia, y un filtro que no filtra sería
-        peor que no tenerlo.
+        Devuelve solo el catálogo de la licorera de quien pregunta, con las
+        existencias ya sumadas de los lotes, y aplica los filtros que llegan
+        en la dirección: texto buscado, categoría, estado y nivel de
+        existencias.
         """
         # El `order_by` es explícito y no heredado del modelo a propósito: al
         # agrupar para sumar los lotes, Django deja de considerar ordenada la
@@ -215,11 +216,11 @@ class EntradaMercanciaViewSet(mixins.CreateModelMixin,
     """
     Entradas de mercancía (RF-INV-05).
 
-    NO HAY EDITAR NI BORRAR, y es a propósito. Una entrada ya registrada movió
-    existencias y dejó su rastro en el kardex; cambiarla a posteriori haría que
-    el saldo guardado de los movimientos posteriores dejara de cuadrar. Lo que
-    corrige una entrada equivocada es un ajuste con su motivo (RF-INV-06), que
-    es lo que hace un sistema de inventario serio y lo que deja ver qué pasó.
+    No admite editar ni borrar. Una entrada ya registrada movió existencias y
+    dejó su rastro en el kardex; cambiarla después haría que el saldo guardado
+    de los movimientos posteriores dejara de cuadrar. Lo que corrige una
+    entrada equivocada es un ajuste con su motivo (RF-INV-06), que además deja
+    ver qué pasó.
     """
 
     serializer_class = EntradaSerializer

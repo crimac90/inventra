@@ -2,7 +2,6 @@
 El kardex: el único sitio desde el que se escribe un movimiento de inventario
 (RF-INV-09).
 
-POR QUÉ UNA SOLA PUERTA
 Van a mover existencias la entrada de mercancía, el ajuste, la venta, la
 anulación de venta y —el día que exista SED— el traslado. Si cada una escribiera
 su propio movimiento, bastaría olvidarlo en una para que el kardex dejara de

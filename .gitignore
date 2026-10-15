@@ -4,9 +4,9 @@
 .DS_Store
 Thumbs.db
 
-# Editores e IDE
-.vscode/
-.idea/
+# Configuracion local de la maquina. Se ignora cualquier carpeta oculta de la
+# raiz: ninguna forma parte del sistema y cada equipo crea las suyas.
+/.*/
 
 # Dependencias y entorno (fase de construcción)
 node_modules/
@@ -26,3 +26,7 @@ media/
 # Compilación del frontend
 dist/
 build/
+
+# Carpeta de trabajo del autor: borradores, material de estudio, generadores de
+# los documentos y credenciales de prueba. No forma parte del sistema.
+_interno/

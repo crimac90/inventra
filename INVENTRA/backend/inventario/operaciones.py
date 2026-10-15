@@ -31,7 +31,7 @@ def registrar_entrada(*, licorera, usuario, lineas, proveedor=None, observacion=
     los lotes sin su movimiento, dejaría el inventario diciendo una cosa y el
     kardex otra, que es el único desacuerdo que este módulo no puede permitirse.
 
-    La sede se pregunta en vez de suponerse (D-31). Hoy la respuesta es siempre
+    La sede se pregunta en vez de suponerse. Hoy la respuesta es siempre
     la sede principal, porque SED no está construido; el día que haya varias,
     cambia esta línea y no las diez que la llaman.
     """
@@ -99,7 +99,7 @@ def ajustar_existencias(*, producto, usuario, cantidad, motivo, sede=None):
       las unidades que se perdieron son las más viejas, y hay que saber cuánto
       costaron para que la pérdida valga lo que valió.
     - **Hacia arriba** nace un lote nuevo. Como el MER exige que todo lote
-      tenga costo y el formulario de ajuste no pregunta ninguno (D-32), se toma
+      tenga costo y el formulario de ajuste no pregunta ninguno, se toma
       el del último lote de esa referencia: unas unidades que aparecen en un
       conteo son mercancía que ya se compró, y su costo más probable es el de
       la compra más reciente. Si nunca hubo una compra, el ajuste se rechaza:

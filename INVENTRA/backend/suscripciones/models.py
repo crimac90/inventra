@@ -137,7 +137,7 @@ class Licorera(models.Model):
         consulta: «cuál es la suscripción de este negocio» y «puede registrar
         operaciones». Mientras una suscripción vencida y una suspendida eran lo
         mismo, mezclarlas no molestaba. Con los días de gracia sí: una cuenta en
-        mora tiene la fecha pasada y **debe seguir operando** (D-25), de modo que
+        mora tiene la fecha pasada y **debe seguir operando** , de modo que
         la fecha ya no puede decidir por sí sola. Aquí se responde la primera
         pregunta; la segunda la responde `esta_vigente()` sobre la fila devuelta.
 
@@ -219,7 +219,7 @@ class Suscripcion(models.Model):
     # sería buscarla.
     DIAS_DE_PRUEBA = 15
 
-    # Los dos plazos que rodean al vencimiento (D-25). Son dos constantes y no
+    # Los dos plazos que rodean al vencimiento. Son dos constantes y no
     # una, aunque hoy tuvieran el mismo valor, porque significan cosas opuestas:
     # una cuenta los días de antes y la otra los de después. Se eligieron
     # distintos a proposito, para que al leer el código no se confundan y para
@@ -272,7 +272,7 @@ class Suscripcion(models.Model):
         El estado que le corresponde hoy a esta suscripción según su fecha de fin.
 
         ESTE MÉTODO ES LA FUENTE DE VERDAD; la columna `estado` es una copia que
-        la orden `actualizar_estados_suscripciones` mantiene al día (D-25). Se
+        la orden `actualizar_estados_suscripciones` mantiene al día. Se
         hizo así y no al revés porque una copia puede quedarse atrás —basta que
         la orden no corriera anoche— y entonces el sistema dejaría operar a quien
         ya venció. Lo que se calcula en el momento no se olvida de correr.
@@ -288,9 +288,9 @@ class Suscripcion(models.Model):
         if self.estado == self.Estado.CANCELADA:
             return self.Estado.CANCELADA
 
-        # Sin fecha de fin no hay nada que vencer. Desde D-25 la aplicación no
-        # crea filas así, pero la columna admite nulo y las filas antiguas lo
-        # son: se conserva la rama en vez de suponer que no existen.
+        # Sin fecha de fin no hay nada que vencer. La aplicación no crea
+        # filas así, pero la columna admite nulo y las filas antiguas lo son:
+        # se conserva la rama en vez de suponer que no existen.
         if self.fecha_fin is None:
             return self.estado
 
@@ -341,12 +341,10 @@ class Suscripcion(models.Model):
         """
         Si toca avisar de que la fecha de fin se acerca.
 
-        Vive en el modelo y no en el serializador porque es una pregunta sobre
-        la suscripción, no sobre cómo se dibuja. Estuvo escrito a mano en el
-        componente del aviso —un tres repetido en dos lenguajes, que algún día
-        valdría dos en uno de ellos—, pasó al serializador en el bloque 3 y baja
-        aquí al aparecer el segundo interesado: cualquiera que necesite saberlo
-        pregunta en el mismo sitio (regla 14).
+        Vive en el modelo y no en el serializador porque es una pregunta
+        sobre la suscripción, no sobre cómo se dibuja. El umbral se declara una
+        sola vez: repetido en dos lenguajes sería un número que algún día vale
+        uno en un sitio y otro en el otro.
         """
         dias = self.dias_restantes(hoy)
         return dias is not None and dias <= self.DIAS_DE_AVISO
@@ -365,7 +363,7 @@ class Suscripcion(models.Model):
         cambia el día que la prueba vence, y a partir de ahí ya no se podría
         reconocer que lo fue —que es justo cuando hace falta saberlo, para no
         darle días de gracia—. El precio pactado, en cambio, se congela al abrir
-        la fila y no se mueve nunca (D-22, que fija la prueba en cero): es el
+        la fila y no se mueve nunca (que fija la prueba en cero): es el
         único dato que sigue diciendo qué fue esta suscripción después de dejar
         de serlo.
         """

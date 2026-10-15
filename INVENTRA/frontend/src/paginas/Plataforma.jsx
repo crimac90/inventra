@@ -4,13 +4,11 @@
   Es la pantalla del operador de la plataforma, no la de un negocio. Muestra las
   licoreras registradas con su plan y su estado, las cifras globales, y las tres
   operaciones que le corresponden: dar de alta, abrir un periodo —renovar o
-  subir de plan, que son lo mismo (D-26)— y corregir una fecha mal escrita.
+  subir de plan, que son lo mismo — y corregir una fecha mal escrita.
 
-  LO QUE NO ENSENA, Y NO ES UN OLVIDO
-  Nada de la informacion comercial de ningun negocio: ni productos, ni ventas,
-  ni importes suyos. El requisito lo prohibe y el backend no lo devuelve, asi
-  que aqui no hay nada que ocultar; se dice para que nadie lo "complete" mas
-  adelante.
+  No muestra nada de la informacion comercial de ningun negocio: ni productos,
+  ni ventas, ni importes suyos. El requisito lo prohibe y el servidor no lo
+  devuelve, de modo que esta pantalla no tiene de donde sacarlo.
 
   Los textos de los rechazos los escribe el servidor. Esta pantalla los muestra.
 */
@@ -349,7 +347,7 @@ function FormularioSuscripcion({ licorera, modo, planes, ocupado, onGuardar, onC
       )}
       {/*
         El calendario no deja bajar de hoy: una fecha de vencimiento no puede
-        quedar en el pasado (D-25). Es una ayuda, no la regla; el servidor
+        quedar en el pasado. Es una ayuda, no la regla; el servidor
         vuelve a comprobarlo y es ahi donde la regla esta de verdad.
       */}
       <Campo id="fecha_fin" etiqueta="Vigente hasta" tipo="date" minimo={hoy()}

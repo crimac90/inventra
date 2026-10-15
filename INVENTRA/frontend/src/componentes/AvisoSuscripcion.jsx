@@ -17,7 +17,7 @@
   Ningun umbral se escribe aqui. Cuantos dias faltan, cuantos quedan antes de la
   suspension y si toca avisar los resuelve el servidor, donde estan las
   constantes; un numero repetido en dos lenguajes acaba valiendo cosas distintas
-  en cada uno (regla 14).
+  en cada uno.
 */
 
 import { useEffect, useState } from "react";

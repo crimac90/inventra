@@ -46,7 +46,7 @@ class RegistroLicoreraView(APIView):
     """
 
     permission_classes = [AllowAny]
-    # Límite de peticiones por origen (D-11): sin él, esta dirección permite
+    # Límite de peticiones por origen : sin él, esta dirección permite
     # crear cuentas en masa.
     throttle_scope = "registro"
 
@@ -63,7 +63,7 @@ class RegistroLicoreraView(APIView):
         # la licorera es una operación de base de datos y mandar un correo es una
         # llamada a un servicio de fuera. Si el correo falla, la cuenta ya existe
         # y la persona puede pedir otro enlace desde su perfil; lo que no puede
-        # pasar es que un servicio caído impida registrarse (D-10).
+        # pasar es que un servicio caído impida registrarse.
         try:
             enviar_correo_verificacion(usuario)
         except Exception:
@@ -153,17 +153,17 @@ class MisModulosView(APIView):
 
 class CambiarPlanView(APIView):
     """
-    Cambio de plan pedido por el negocio (RF-SUS-02, decisión D-23).
+    Cambio de plan pedido por el negocio (RF-SUS-02).
 
     Solo baja de plan. Subir implica cobrar, y eso lo ejecuta el Administrador
     INVENTRA desde su panel: el servicio es el mismo, lo que cambia es quién
     lo dispara.
 
-    NO LLEVA EL PERMISO DE ESCRITURA, Y ES A PROPÓSITO. Una licorera suspendida
-    no puede registrar operaciones, pero sí tiene que poder pasarse al plan que
-    va a pagar: es el camino que D-25 describe para volver —bajar de plan,
-    pagar, y que INVENTRA renueve la fecha—. Cerrarlo dejaría a esa licorera sin
-    salida dentro de la aplicación.
+    No lleva el permiso de escritura. Una licorera suspendida no puede
+    registrar operaciones, pero sí tiene que poder pasarse al plan que va a
+    pagar: ese es el camino de vuelta —bajar de plan, pagar, y que INVENTRA
+    renueve la fecha—. Cerrarlo la dejaría sin salida dentro de la
+    aplicación.
     """
 
     permission_classes = [EsAdministradorDeLicorera]
@@ -174,8 +174,8 @@ class CambiarPlanView(APIView):
 
         La pantalla lo usa para decir **antes** de pulsar si el cambio procede y,
         si no, por qué: «el plan Básico admite un usuario y tienes tres activos».
-        Ofrecer un botón que se va a rechazar hace trabajar al negocio para nada,
-        que es el mismo defecto que ya se corrigió en la gestión de usuarios.
+        Ofrecer un botón que se va a rechazar hace trabajar al negocio para
+        nada.
 
         El veredicto sale de la misma función que usa el POST, así que la vista
         previa y el rechazo no pueden decir cosas distintas.

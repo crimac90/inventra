@@ -1,33 +1,32 @@
 # -*- coding: utf-8 -*-
 """
-Cambio de plan de una licorera (RF-SUS-02, decisiones D-23 y D-25).
+Cambio de plan de una licorera (RF-SUS-02).
 
-POR QUÉ ESTÁ EN SU PROPIO ARCHIVO Y NO EN LA VISTA
-La misma operación la van a disparar dos sitios distintos: la pantalla del
+Vive en su propio archivo y no dentro de una vista. La misma operación la van a disparar dos sitios distintos: la pantalla del
 negocio, cuando baja de plan, y el panel de INVENTRA, cuando lo sube tras
 cobrar. Escrita dentro de una vista habría que repetirla o llamarla desde fuera
 de su sitio, y las reglas que decide —qué se rechaza, qué fecha hereda la fila
 nueva, qué precio se congela— no son de la interfaz.
 
-LAS REGLAS, Y DE DÓNDE SALEN
+Las reglas que aplica:
 
-  Quién ejecuta (D-23). Bajar lo hace el administrador de la licorera, porque el
+  Quién ejecuta. Bajar lo hace el administrador de la licorera, porque el
   rechazo tiene que salirle a la única persona que puede decidir qué usuario o
   sede inactiva; subir lo hace el Administrador INVENTRA, porque implica cobrar.
   Esa parte la aplica la vista; aquí se decide cuál de los dos sentidos es.
 
-  Qué se rechaza (D-23). El cambio no se permite mientras la licorera tenga más
+  Qué se rechaza. El cambio no se permite mientras la licorera tenga más
   de lo que admite el plan de destino. El sistema dice qué sobra y cuánto, y no
   inactiva nada por su cuenta: eso es una decisión del negocio.
 
-  Qué fecha lleva la fila nueva (D-25). La de la anterior. El cliente no escribe
+  Qué fecha lleva la fila nueva. La de la anterior. El cliente no escribe
   fechas de vencimiento; si la heredara calculada, cambiar de plan sería una
   forma de regalarse vigencia. La fila anterior se cierra el día del cambio.
 
   Durante la prueba no se cambia de plan. La prueba corre sobre Pro para que el
-  negocio evalúe el sistema completo (D-22), y bajarse a Básico en mitad de ella
+  negocio evalúe el sistema completo, y bajarse a Básico en mitad de ella
   contradice lo que el manual promete y abriría dos agujeros: la fila nueva
-  nacería con precio y ganaría los días de gracia que D-25 reserva a quien paga.
+  nacería con precio y ganaría los días de gracia reservados a quien paga.
 """
 
 from django.db import transaction
@@ -76,7 +75,7 @@ def es_bajada(actual, destino):
 
     El sentido se mide por el precio y no por las características porque es el
     precio lo que decide quién puede ejecutarlo: bajar no hay que cobrarlo, y
-    por eso puede hacerlo el propio negocio (D-23).
+    por eso puede hacerlo el propio negocio.
     """
     return destino.precio_mensual < actual.precio_mensual
 
@@ -121,8 +120,7 @@ def motivo_para_no_cambiar(licorera, destino):
     """
     `None` si el negocio puede pasarse a ese plan; si no, `(codigo, por que)`.
 
-    POR QUE ESTA FUNCION EXISTE APARTE
-    La pantalla necesita decir **antes** de pulsar si el cambio va a proceder, y
+        Existe aparte porque la pantalla necesita decir **antes** de pulsar si el cambio va a proceder, y
     la vista necesita rechazarlo **al** pulsar. Si fueran dos comprobaciones
     distintas acabarian discrepando —el boton habilitado sobre un cambio que el
     servidor rechaza, o al reves— y el usuario no sabria a cual creer. Aqui hay
@@ -182,12 +180,12 @@ def cambiar(licorera, destino):
 
 
 # ---------------------------------------------------------------------------
-# Lo que ejecuta el Administrador INVENTRA (RF-SUS-01 y RF-SUS-05, D-25)
+# Lo que ejecuta el Administrador INVENTRA (RF-SUS-01 y RF-SUS-05)
 # ---------------------------------------------------------------------------
 
 def _no_puede_ser_pasada(fecha_fin):
     """
-    La fecha que escribe una persona nunca puede quedar en el pasado (D-25).
+    La fecha que escribe una persona nunca puede quedar en el pasado.
 
     El mínimo es hoy, así que lo más agresivo que puede hacer una corrección es
     dejar el vencimiento en hoy, nunca ayer: un negocio no puede quedarse sin
@@ -217,7 +215,7 @@ def abrir_periodo(licorera, plan, fecha_fin):
 
     **Bajar de plan no se hace desde aquí.** El rechazo por exceso de usuarios o
     sedes tiene que salirle a quien puede decidir qué inactiva, y esa persona no
-    está en INVENTRA (D-23).
+    está en INVENTRA.
     """
     _no_puede_ser_pasada(fecha_fin)
     if not plan.activo:
@@ -263,7 +261,7 @@ def abrir_periodo(licorera, plan, fecha_fin):
 @transaction.atomic
 def corregir_vencimiento(licorera, fecha_fin):
     """
-    Cambia la fecha de la suscripción vigente, sin abrir una fila nueva (D-25).
+    Cambia la fecha de la suscripción vigente, sin abrir una fila nueva.
 
     Es el caso de haber escrito dos años donde eran dos meses. No es una
     renovación: no hay período nuevo, hay un dato mal puesto.

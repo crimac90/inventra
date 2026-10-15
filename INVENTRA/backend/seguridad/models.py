@@ -69,7 +69,7 @@ class UsuarioManager(BaseUserManager):
         )
         extras.setdefault("rol", rol)
         extras.setdefault("licorera", None)
-        # Nace con el correo confirmado (D-29): la dirección la escribe quien
+        # Nace con el correo confirmado : la dirección la escribe quien
         # administra el servidor, no quien se registra, y a esta cuenta no se le
         # entrega ninguna prueba gratuita. Exigirle la confirmación dejaría al
         # operador de la plataforma sin poder dar de alta ni renovar a nadie.
@@ -101,7 +101,7 @@ class Usuario(AbstractBaseUser):
         default=False,
         help_text=(
             "Si la persona confirmó su correo abriendo el enlace que se le envió. "
-            "Una cuenta sin verificar entra al sistema, pero ve un aviso (D-10)."
+            "Una cuenta sin verificar entra al sistema, pero ve un aviso."
         ),
     )
     telefono = models.CharField(

@@ -1,8 +1,7 @@
 """
 Carga el juego de datos de demostración del proyecto.
 
-POR QUÉ ES UN COMANDO Y NO UNA MIGRACIÓN
-Los planes y los roles sí se cargan con migraciones, porque son datos que el
+Es un comando y no una migración. Los planes y los roles sí se cargan con migraciones, porque son datos que el
 sistema necesita para funcionar: sin ellos no se puede registrar a nadie. Estas
 cuentas son otra cosa. Sus contraseñas están publicadas en el archivo de
 despliegue, así que una migración las crearía también en el servidor publicado,
@@ -12,12 +11,9 @@ en producción.
 Por eso son un comando: se ejecuta cuando alguien quiere, en el equipo que
 quiere, y queda constancia de que fue una decisión y no un efecto secundario.
 
-LAS SUSCRIPCIONES LLEVAN FECHA DE FIN
-Hasta el cierre del módulo SUS se creaban sin ella, y eso contradecía la
-decisión D-25: si toda suscripción tiene fecha de fin y el estado se deriva de
-ella, una suscripción sin fecha es una que nunca vence. El juego de datos
-enseñaba, a quien lo cargara para conocer el sistema, justo lo contrario de lo
-que el sistema hace.
+Toda suscripción que carga lleva fecha de fin, porque el estado se deriva de
+ella: una suscripción sin fecha es una que nunca vence, y el juego de datos
+enseñaría lo contrario de lo que el sistema hace.
 
 USO
     py manage.py cargar_datos_demo
@@ -43,10 +39,8 @@ CONTRASENA = "Inventra2026"
 
 # Días de vigencia que se le dan a cada suscripción de demostración.
 #
-# POR QUÉ NO SON IGUALES
-# La decisión D-25 obliga a que toda suscripción tenga fecha de fin, porque el
-# estado se deriva de ella. Puestas las dos a la misma distancia, el juego de
-# datos enseñaría un solo caso. Así enseña dos: La Esquina vigente con holgura,
+# Las dos distancias son distintas. Puestas a la misma, el juego
+# de datos enseñaría un solo caso. Así enseña dos: La Esquina vigente con holgura,
 # y El Vecino dentro de los tres días de aviso, de modo que quien carga los
 # datos ve la franja de advertencia sin tener que mover ninguna fecha a mano.
 DIAS_DE_VIGENCIA = {"Licorera La Esquina": 25, "Licorera El Vecino": 2}
@@ -167,7 +161,7 @@ class Command(BaseCommand):
             rol=Rol.objects.get(nombre=nombre_rol),
             licorera=licorera,
             telefono=telefono,
-            # Confirmadas (D-29). Desde que el correo sin confirmar impide
+            # Confirmadas. Desde que el correo sin confirmar impide
             # registrar, un juego de datos sin confirmar no serviría para
             # recorrer el sistema, que es justamente para lo que existe. La
             # verificación se demuestra registrando una licorera nueva, que es

@@ -731,7 +731,7 @@ qué migraciones se aplicaron.
 
 ## 13. Vigencia de las suscripciones
 
-Toda suscripción tiene una fecha de fin y el estado se deduce de ella (decisión D-25). Quien
+Toda suscripción tiene una fecha de fin y el estado se deduce de ella. Quien
 la escribe es siempre una persona —el Administrador INVENTRA, al dar de alta, al renovar o
 al corregir una fecha mal tecleada— y nunca el sistema por su cuenta. De esa regla cuelga
 que el aviso por correo al negocio salga exactamente cuando alguien cambió su vigencia, y no

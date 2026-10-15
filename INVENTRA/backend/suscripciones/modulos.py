@@ -1,12 +1,9 @@
 """
 Catálogo de módulos y en qué estado le llega cada uno a una licorera (RF-SUS-04).
 
-POR QUÉ EXISTE ESTE ARCHIVO
-El menú lateral decidía por su cuenta qué mostrar: la lista de módulos y la
-marca «Pronto» estaban escritas a mano en el componente. Mientras todo estuviera
-por construir no se notaba, pero esconde un error que sí se ve hoy: a una
-licorera con plan Básico, el menú le dice que Sedes llegará «Pronto», y para
-ella no va a llegar nunca, porque multisede es del plan Pro. Decirle «Pronto» a
+El estado de cada módulo lo decide el servidor y no el menú lateral. La
+diferencia importa: a una licorera con plan Básico, Sedes no le llega nunca,
+porque multisede es del plan Pro. Decirle «Pronto» a
 quien nunca lo va a tener es prometer lo que no se piensa cumplir.
 
 Tres estados, y el orden en que se deciden importa:
@@ -18,8 +15,7 @@ Tres estados, y el orden en que se deciden importa:
     pronto      está en su plan pero todavía no se ha construido.
     disponible  está en su plan y se puede usar.
 
-QUÉ NO DECIDE ESTE ARCHIVO
-Qué módulos ve un vendedor y cuáles no. Eso depende del rol y se resuelve en el
+Lo que este archivo no decide: qué módulos ve un vendedor y cuáles no. Eso depende del rol y se resuelve en el
 frontend como cortesía, con el permiso del backend detrás: ocultar una entrada
 del menú no protege nada.
 """

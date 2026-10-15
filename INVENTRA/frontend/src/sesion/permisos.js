@@ -1,9 +1,9 @@
 /*
-  Lo que la interfaz sabe sobre quien puede registrar informacion (D-29).
+  Lo que la interfaz sabe sobre quien puede registrar informacion.
 
   Gemelo de `suscripciones/permissions.py`. LA REGLA DE VERDAD VIVE EN EL
   SERVIDOR: esta funcion no protege nada y no puede, porque cualquiera abre las
-  herramientas del navegador. Existe por una sola razon, la misma del bloque 7a:
+  herramientas del navegador. Existe por una sola razon:
   no ofrecer un boton que se va a rechazar, y decir el motivo antes de que la
   persona rellene un formulario para nada.
 

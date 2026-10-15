@@ -147,7 +147,7 @@ class MiSuscripcionSerializer(serializers.Serializer):
     puede_operar = serializers.SerializerMethodField()
 
     # El estado que sale de aquí es el calculado, no el que tiene guardado la
-    # fila (D-25). La columna la pone al día una orden que corre a diario, y si
+    # fila. La columna la pone al día una orden que corre a diario, y si
     # una noche no corriera, el panel diría que la prueba sigue viva el día
     # después de vencer. Lo que se calcula no se queda atrás.
     def get_estado(self, suscripcion):
@@ -166,11 +166,11 @@ class MiSuscripcionSerializer(serializers.Serializer):
         """
         Si al panel le toca avisar de que la fecha se acerca.
 
-        Se resuelve en el servidor y no en el navegador para que el umbral viva
-        en un solo sitio: estaba escrito a mano en el componente del aviso, y un
-        tres repetido en dos lenguajes distintos es un tres que algún día valdrá
-        dos en uno de ellos. La regla misma está en el modelo, que es a quien le
-        corresponde la pregunta; aquí solo se expone.
+        Se resuelve en el servidor y no en el navegador para que el umbral
+        viva en un solo sitio: repetido en dos lenguajes distintos sería un
+        número que algún día vale uno en un sitio y otro en el otro. La regla
+        está en el modelo, que es a quien le corresponde la pregunta; aquí solo
+        se expone.
         """
         return suscripcion.avisa_vencimiento()
 
@@ -185,7 +185,7 @@ class AltaLicoreraSerializer(serializers.Serializer):
     """
     Alta de una licorera por el Administrador INVENTRA (RF-SUS-01, segunda vía).
 
-    Es la otra puerta que decidió D-10. Se diferencia del autoservicio en dos
+    Es la segunda vía de alta. Se diferencia del autoservicio en dos
     cosas, y las dos vienen de que aquí hay un contrato de por medio: el plan y
     la fecha de vencimiento los escribe quien dio de alta, en vez de salir de la
     prueba de quince días.

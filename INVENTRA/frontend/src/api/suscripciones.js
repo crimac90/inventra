@@ -32,7 +32,7 @@ export function consultarMisModulos() {
 
 /*
   Cambia el plan de la licorera de la sesion. Solo sirve para bajar: subir
-  implica cobrar y lo ejecuta el Administrador INVENTRA desde su panel (D-23).
+  implica cobrar y lo ejecuta el Administrador INVENTRA desde su panel.
   El servidor responde 409 con el motivo cuando el cambio no procede.
 */
 export function cambiarDePlan(plan) {

@@ -6,20 +6,16 @@
   deja ver el alcance del sistema, y apagarlos evita el enlace que no lleva a
   ninguna parte.
 
-  POR QUE EL ESTADO VIENE DEL SERVIDOR
-  Estaba escrito a mano aqui, y eso escondia un error que si se ve hoy: a una
-  licorera con plan Basico el menu le anunciaba Sedes como «Pronto», y para ella
-  no va a llegar nunca, porque multisede es del plan Pro. Que un modulo este
-  construido lo sabe el servidor, y que entre en el plan contratado tambien
-  (RF-SUS-04). Aqui se queda solo lo que es de la interfaz: el orden, el icono y
-  el texto. Mientras la respuesta no llega, los modulos sin direccion se pintan
-  apagados y sin etiqueta: es lo que ya eran.
+  El estado de cada modulo lo dice el servidor, no esta escrito aqui. Que un
+  modulo este construido y que entre en el plan contratado son dos preguntas
+  suyas (RF-SUS-04): a una licorera con plan Basico, Sedes no le llega nunca,
+  porque multisede es del plan Pro, y anunciarlo como «Pronto» seria falso. De
+  la interfaz es solo el orden, el icono y el texto. Mientras la respuesta no
+  llega, los modulos sin direccion se pintan apagados y sin etiqueta.
 
-  DOS MENUS, NO UNO CON EXCEPCIONES
-  El operador de INVENTRA no es un usuario con mas permisos: es otro oficio. Su
-  menu se arma de una lista aparte, mas abajo, y no de los seis modulos con
-  entradas apagadas, que es como habria quedado si se hubiera tratado como un
-  caso raro del menu del negocio.
+  El operador de INVENTRA tiene su propio menu, armado de una lista aparte. No
+  es un usuario con mas permisos sobre los seis modulos: es otro oficio, y
+  ninguno de ellos es suyo.
 
   Los iconos van escritos aqui, en linea, por dos razones: son los mismos ocho
   del prototipo, sobre reticula de 24 pixeles, y al ser dibujos y no imagenes

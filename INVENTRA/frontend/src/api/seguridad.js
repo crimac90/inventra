@@ -94,7 +94,7 @@ export function reactivarUsuario(id) {
 }
 
 /*
-  Confirmación del correo (D-10). La pantalla que llama a esta función se abre
+  Confirmación del correo. La pantalla que llama a esta función se abre
   desde el enlace del mensaje, sin sesión iniciada: lo que autoriza la operación
   es la firma del token, no la cabecera de autenticación.
 */
@@ -108,7 +108,7 @@ export function reenviarVerificacion() {
 }
 
 /*
-  Corrige la propia dirección mientras la cuenta siga pendiente (D-29). El
+  Corrige la propia dirección mientras la cuenta siga pendiente. El
   servidor cierra esta puerta en cuanto el correo queda confirmado, porque desde
   ese momento cambiarlo es cosa del administrador (RF-SEG-06).
 */

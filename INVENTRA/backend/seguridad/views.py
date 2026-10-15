@@ -42,7 +42,7 @@ class InicioSesionView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = InicioSesionSerializer
 
-    # Límite de peticiones por origen (D-11). Es distinto del bloqueo de cinco
+    # Límite de peticiones por origen. Es distinto del bloqueo de cinco
     # intentos: aquel es POR CUENTA, y no impide probar una misma contraseña
     # contra miles de correos sin bloquear ninguna. Este cuenta por origen.
     throttle_scope = "ingreso"
@@ -200,7 +200,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         """
         Si el administrador cambió el correo de alguien, esa cuenta vuelve a
         quedar pendiente de confirmación y hay que enviarle el enlace nuevo
-        (decisión D-29).
+        .
 
         El serializador es quien sabe si el correo cambió —compara con el valor
         anterior antes de guardarlo—; aquí solo se manda el correo, porque
@@ -350,7 +350,7 @@ class RestablecerContrasenaView(APIView):
 
 class VerificarCorreoView(APIView):
     """
-    Confirmación del correo desde el enlace recibido (D-10).
+    Confirmación del correo desde el enlace recibido.
 
     Es pública por la misma razón que el restablecimiento: quien abre el enlace
     puede estar en otro navegador o en el teléfono, sin sesión iniciada. Lo que
@@ -376,7 +376,7 @@ class VerificarCorreoView(APIView):
 
 class ReenviarVerificacionView(APIView):
     """
-    Reenvío del enlace de confirmación (D-10).
+    Reenvío del enlace de confirmación.
 
     Esta sí exige sesión, y por eso no necesita responder de forma ambigua como
     la recuperación de contraseña: el correo se manda a la dirección de quien

@@ -4,8 +4,7 @@ Permisos del módulo de suscripciones.
 Aquí vive la regla que traduce el estado de la suscripción en conducta
 (RF-SUS-03): una cuenta suspendida deja consultar y no deja registrar.
 
-POR QUÉ ES UN PERMISO Y NO UNA COMPROBACIÓN EN CADA VISTA
-Lo van a preguntar INV, VEN, SED y FAC antes de cada escritura. Escrita en cada
+Es un permiso y no una comprobación repetida en cada vista. Lo van a preguntar INV, VEN, SED y FAC antes de cada escritura. Escrita en cada
 vista, la regla se repetiría en decenas de sitios y bastaría olvidarla en uno
 para que un negocio suspendido siguiera registrando ventas. Escrita aquí, se
 añade a una vista con una línea y se comprueba antes de que la petición toque la
@@ -31,20 +30,18 @@ class PuedeRegistrarOperaciones(BasePermission):
     Deja consultar siempre y registrar solo con el correo confirmado y la
     suscripción vigente.
 
-    DOS MOTIVOS, UN SOLO PERMISO (decisión D-29)
-    Hasta el 05/10/2026 solo miraba la suscripción. Se le añadió el correo sin
-    confirmar porque la prueba gratuita entrega quince días del plan Pro, y
-    entregar eso a una dirección que nadie demostró controlar es regalar el
-    producto a un desconocido. Como la regla es la misma —consultar sí,
-    registrar no— vive en el mismo sitio en vez de en un permiso paralelo que
+    Son dos motivos dentro de un solo permiso. El correo cuenta porque la
+    prueba gratuita entrega quince días del plan Pro, y entregar eso a una
+    dirección que nadie demostró controlar es regalar el producto a un
+    desconocido. Como la regla es la misma —consultar sí, registrar no— vive
+    en el mismo sitio en vez de en un permiso paralelo que
     habría que recordar enganchar en cada vista nueva.
 
     «Vigente» incluye la cuenta en mora: durante los días de gracia el negocio
-    opera con normalidad y solo ve un aviso de pago (D-25). El corte llega con
+    opera con normalidad y solo ve un aviso de pago. El corte llega con
     la suspensión.
 
-    EL ORDEN IMPORTA, Y ES A PROPÓSITO
-    Con varios permisos DRF devuelve el mensaje del primero que falla, y aquí
+    El orden de los dos motivos no es casual. Con varios permisos DRF devuelve el mensaje del primero que falla, y aquí
     los dos motivos viven dentro de uno solo, así que el orden lo decide este
     método. Se mira primero el correo: es la condición más básica —sin ella no
     sabemos ni a quién pertenece la cuenta— y es la única que la persona puede

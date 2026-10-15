@@ -130,7 +130,7 @@ class PlanesTests(TestCase):
 class LimiteDeRegistroTests(TestCase):
     """
     El registro es público, así que sin límite admitiría la creación de cuentas
-    en masa (decisión D-11). Cinco por hora y origen: nadie abre cinco licorerías
+    en masa. Cinco por hora y origen: nadie abre cinco licorerías
     en una hora.
     """
 
@@ -206,7 +206,7 @@ class DatosDeDemostracionTests(TestCase):
 
         self.assertEqual(Licorera.objects.count(), 2)
         self.assertEqual(Usuario.objects.count(), 4)
-        # La sede se añadió después que el resto (D-30) y es lo último que se
+        # La sede se añadió después que el resto  y es lo último que se
         # creó: si algo se duplicara al repetir la orden, sería esto.
         self.assertEqual(Sede.objects.count(), 2)
 
@@ -232,9 +232,9 @@ class DatosDeDemostracionTests(TestCase):
 
     def test_las_cuentas_de_demostracion_nacen_con_el_correo_confirmado(self):
         """
-        Desde D-29 una cuenta sin confirmar no puede registrar nada, de modo que
-        un juego de datos sin confirmar no serviría para recorrer el sistema,
-        que es justamente para lo que existe. La verificación se demuestra
+        Una cuenta sin confirmar no puede registrar nada, de modo que un
+        juego de datos sin confirmar no serviría para recorrer el sistema, que
+        es justamente para lo que existe. La verificación se demuestra
         registrando una licorera nueva, que además es como ocurre de verdad.
         """
         self.cargar()
@@ -247,10 +247,9 @@ class DatosDeDemostracionTests(TestCase):
 
     def test_toda_suscripcion_cargada_tiene_fecha_de_fin(self):
         """
-        D-25: el estado se deriva de la fecha de fin, así que una suscripción
-        sin fecha es una que no vence nunca. El comando las creaba así, y el
-        juego de datos enseñaba a quien lo cargaba lo contrario de lo que el
-        sistema hace. La prueba fija que no vuelva a pasar.
+        El estado se deriva de la fecha de fin, así que una suscripción sin
+        fecha es una que no vence nunca. Un juego de datos con suscripciones
+        así enseñaría lo contrario de lo que el sistema hace.
         """
         self.cargar()
 
@@ -286,7 +285,7 @@ class DatosDeDemostracionTests(TestCase):
 
     def test_las_dos_licoreras_nacen_con_su_sede(self):
         """
-        Sin sede no se puede registrar inventario (D-30), así que un juego de
+        Sin sede no se puede registrar inventario, así que un juego de
         datos sin sedes no serviría para recorrer INV, que es justo para lo que
         existe.
         """
@@ -347,11 +346,9 @@ class ScriptsSqlTests(TestCase):
         """
         El contenido del archivo SIN los comentarios.
 
-        No es un detalle: la primera versión de esta prueba buscaba la palabra
-        «suscripcion» en el archivo entero, y la encontraba dentro del comentario
-        «-- suscripciones.0001_initial». La prueba pasaba con un archivo que no
-        tenía una sola línea de SQL. Una comprobación tiene que mirar lo que
-        importa, no lo que está cerca.
+        Buscar una palabra en el archivo entero la encontraría dentro de un
+        comentario como «-- suscripciones.0001_initial», y la prueba pasaría
+        con un archivo sin una sola línea de SQL.
         """
         return "\n".join(
             linea
@@ -430,12 +427,9 @@ class SuscripcionVigenteTests(TestCase):
     """
     Qué suscripción manda hoy (RF-SUS-03).
 
-    POR QUÉ EXISTE ESTA CLASE
-    El 27/09/2026 se añadió el estado «en prueba» y se cambió la consulta que
-    decide cuál es la suscripción vigente. Las 64 pruebas de entonces siguieron
-    pasando, pero eso no probaba nada: ninguna creaba una suscripción en prueba ni
-    ponía una fecha de fin, así que ninguna ejecutaba la línea que había cambiado.
-    Es el mismo caso del 400 frente al 401 del módulo SEG: unas pruebas que pasan
+    Cubre el estado «en prueba» y la consulta que decide cuál es la
+    suscripción vigente. Sin pruebas que creen una suscripción en prueba y le
+    pongan fecha de fin, esa línea no la ejecuta nadie: unas pruebas que pasan
     solo dicen que no se rompió lo que ya miraban.
     """
 
@@ -659,10 +653,9 @@ class PeriodoDePruebaTests(TestCase):
 
 class EstadoPorFechaTests(TestCase):
     """
-    El escalón entre vencer y quedar suspendido (RF-SUS-03, decisión D-25).
+    El escalón entre vencer y quedar suspendido (RF-SUS-03).
 
-    POR QUÉ ESTA CLASE MIRA DÍA A DÍA
-    Lo que se construyó no es «vencida sí o no», son cuatro días en los que la
+    Mira día a día porque lo que se construyó no es «vencida sí o no», son cuatro días en los que la
     cuenta está vencida y sigue trabajando. Una prueba que solo comprobara
     «antes» y «mucho después» pasaría sin ejecutar nunca la rama de la mora, que
     es la única línea nueva. Se comprueban los dos bordes: el primer día de
@@ -776,7 +769,7 @@ class EstadoPorFechaTests(TestCase):
 
 class OrdenDeEstadosTests(TestCase):
     """
-    La orden que copia el estado calculado a la columna (decisión D-25).
+    La orden que copia el estado calculado a la columna.
 
     Se comprueba sobre todo lo que la orden NO debe hacer, que es donde está el
     riesgo: retroceder, tocar la fecha o revivir una cancelada.
@@ -861,10 +854,9 @@ class OrdenDeEstadosTests(TestCase):
         """
         El verbo va en condicional y en la forma que le toca a la cantidad.
 
-        Esta prueba exigía «cambiarían» sobre una sola fila, y pasaba porque el
-        resumen estaba escrito a mano como «1 suscripción(es) cambiarían». Es
-        decir, fijaba el defecto: una prueba puede sostener en pie justo lo que
-        habría que corregir, y entonces no protege, estorba.
+        El verbo concuerda con la cantidad: una fila cambiaría, varias
+        cambiarían. Un resumen escrito como «1 suscripción(es) cambiarían»
+        cumple la letra y no la concordancia.
         """
         suscripcion = self.crear(Suscripcion.Estado.ACTIVA, vencida_hace=2)
         salida = self.correr("--simular")
@@ -910,8 +902,8 @@ class PermisoDeEscrituraTests(TestCase):
         self.suscripcion = Suscripcion.objects.get(licorera=self.licorera)
         self.vendedor = Rol.objects.get(nombre=Rol.VENDEDOR)
         self.duena = Usuario.objects.get(correo=self.DATOS["correo"])
-        # El registro por autoservicio deja la cuenta pendiente de confirmación,
-        # y desde D-29 eso también corta la escritura. Las pruebas de ESTA clase
+        # El registro por autoservicio deja la cuenta pendiente de
+        # confirmación, y eso también corta la escritura. Las pruebas de ESTA clase
         # son del motivo «suscripción», así que se confirma aquí; el motivo
         # «correo» tiene las suyas, más abajo.
         self.confirmar_correo()
@@ -951,7 +943,7 @@ class PermisoDeEscrituraTests(TestCase):
     def test_con_la_suscripcion_vigente_se_puede_crear(self):
         self.assertEqual(self.crear_vendedor().status_code, status.HTTP_201_CREATED)
 
-    # -- El segundo motivo del mismo permiso: el correo sin confirmar (D-29) --
+    # -- El segundo motivo del mismo permiso: el correo sin confirmar  --
 
     def test_sin_confirmar_el_correo_no_se_puede_crear(self):
         """
@@ -975,7 +967,7 @@ class PermisoDeEscrituraTests(TestCase):
 
     def test_con_los_dos_motivos_el_mensaje_habla_del_correo(self):
         """
-        El orden es una decisión, no una casualidad (D-29): el correo es la
+        El orden es una decisión, no una casualidad : el correo es la
         condición más básica y la única que la persona resuelve sola en un
         minuto. Mandar a renovar el plan a quien además no ha confirmado su
         correo es mandarlo a lo caro antes que a lo inmediato.
@@ -1104,11 +1096,9 @@ class ModulosSegunElPlanTests(TestCase):
     """
     En qué estado le llega cada módulo del menú a una licorera (RF-SUS-04).
 
-    POR QUÉ IMPORTA EL CASO DEL BÁSICO
-    Antes, el menú anunciaba Sedes como «Pronto» a todo el mundo. A quien tiene
-    plan Básico eso le promete algo que no va a llegar nunca, porque multisede
-    es del Pro. Es la diferencia que este bloque viene a arreglar y la que estas
-    pruebas vigilan.
+    El caso del plan Básico es el que importa: anunciarle Sedes como «Pronto»
+    le prometería algo que no va a llegar nunca, porque multisede es del Pro.
+    Es lo que estas pruebas vigilan.
     """
 
     DATOS = {
@@ -1211,7 +1201,7 @@ class ModulosSegunElPlanTests(TestCase):
 
 class CambioDePlanTests(TestCase):
     """
-    Bajar y subir de plan (RF-SUS-02, decisiones D-23 y D-25).
+    Bajar y subir de plan (RF-SUS-02).
 
     La licorera nace en prueba sobre Pro, así que casi todas las pruebas la pasan
     antes a un Pro contratado: la prueba tiene reglas propias y se comprueban
@@ -1271,7 +1261,7 @@ class CambioDePlanTests(TestCase):
         self.assertFalse(es_bajada(self.basico, self.pro))
 
     def test_el_negocio_no_puede_subir_de_plan_por_su_cuenta(self):
-        """Subir implica cobrar, y el cobro no pasa por la aplicación (D-23)."""
+        """Subir implica cobrar, y el cobro no pasa por la aplicación."""
         self.contratar_pro()
         self.suscripcion.plan = self.basico
         self.suscripcion.precio_pactado = self.basico.precio_mensual
@@ -1299,7 +1289,7 @@ class CambioDePlanTests(TestCase):
     def test_la_fila_nueva_hereda_la_fecha_de_vencimiento(self):
         """
         El cliente no escribe fechas: si la fila nueva estrenara vigencia,
-        cambiar de plan sería una forma de regalársela (D-25).
+        cambiar de plan sería una forma de regalársela.
         """
         self.contratar_pro()
         vence = self.suscripcion.fecha_fin
@@ -1327,9 +1317,9 @@ class CambioDePlanTests(TestCase):
 
     def test_la_licorera_suspendida_puede_bajar_de_plan(self):
         """
-        Es el camino de vuelta que describe D-25: bajar, pagar y que INVENTRA
-        renueve. Si el permiso de escritura cerrara esta puerta, esa licorera se
-        quedaría sin salida dentro de la aplicación.
+        Es el camino de vuelta: bajar, pagar y que INVENTRA renueve. Si el
+        permiso de escritura cerrara esta puerta, esa licorera se quedaría sin
+        salida dentro de la aplicación.
         """
         self.contratar_pro(vence_en=-30)
         self.assertIsNone(self.licorera.suscripcion_vigente())
@@ -1636,7 +1626,7 @@ class PanelDeLaPlataformaTests(PanelBase):
 
 
 class AbrirPeriodoTests(PanelBase):
-    """Renovar y subir de plan, que son la misma operación (D-25)."""
+    """Renovar y subir de plan, que son la misma operación."""
 
     def pedir(self, plan=None, dias=30, correo=None):
         cuerpo = {"plan": (plan or self.basico).id}
@@ -1670,7 +1660,7 @@ class AbrirPeriodoTests(PanelBase):
     def test_bajar_de_plan_no_se_hace_desde_el_panel(self):
         """
         El rechazo por exceso de usuarios tiene que salirle a quien decide qué
-        inactiva, y esa persona no está en INVENTRA (D-23).
+        inactiva, y esa persona no está en INVENTRA.
         """
         self.suscripcion.plan = self.pro
         self.suscripcion.precio_pactado = self.pro.precio_mensual
@@ -1764,7 +1754,7 @@ class AbrirPeriodoTests(PanelBase):
 
 
 class CorregirVencimientoTests(PanelBase):
-    """La fecha mal escrita se arregla; nada queda irreparable (D-25)."""
+    """La fecha mal escrita se arregla; nada queda irreparable."""
 
     def corregir(self, dias, correo=None):
         return self.client.patch(

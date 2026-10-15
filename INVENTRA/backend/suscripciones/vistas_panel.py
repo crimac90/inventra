@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Panel del Administrador INVENTRA (RF-SUS-05 y RF-SUS-01, decisión D-25).
+Panel del Administrador INVENTRA (RF-SUS-05 y RF-SUS-01).
 
 Lo que el operador de la plataforma puede hacer: ver las licoreras con su plan y
 su estado, darlas de alta con un plan contratado, abrir un período nuevo
 —renovar o subir de plan, que son la misma operación— y corregir una fecha de
 vencimiento mal escrita.
 
-LO QUE NO PUEDE HACER, Y ESTÁ VIGILADO POR EL PROPIO DISEÑO DE ESTAS RESPUESTAS
-Ver la información comercial de un negocio. El requisito lo prohíbe y la forma
+Lo que no puede hacer, y lo impide el diseño de estas respuestas: ver la
+información comercial de un negocio. El requisito lo prohíbe y la forma
 de cumplirlo no es acordarse: es que estas vistas no consulten nada de eso. De
 aquí salen nombre, contacto, plan, estado y número de cuentas; no hay ninguna
 consulta a productos ni a ventas que alguien pueda ampliar por descuido.
@@ -121,7 +121,7 @@ class AltaLicoreraView(APIView):
 
 class SuscripcionDeLicoreraView(APIView):
     """
-    Las dos operaciones sobre la vigencia de una licorera (decisión D-25).
+    Las dos operaciones sobre la vigencia de una licorera.
 
         POST   abre un período nuevo: renovar, o subir de plan.
         PATCH  corrige la fecha de la suscripción vigente.

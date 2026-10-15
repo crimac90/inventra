@@ -1,8 +1,7 @@
 """
 Genera los scripts SQL del proyecto a partir de las migraciones.
 
-POR QUÉ SE GENERAN Y NO SE ESCRIBEN A MANO
-Las tablas reales las crea Django a partir de las migraciones. Un script escrito
+Se generan y no se escriben a mano. Las tablas reales las crea Django a partir de las migraciones. Un script escrito
 a mano desde el MER se queda atrás en cuanto cambia un modelo, y nadie se entera
 hasta que alguien lo ejecuta y obtiene una base distinta de la que la aplicación
 espera. Generándolo desde la misma fuente, no puede mentir.
@@ -16,8 +15,7 @@ Son dos archivos y no uno porque responden a preguntas distintas: el primero
 crea la base vacía, el segundo la deja utilizable. Al restaurar una copia de
 seguridad se usa el primero; al preparar un entorno nuevo, los dos.
 
-POR QUÉ LA CARGA INICIAL SE GENERA APARTE
-`sqlmigrate` traduce a SQL las migraciones de estructura, pero los planes y los
+La carga inicial se genera aparte. `sqlmigrate` traduce a SQL las migraciones de estructura, pero los planes y los
 roles se cargan con código Python (`RunPython`), no con sentencias SQL, así que
 de esas migraciones no sale nada. Se leen las filas de la base y se escriben sus
 `INSERT`.

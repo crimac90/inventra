@@ -196,10 +196,10 @@ class CodigoDeBarrasTests(CatalogoBase):
         en la base, que es lo que haría una carga masiva, una corrección a mano
         o un error de programación futuro.
 
-        Existe por un aviso del propio Django al migrar: la primera versión de
-        la restricción llevaba condición, MySQL no las admite y la restricción
-        **no se creaba**. La validación del serializador seguía pasando, así que
-        sin esta prueba el hueco no se habría visto nunca.
+        Comprueba que la restricción existe en la base y no solo en el
+        serializador. Una restricción única con condición no la crea MySQL, y
+        sin esta prueba la validación del servidor seguiría pasando aunque la
+        base no protegiera nada.
         """
         self.crear()
 
@@ -611,7 +611,7 @@ class EntradaDeMercanciaTests(CatalogoBase):
 
     def test_sin_sede_no_se_puede_recibir(self):
         """
-        No debería ocurrir —toda licorera nace con la suya (D-30)—, pero la
+        No debería ocurrir —toda licorera nace con la suya —, pero la
         operación lo comprueba en vez de dar por hecho que está.
         """
         huerfana = Licorera.objects.create(nombre="Sin sede", correo="sin@prueba.com")
@@ -956,8 +956,8 @@ class AjusteDeExistenciasTests(CatalogoBase):
 
     def test_un_ajuste_positivo_crea_un_lote_al_costo_del_ultimo(self):
         """
-        D-32: unas unidades que aparecen en un conteo son mercancía ya
-        comprada, y su costo más probable es el de la compra más reciente.
+        Unas unidades que aparecen en un conteo son mercancía ya comprada, y
+        su costo más probable es el de la compra más reciente.
         """
         registrar_entrada(
             licorera=self.licorera, usuario=self.administrador,

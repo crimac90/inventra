@@ -217,7 +217,7 @@ class GestionUsuariosTests(TestCase):
             rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
             # Esta clase prueba la gestión de usuarios, no la confirmación del
             # correo: sin esto el permiso cortaría todas sus escrituras y los
-            # fallos hablarían de otra cosa (D-29).
+            # fallos hablarían de otra cosa.
             correo_verificado=True,
         )
         self.url_lista = reverse("usuario-list")
@@ -321,7 +321,7 @@ class LimitePorPlanTests(TestCase):
         self.administrador = Usuario.objects.create_user(
             correo="admin@basica.com", nombre_completo="Administrador", password=self.CLAVE,
             licorera=self.licorera, rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
-            correo_verificado=True,   # la prueba es del tope del plan (D-29)
+            correo_verificado=True,   # la prueba es del tope del plan 
         )
         respuesta = self.client.post(
             reverse("ingresar"),
@@ -578,7 +578,7 @@ class PerfilPropioTests(TestCase):
 
 class LimiteDePeticionesTests(TestCase):
     """
-    Comprueba el límite de peticiones por origen (decisión D-11).
+    Comprueba el límite de peticiones por origen.
 
     La diferencia con el bloqueo de RF-SEG-02 es sutil y decisiva: parecen el
     mismo mecanismo y protegen de cosas distintas.
@@ -673,7 +673,7 @@ class LimiteDePeticionesTests(TestCase):
 
 class VerificacionCorreoTests(TestCase):
     """
-    Comprueba la confirmación del correo (D-10, bloque 1 del módulo SUS).
+    Comprueba la confirmación del correo.
 
     Lo que se quiere asegurar no es solo que el camino feliz funcione, sino los
     tres bordes donde este tipo de enlace suele fallar: que abrirlo dos veces no
@@ -814,7 +814,7 @@ class VerificacionCorreoTests(TestCase):
 
 class CorreoSinConfirmarTests(TestCase):
     """
-    Lo que se puede hacer con el correo todavía sin confirmar (decisión D-29).
+    Lo que se puede hacer con el correo todavía sin confirmar.
 
     Tres piezas que se sostienen entre sí: el titular puede corregir su propia
     dirección mientras siga pendiente, cambiarla deja la cuenta pendiente otra

@@ -1,7 +1,6 @@
 """
-Pone al día el estado guardado de las suscripciones (RF-SUS-03, decisión D-25).
+Pone al día el estado guardado de las suscripciones (RF-SUS-03).
 
-QUÉ HACE Y QUÉ NO
 El estado que manda se calcula en el momento, con `Suscripcion.estado_por_fecha()`.
 Esta orden no decide nada: copia ese cálculo a la columna `estado`, para que el
 panel de plataforma y cualquier consulta directa a la base vean lo mismo que ve

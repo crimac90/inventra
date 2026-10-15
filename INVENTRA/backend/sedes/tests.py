@@ -1,5 +1,5 @@
 """
-Pruebas de la sede (decisión D-30).
+Pruebas de la sede.
 
 Son pocas a propósito: el módulo SED no se construye. Lo que estas pruebas
 vigilan es la única promesa que esta entrega sí hace —que toda licorera nace con
@@ -43,7 +43,7 @@ class SedePrincipalTests(TestCase):
 
     def test_el_alta_por_la_plataforma_tambien_la_crea(self):
         """
-        La segunda puerta (D-26). Si solo la creara el autoservicio, los clientes
+        La segunda puerta. Si solo la creara el autoservicio, los clientes
         dados de alta por INVENTRA no podrían registrar inventario, y el fallo
         aparecería meses después y en otro módulo.
         """
@@ -76,7 +76,7 @@ class SedePrincipalTests(TestCase):
         """
         `principal_de()` es el único sitio que responde en qué sede se registra el
         inventario. Mientras SED no exista la respuesta no cambia, y por eso mismo
-        conviene que exista la pregunta (D-31).
+        conviene que exista la pregunta.
         """
         licorera = Licorera.objects.create(nombre="Sin registro", correo="x@prueba.com")
         self.assertIsNone(Sede.principal_de(licorera))

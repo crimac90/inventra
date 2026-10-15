@@ -1,13 +1,11 @@
 """
 Siembra las categorías de las licoreras que ya existían.
 
-POR QUÉ HACE FALTA UNA MIGRACIÓN Y NO BASTA CON EL CÓDIGO
-`preparar_licorera_nueva()` siembra las categorías al CREAR una licorera, y eso
-deja fuera a las que ya estaban en la base cuando se añadió el catálogo. En
-desarrollo se notó enseguida —una licorera dada de alta la semana pasada no
-tenía ninguna categoría, de modo que su formulario de producto no dejaba elegir
-ninguna y el catálogo era inservible—; en un sistema con clientes habría pasado
-exactamente lo mismo, a todos a la vez.
+`preparar_licorera_nueva()` siembra las categorías al CREAR una licorera, lo
+que deja fuera a las que ya estaban en la base cuando se añadió el catálogo.
+Una licorera sin categorías no puede registrar productos: su formulario no
+tiene ninguna que elegir. Por eso la siembra de las anteriores es una
+migración y no una línea de código.
 
 Es una migración de DATOS y no de estructura: no crea ni cambia ninguna tabla,
 solo rellena filas que faltan. Es repetible: solo toca las licoreras que no

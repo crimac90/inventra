@@ -9,13 +9,11 @@ sale la utilidad verdadera (RF-REP-05). Se consumen siempre los lotes más
 antiguos primero, que es como se mueve la mercancía de verdad en una licorera y
 lo que evita que quede fondo de bodega eterno.
 
-POR QUÉ ESTÁ AQUÍ Y NO EN EL PUNTO DE VENTA
-Lo van a llamar el ajuste por merma, la venta y, el día que exista, el traslado
+Vive aquí y no dentro del punto de venta. Lo van a llamar el ajuste por merma, la venta y, el día que exista, el traslado
 entre sedes. Escrito dentro de la venta, el ajuste tendría que copiarlo y las
 dos copias se separarían en el primer arreglo. Escrito aquí, se construye y se
 prueba con el módulo pequeño y el grande solo lo llama.
 
-LA NO RETROACTIVIDAD, QUE ES LA MITAD DEL REQUISITO
 El costo se **copia** al consumir. Si mañana alguien corrige el costo de un
 lote, lo que ya salió conserva el costo con el que salió: la utilidad de un mes
 cerrado no cambia porque se corrija una factura hoy.

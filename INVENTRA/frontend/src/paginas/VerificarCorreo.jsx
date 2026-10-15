@@ -1,5 +1,5 @@
 /*
-  Confirmacion del correo desde el enlace del mensaje (D-10).
+  Confirmacion del correo desde el enlace del mensaje.
 
   La direccion de esta pantalla tiene que coincidir EXACTAMENTE con la que arma
   el backend en `seguridad/correo.py`:

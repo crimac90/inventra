@@ -66,7 +66,7 @@ def enviar_correo_alta(usuario):
 
 def enviar_correo_vencimiento(licorera, suscripcion):
     """
-    Avisa de hasta cuándo vale la suscripción (decisión D-25).
+    Avisa de hasta cuándo vale la suscripción.
 
     Sale cada vez que el Administrador INVENTRA fija o corrige esa fecha, y
     **solo entonces**. La orden que pone al día los estados no pasa por aquí

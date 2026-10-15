@@ -1,7 +1,6 @@
 """
 Sedes de una licorera (módulo SED del MER).
 
-POR QUÉ ESTA APP EXISTE ANTES QUE SU MÓDULO (decisión D-30)
 El módulo SED —RF-SED-01 a 05: crear sedes, asignar vendedores, trasladar
 mercancía— NO está en el cronograma y no se construye en esta entrega. Pero el
 MER declara `sede_id` como llave foránea **no nula** en cinco tablas que sí se
@@ -76,7 +75,7 @@ class Sede(models.Model):
         La sede donde se registra el inventario de esta licorera.
 
         Mientras SED no se construya la respuesta es siempre la misma, pero el
-        inventario **pregunta** en vez de suponerlo (D-31): un supuesto escrito a
+        inventario **pregunta** en vez de suponerlo : un supuesto escrito a
         mano no falla cuando deja de ser cierto, devuelve el resultado equivocado
         en silencio. El día que haya varias sedes, lo que cambia es esta función
         y no las diez que la llaman.

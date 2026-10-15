@@ -64,7 +64,7 @@
   --- Modo oscuro --------------------------------------------------------
 
   Los valores son los del apartado 4.2 del documento tecnico de diseno y los
-  mismos que dibuja el bloque 11 del prototipo. Solo cambian fondo, superficie,
+  mismos que dibuja el prototipo. Solo cambian fondo, superficie,
   borde, texto y los tonos de estado; la estructura, la jerarquia y los
   componentes son los mismos, como exige el apartado 10.3.
 
@@ -215,7 +215,6 @@ a.btn {
   en ninguna figura ni en ninguna captura; se comprueban con el ratón y con el
   tabulador.
 
-  POR QUE SE OSCURECE CON UN FILTRO Y NO CON UN COLOR NUEVO
   El documento pide «el color de fondo se oscurece ligeramente» y «tono más
   oscuro». Declarar dos hexadecimales nuevos por cada variante obligaría a
   añadirlos a la paleta documentada —y la paleta es una lista de roles, no de

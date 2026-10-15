@@ -207,7 +207,7 @@ class AjusteSerializer(serializers.Serializer):
     El formulario del ajuste de existencias (RF-INV-06).
 
     Dos campos y nada más, que es lo que pide el requisito: la diferencia y el
-    motivo. El costo de un ajuste hacia arriba no se pregunta (D-32).
+    motivo. El costo de un ajuste hacia arriba no se pregunta.
     """
 
     cantidad = serializers.IntegerField(

@@ -1,9 +1,8 @@
 """
 Lo que nace junto con una licorera.
 
-POR QUÉ ES UNA FUNCIÓN Y NO TRES LÍNEAS EN CADA SITIO
-Una licorera se crea por tres puertas —el registro por autoservicio, el alta
-desde el panel de INVENTRA (D-26) y la orden de datos de demostración— y todas
+Es una función y no tres líneas repetidas. Una licorera se crea por tres puertas —el registro por autoservicio, el alta
+desde el panel de INVENTRA y la orden de datos de demostración— y todas
 tienen que dejarla en el mismo estado. Repartido, bastaría olvidar una pieza en
 una de las tres para que un negocio naciera a medias, y el error no aparecería
 ahí: aparecería en INV, al intentar registrar un producto sin categorías o un

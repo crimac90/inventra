@@ -21,7 +21,7 @@ export function darDeAltaLicorera(datos) {
 
 /*
   Abre un periodo nuevo: renovar y subir de plan son la misma operacion, y la
-  unica diferencia es si el plan cambia (D-26).
+  unica diferencia es si el plan cambia.
 */
 export function abrirPeriodo(licorera, plan, fecha_fin) {
   return api.post(`/suscripciones/panel/licoreras/${licorera}/suscripcion/`, { plan, fecha_fin });

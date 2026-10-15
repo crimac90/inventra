@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='usuario',
             name='correo_verificado',
-            field=models.BooleanField(default=False, help_text='Si la persona confirmó su correo abriendo el enlace que se le envió. Una cuenta sin verificar entra al sistema, pero ve un aviso (D-10).'),
+            field=models.BooleanField(default=False, help_text='Si la persona confirmó su correo abriendo el enlace que se le envió. Una cuenta sin verificar entra al sistema, pero ve un aviso.'),
         ),
         migrations.AlterField(
             model_name='rol',

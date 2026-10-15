@@ -1,13 +1,13 @@
 /*
-  Aviso de correo sin confirmar (D-10, ampliado por D-29).
+  Aviso de correo sin confirmar.
 
   El ingreso NO se bloquea: se entra con este aviso a la vista. Bloquear dejaria
   la cuenta inservible si el mensaje no llega, y dejaria fuera precisamente a
   quien escribio mal su direccion, que es quien mas necesita entrar para
   corregirla.
 
-  LO QUE CAMBIO CON D-29: mientras el correo siga pendiente la cuenta consulta y
-  no registra, asi que esta franja ya no recuerda un tramite: anuncia un limite.
+  Mientras el correo siga pendiente, la cuenta consulta y no registra, de modo
+  que esta franja no recuerda un tramite: anuncia un limite.
   El texto lo dice, porque una persona que no sabe por que se le rechaza algo
   busca el fallo donde no esta. Y ofrece las dos salidas que existen: reenviar el
   enlace, si la direccion es correcta, o corregirla en «Mi perfil», si no lo es.

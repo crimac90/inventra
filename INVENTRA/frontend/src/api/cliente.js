@@ -102,13 +102,10 @@ export class ErrorApi extends Error {
 /*
   El texto que se le muestra a la persona cuando algo falla.
 
-  Estaba escrito a mano NUEVE veces, en ocho pantallas, siempre igual: «si es un
-  ErrorApi, su mensaje; si no, uno genérico». Dos de esas nueve copias escribían
-  «Ocurrio» sin tilde, que es lo que pasa cuando una frase se reescribe en cada
-  sitio en lugar de llamarse desde uno.
-
-  El respaldo se puede cambiar cuando la pantalla sabe decir algo más útil que
-  «ocurrió un error inesperado» —por ejemplo, «no se pudo cargar el panel»—.
+  Si el fallo trae mensaje del servidor, se muestra ese, que siempre dice más.
+  Si no lo trae, se muestra el respaldo, que cada pantalla puede cambiar por
+  algo más útil que «ocurrió un error inesperado» —por ejemplo, «no se pudo
+  cargar el panel»—.
 */
 export function mensajeDeError(error, respaldo = "Ocurrió un error inesperado.") {
   return error instanceof ErrorApi ? error.mensaje : respaldo;
