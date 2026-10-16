@@ -208,6 +208,25 @@ class ProductoViewSet(viewsets.ModelViewSet):
         producto.save(update_fields=["activo"])
         return Response({"detalle": "Producto inactivado."}, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["post"])
+    def reactivar(self, request, pk=None):
+        """
+        Vuelve a poner una referencia descontinuada en el catálogo (RF-INV-04).
+
+        Existe porque descontinuar sin vuelta atrás convierte un clic errado en
+        una referencia perdida: habría que registrarla otra vez, con otro código
+        de barras, y el historial quedaría partido en dos productos. Es además
+        lo que el propio sistema promete cuando se intenta recibir mercancía de
+        una referencia inactiva.
+
+        No toca existencias ni lotes: el producto conserva los suyos, que nunca
+        dejaron de existir. Lo único que cambia es que vuelve a ofrecerse.
+        """
+        producto = self.get_object()
+        producto.activo = True
+        producto.save(update_fields=["activo"])
+        return Response(ProductoSerializer(producto).data, status=status.HTTP_200_OK)
+
 
 class EntradaMercanciaViewSet(mixins.CreateModelMixin,
                               mixins.ListModelMixin,

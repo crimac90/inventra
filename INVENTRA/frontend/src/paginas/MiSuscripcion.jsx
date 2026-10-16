@@ -1,5 +1,5 @@
 /*
-  Mi suscripcion (punto 8.7 del documento tecnico de diseno, RF-SUS-02 y 03).
+  Mi suscripcion (punto 8.11 del documento tecnico de diseno, RF-SUS-02 y 03).
 
   Dos cosas, en este orden: en que estado esta la suscripcion y hasta cuando
   vale, y despues que planes hay y cual se puede contratar.

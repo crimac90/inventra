@@ -9,6 +9,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import Acceso from "./paginas/Acceso";
+import EntradaMercancia from "./paginas/EntradaMercancia";
+import Kardex from "./paginas/Kardex";
 import MiSuscripcion from "./paginas/MiSuscripcion";
 import Inventario from "./paginas/Inventario";
 import Panel from "./paginas/Panel";
@@ -59,6 +61,28 @@ export default function App() {
         element={
           <RutaPrivada roles={ROLES_DE_NEGOCIO}>
             <Inventario />
+          </RutaPrivada>
+        }
+      />
+      {/*
+        Las dos pantallas que cuelgan del inventario. Van bajo su direccion y no
+        sueltas en la raiz porque son del modulo, no modulos aparte: a la
+        entrada de mercancia se llega desde el inventario y al kardex desde la
+        referencia que se esta mirando.
+      */}
+      <Route
+        path="/inventario/entradas"
+        element={
+          <RutaPrivada roles={ROLES_DE_NEGOCIO}>
+            <EntradaMercancia />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/inventario/productos/:id/kardex"
+        element={
+          <RutaPrivada roles={ROLES_DE_NEGOCIO}>
+            <Kardex />
           </RutaPrivada>
         }
       />

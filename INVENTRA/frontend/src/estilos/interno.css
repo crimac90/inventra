@@ -96,11 +96,11 @@
 }
 
 /*
-  La etiqueta de «pendiente» va en una sola palabra corta. La primera versión
-  decía «Próximamente» y no cabía: entre el icono, el nombre del módulo y la
-  etiqueta se pasaba de los 210 px de la barra, de modo que el texto quedaba
-  cortado contra el borde, y además de forma desigual según lo largo que fuera
-  el nombre. `flex: none` y `nowrap` evitan que vuelva a encogerse o partirse.
+  La etiqueta de «pendiente» va en una sola palabra corta. Entre el icono, el
+  nombre del módulo y la etiqueta, los 210 px de la barra no dan para más: con
+  una palabra larga el texto queda cortado contra el borde, y de forma desigual
+  según lo largo que sea el nombre. `flex: none` y `nowrap` impiden que la
+  etiqueta se encoja o se parta.
 */
 .nav .proximamente {
   margin-left: auto;
@@ -305,7 +305,13 @@ td.acciones-fila {
   text-align: right;
 }
 
-td.acciones-fila button {
+/*
+  Tambien los enlaces: el kardex se abre con un enlace y no con un boton,
+  porque lleva a otra direccion, y sin esta regla quedaria pegado al boton de
+  al lado. La separacion es de la columna, no del elemento que la ocupe.
+*/
+td.acciones-fila button,
+td.acciones-fila a.btn {
   margin-left: var(--e2);
 }
 
@@ -519,6 +525,17 @@ td.acciones-fila button {
   box-shadow: 0 0 0 3px var(--foco);
 }
 
+/*
+  Nombra la dimension que filtra la fila de chips. Sin ella, estos botones y el
+  desplegable del estado se leen como un mismo control repetido, porque los dos
+  ofrecian la opcion «Todos».
+*/
+.etiqueta-filtro {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 .chips {
   display: flex;
   gap: var(--e2);
@@ -555,4 +572,215 @@ td.acciones-fila button {
   background: var(--navy2);
   border-color: var(--navy2);
   color: #FFFFFF;
+}
+
+/* --- Entrada de mercancia y kardex (puntos 8.5 y 8.6) ------------------- */
+
+/*
+  El enlace de vuelta va encima del titulo y no al lado: estas dos pantallas
+  cuelgan del inventario, y leer primero de donde se viene y despues donde se
+  esta es el orden en que se mira una cabecera.
+*/
+.volver {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  margin-bottom: var(--e2);
+}
+
+.volver:hover {
+  color: var(--navy2);
+}
+
+.subtitulo {
+  margin: var(--e8) 0 var(--e4);
+  font-size: 17px;
+}
+
+.acciones-cabecera {
+  display: flex;
+  gap: var(--e3);
+  flex-wrap: wrap;
+}
+
+/*
+  Una linea de la entrada: producto, cantidad, costo, subtotal y el boton de
+  quitar. El producto se lleva el espacio sobrante porque es el unico campo de
+  ancho impredecible; los otros tres caben en lo que miden sus cifras.
+*/
+.linea {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 110px 150px 130px auto;
+  gap: var(--e3);
+  align-items: start;
+  padding: var(--e3) 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.linea .field {
+  margin: 0;
+}
+
+.subtotal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+  padding-top: 26px;
+  text-align: right;
+}
+
+.linea .quitar {
+  margin-top: 26px;
+}
+
+@media (max-width: 860px) {
+  /*
+    En pantalla estrecha la linea se apila. El subtotal y el boton pierden el
+    empujon de arriba, que solo existia para alinearlos con las casillas cuando
+    estaban en fila.
+  */
+  .linea {
+    grid-template-columns: 1fr;
+  }
+
+  .subtotal,
+  .linea .quitar {
+    padding-top: 0;
+    margin-top: 0;
+    text-align: left;
+  }
+}
+
+.resumen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e4);
+  flex-wrap: wrap;
+  margin-top: var(--e4);
+  padding-top: var(--e3);
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.resumen strong {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.existencias-ahora {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--e1);
+}
+
+.existencias-ahora strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
+/* --- Selector de producto ----------------------------------------------- */
+
+.selector {
+  position: relative;
+}
+
+.selector input {
+  width: 100%;
+}
+
+/*
+  Las coincidencias se dibujan sobre lo que haya debajo y no empujandolo: la
+  lista aparece y desaparece con cada tecla, y una linea que se mueve mientras
+  se escribe hace fallar el clic.
+*/
+.sugerencias {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: var(--e1);
+  padding: var(--e2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radio);
+  box-shadow: 0 10px 24px rgba(15, 21, 34, 0.12);
+}
+
+.sugerencia {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--e3);
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-radius: var(--radio);
+  cursor: pointer;
+}
+
+/*
+  La coincidencia resaltada se marca igual la senale el raton o el teclado: son
+  la misma cosa para quien mira, y dos aspectos distintos obligarian a aprender
+  dos lenguajes.
+*/
+.sugerencia:hover,
+.sugerencia.on {
+  background: var(--chip);
+}
+
+.sugerencia:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--foco);
+}
+
+.elegido {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  padding: 9px 12px;
+  font-size: 14px;
+  background: var(--chip);
+  border: 1px solid var(--border);
+  border-radius: var(--radio);
+}
+
+/* --- Cifras del kardex --------------------------------------------------- */
+
+/*
+  Las cantidades van alineadas a la derecha y con una sola anchura de cifra:
+  asi las unidades quedan bajo las unidades y una columna de saldos se puede
+  recorrer de un vistazo, que es para lo que sirve un kardex.
+*/
+.cifra {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/*
+  El color acompana al signo, no lo sustituye: el «+» y el «−» se escriben
+  igualmente, porque quien no distingue el verde del rojo tiene que poder leer
+  la columna.
+*/
+.cifra.mas {
+  color: var(--ok-fuerte);
+}
+
+.cifra.menos {
+  color: var(--err-fuerte);
 }

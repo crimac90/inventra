@@ -1,18 +1,10 @@
 /*
   Como se escriben los numeros y las fechas en la interfaz.
 
-  POR QUE EXISTE ESTE ARCHIVO
-  El formateador de pesos y la funcion de fecha estaban escritos DOS VECES,
-  identicos, en «Mi suscripcion» y en «Plataforma»: cada pantalla resolvio por
-  su cuenta algo que no es suyo. Es la misma forma de error que ya aparecio con
-  el plural de los mensajes y con las variantes de boton —una regla resuelta
-  dentro del primer caso que la necesita— y aqui el coste futuro es el que
-  manda: inventario y ventas muestran importes y fechas en casi todas sus
-  pantallas, de modo que sin un sitio comun no habria dos copias sino seis.
-
-  El dia que cambie el formato —que los importes lleven centavos, que las
-  fechas se escriban con el mes en letras— se cambia aqui y en ningun otro
-  sitio.
+  Los importes y las fechas aparecen en casi todas las pantallas de inventario,
+  ventas y suscripciones. Definirlos aqui deja un solo sitio donde cambiarlos
+  el dia que el formato cambie: que los importes lleven centavos, que las
+  fechas se escriban con el mes en letras.
 */
 
 const PESOS = new Intl.NumberFormat("es-CO", {
@@ -39,4 +31,28 @@ export function fecha(texto) {
   if (!texto) return "—";
   const [anio, mes, dia] = texto.split("-");
   return `${dia}/${mes}/${anio}`;
+}
+
+/*
+  Una fecha con hora del servidor, escrita como se lee en Colombia.
+
+  Aqui si se usa `new Date`, al reves que en `fecha`. La diferencia no es de
+  gusto: el servidor manda estos momentos con su huso dentro, de modo que
+  convertirlos al del navegador es lo correcto y no un error. Lo que no se
+  puede convertir es una fecha sin hora, que es el caso de arriba.
+
+  Lleva hora porque en un mismo dia entran varios movimientos de la misma
+  referencia, y sin la hora el kardex no deja ver en que orden ocurrieron.
+*/
+export function fechaHora(texto) {
+  if (!texto) return "—";
+  const momento = new Date(texto);
+  if (Number.isNaN(momento.getTime())) return texto;
+  return momento.toLocaleString("es-CO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

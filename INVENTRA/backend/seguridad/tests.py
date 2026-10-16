@@ -988,3 +988,137 @@ class CorreoSinConfirmarTests(TestCase):
         vendedor.refresh_from_db()
         self.assertTrue(vendedor.correo_verificado)
         self.assertEqual(len(mail.outbox), 0)
+
+
+class UltimoAdministradorTests(TestCase):
+    """
+    Una licorera no puede quedarse sin ningún administrador activo (RF-SEG-05
+    y RF-SEG-07).
+
+    Sin esta regla había un camino sin retorno: el único administrador se
+    cambiaba el rol a vendedor y la licorera quedaba sin nadie que pudiera
+    crear usuarios, registrar productos o gestionar la suscripción. Las tres
+    operaciones exigen ese rol, así que la reparación habría sido entrar a la
+    base de datos.
+    """
+
+    CLAVE = "Licorera2026"
+
+    def setUp(self):
+        cache.clear()
+        self.licorera = crear_licorera("Aurora", plan_nombre="Pro")
+        self.administrador = Usuario.objects.create_user(
+            correo="admin@aurora.com", nombre_completo="Administradora Aurora",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
+            correo_verificado=True,
+        )
+
+    def autenticar(self, usuario):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": usuario.correo, "password": self.CLAVE},
+            content_type="application/json",
+        )
+        return {"Authorization": f"Bearer {respuesta.json()['acceso']}"}
+
+    def segundo_administrador(self):
+        return Usuario.objects.create_user(
+            correo="socio@aurora.com", nombre_completo="Socio Aurora",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
+            correo_verificado=True,
+        )
+
+    def url(self, usuario):
+        return reverse("usuario-detail", args=[usuario.id])
+
+    def test_el_unico_administrador_no_puede_dejar_de_serlo(self):
+        """El camino que abría el agujero: cambiarse el rol a uno mismo."""
+        respuesta = self.client.patch(
+            self.url(self.administrador),
+            {"rol": Rol.objects.get(nombre=Rol.VENDEDOR).id},
+            content_type="application/json",
+            headers=self.autenticar(self.administrador),
+        )
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.administrador.refresh_from_db()
+        self.assertEqual(self.administrador.rol.nombre, Rol.ADMINISTRADOR_LICORERA)
+
+    def test_el_unico_administrador_no_puede_desmarcarse_como_activo(self):
+        """
+        La segunda puerta al mismo sitio. `activo` es un campo del formulario
+        de edición, de modo que la regla no basta con ponerla en la acción de
+        inactivar: también tiene que vigilar este camino.
+        """
+        respuesta = self.client.patch(
+            self.url(self.administrador),
+            {"activo": False},
+            content_type="application/json",
+            headers=self.autenticar(self.administrador),
+        )
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.administrador.refresh_from_db()
+        self.assertTrue(self.administrador.activo)
+
+    def test_con_dos_administradores_uno_puede_dejar_de_serlo(self):
+        """La regla protege al último, no al rol: con dos, el cambio procede."""
+        socio = self.segundo_administrador()
+
+        respuesta = self.client.patch(
+            self.url(socio),
+            {"rol": Rol.objects.get(nombre=Rol.VENDEDOR).id},
+            content_type="application/json",
+            headers=self.autenticar(self.administrador),
+        )
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        socio.refresh_from_db()
+        self.assertEqual(socio.rol.nombre, Rol.VENDEDOR)
+
+    def test_con_dos_administradores_uno_se_puede_inactivar(self):
+        socio = self.segundo_administrador()
+
+        respuesta = self.client.delete(
+            self.url(socio), headers=self.autenticar(self.administrador))
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        socio.refresh_from_db()
+        self.assertFalse(socio.activo)
+
+    def test_una_cuenta_inactiva_no_cuenta_como_administrador(self):
+        """
+        Un administrador inactivo no está administrando nada, así que no sirve
+        para cumplir la regla: con él de baja, el que queda vuelve a ser el
+        último y tampoco puede cambiarse el rol.
+        """
+        socio = self.segundo_administrador()
+        socio.activo = False
+        socio.save(update_fields=["activo"])
+
+        respuesta = self.client.patch(
+            self.url(self.administrador),
+            {"rol": Rol.objects.get(nombre=Rol.VENDEDOR).id},
+            content_type="application/json",
+            headers=self.autenticar(self.administrador),
+        )
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_el_vendedor_de_la_licorera_no_estorba_a_la_regla(self):
+        """Que haya otras cuentas activas no basta: tienen que ser del rol."""
+        Usuario.objects.create_user(
+            correo="cajero@aurora.com", nombre_completo="Cajero", password=self.CLAVE,
+            licorera=self.licorera, rol=Rol.objects.get(nombre=Rol.VENDEDOR),
+        )
+
+        respuesta = self.client.patch(
+            self.url(self.administrador),
+            {"activo": False},
+            content_type="application/json",
+            headers=self.autenticar(self.administrador),
+        )
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)

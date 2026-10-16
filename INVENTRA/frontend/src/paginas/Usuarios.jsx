@@ -202,9 +202,10 @@ export default function Usuarios() {
         entero, se rellenaba y el rechazo llegaba al final, con el trabajo ya
         hecho. Ahora el motivo va delante y lleva a donde se arregla.
       */}
-      {!cargando && motivo && (
+      {!cargando && motivo && motivo.avisar && (
         <div className="aviso err" role="status">
-          {motivo.texto} <Link to={motivo.enlace.a}>{motivo.enlace.etiqueta}</Link>
+          {motivo.texto}{" "}
+          {motivo.enlace && <Link to={motivo.enlace.a}>{motivo.enlace.etiqueta}</Link>}
         </div>
       )}
 

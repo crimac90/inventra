@@ -19,6 +19,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .correo import leer_verificacion
 from .models import Rol, Usuario
+from .reglas import SIN_ADMINISTRADOR, es_el_unico_administrador
 
 # Mensaje único para credenciales incorrectas. Es deliberadamente genérico: si
 # dijera «el correo no existe», cualquiera podría averiguar qué cuentas hay
@@ -253,10 +254,26 @@ class UsuarioActualizarSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Ya existe una cuenta registrada con este correo.")
         return correo
 
+    def validate(self, attrs):
+        """
+        La licorera no puede quedarse sin ningún administrador activo.
+
+        Son dos caminos distintos hacia el mismo sitio: quitarle el rol a la
+        única administradora, o desmarcarla como activa desde este formulario.
+        El tercero —inactivarla con la acción de baja— lo cierra la vista, que
+        es por donde pasa.
+        """
+        rol = attrs.get("rol", self.instance.rol)
+        activo = attrs.get("activo", self.instance.activo)
+        deja_de_administrar = rol.nombre != Rol.ADMINISTRADOR_LICORERA or not activo
+
+        if deja_de_administrar and es_el_unico_administrador(self.instance):
+            raise serializers.ValidationError(SIN_ADMINISTRADOR)
+        return attrs
+
     def update(self, instance, validated_data):
         """
-        Si cambia el correo, la cuenta vuelve a quedar pendiente de confirmación
-        .
+        Si cambia el correo, la cuenta vuelve a quedar pendiente de confirmación.
 
         Sin esto quedaba una puerta abierta: una cuenta ya confirmada se movía a
         otra dirección y seguía contando como confirmada, de modo que la marca

@@ -38,6 +38,11 @@ export function listarProductos(filtros) {
   return api.get(`/inventario/productos/${consulta(filtros)}`);
 }
 
+/* Una sola referencia, para la pantalla de kardex, que llega por direccion. */
+export function consultarProducto(id) {
+  return api.get(`/inventario/productos/${id}/`);
+}
+
 export function crearProducto(datos) {
   return api.post("/inventario/productos/", datos);
 }
@@ -49,6 +54,11 @@ export function actualizarProducto(id, datos) {
 /* Baja logica: el producto no se borra, deja de ofrecerse en la venta. */
 export function inactivarProducto(id) {
   return api.delete(`/inventario/productos/${id}/`);
+}
+
+/* Vuelve a poner en el catalogo una referencia descontinuada. */
+export function reactivarProducto(id) {
+  return api.post(`/inventario/productos/${id}/reactivar/`, {});
 }
 
 /* Las categorias se siembran al registrar la licorera y no se gestionan. */
@@ -77,6 +87,12 @@ export function consultarAlertas() {
 
 /* --- Kardex (RF-INV-09) -------------------------------------------------- */
 
-export function consultarKardex(id) {
-  return api.get(`/inventario/productos/${id}/kardex/`);
+/*
+  El kardex llega paginado, como todas las listas. Se pide una pagina a la vez
+  porque una referencia con dos anos de movimientos tiene miles de lineas, y
+  traerlas todas para mostrar las primeras veinticinco no lo arregla: lo
+  esconde.
+*/
+export function consultarKardex(id, pagina) {
+  return api.get(`/inventario/productos/${id}/kardex/${consulta({ page: pagina })}`);
 }

@@ -16,12 +16,13 @@
      ultima no tiene por que ser la del texto completo.
 */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import CampoSeleccion from "../componentes/CampoSeleccion";
 import Disposicion from "../componentes/Disposicion";
+import Modal from "../componentes/Modal";
 import { ErrorApi, mensajeDeError } from "../api/cliente";
 import {
   actualizarProducto,
@@ -29,8 +30,10 @@ import {
   crearProducto,
   inactivarProducto,
   listarProductos,
+  reactivarProducto,
 } from "../api/inventario";
 import { consultarMiSuscripcion } from "../api/suscripciones";
+import { useEspera } from "../espera";
 import { moneda } from "../formato";
 import { plural } from "../texto";
 import { motivoParaNoRegistrar } from "../sesion/permisos";
@@ -45,10 +48,16 @@ const PRESENTACIONES = [
   { valor: "unidad", texto: "Unidad" },
 ];
 
+/*
+  Los dos filtros preguntan cosas distintas y se combinan: el estado de la
+  referencia y el nivel de sus existencias (RF-INV-02). Cada uno nombra su
+  dimension en las opciones, porque dos controles que dicen «Todos» se leen
+  como el mismo puesto dos veces.
+*/
 const ESTADOS = [
   { valor: "activo", texto: "Solo activos" },
   { valor: "inactivo", texto: "Solo descontinuados" },
-  { valor: "", texto: "Todos" },
+  { valor: "", texto: "Todos los estados" },
 ];
 
 const NIVELES = [
@@ -83,23 +92,30 @@ export default function Inventario() {
   // creando; con un producto dentro, editandolo.
   const [editando, setEditando] = useState(null);
 
+  // Cuando lleva un producto dentro, la ventana de confirmacion esta abierta.
+  const [porDescontinuar, setPorDescontinuar] = useState(null);
+
   // Lo que la persona escribe y lo que de verdad se le pide al servidor son
-  // dos cosas distintas: entre una y otra hay una espera.
+  // dos cosas distintas: entre una y otra hay una espera, que ahora vive en
+  // `useEspera` porque el selector de producto de la entrada necesita la misma.
   const [texto, setTexto] = useState("");
-  const [filtros, setFiltros] = useState({ buscar: "", existencias: "", estado: "activo" });
+  const [filtros, setFiltros] = useState({ existencias: "", estado: "activo" });
+  const buscado = useEspera(texto, ESPERA);
 
   const primeraCarga = useRef(true);
 
-  useEffect(() => {
-    const temporizador = setTimeout(
-      () => setFiltros((previos) => ({ ...previos, buscar: texto })), ESPERA);
-    return () => clearTimeout(temporizador);
-  }, [texto]);
+  /*
+    Los filtros que se pulsan y el texto que reposa se juntan en un solo objeto,
+    que es lo que viaja. Se memoriza para que no nazca uno nuevo en cada pintado:
+    de lo contrario el efecto que pide la lista se dispararia sin parar.
+  */
+  const consulta = useMemo(
+    () => ({ ...filtros, buscar: buscado }), [filtros, buscado]);
 
   const refrescar = useCallback(async () => {
-    const datos = await listarProductos(filtros);
+    const datos = await listarProductos(consulta);
     setProductos(datos.results || []);
-  }, [filtros]);
+  }, [consulta]);
 
   useEffect(() => {
     let vigente = true;
@@ -115,12 +131,10 @@ export default function Inventario() {
         .then((datos) => vigente && setSuscripcion(datos))
         .catch(() => {});
       /*
-        Este fallo NO se traga. La primera version lo ignoraba en silencio,
-        copiando el `catch` vacio de la suscripcion, y eso escondio un defecto
-        real: una licorera sin categorias mostraba un desplegable vacio sin
-        decir por que, y el formulario parecia roto sin motivo. La suscripcion
-        se puede ignorar porque sin ella la pantalla sigue sirviendo; sin
-        categorias no se puede registrar nada.
+        Este fallo SI se anuncia, al reves que el de la suscripcion. Sin
+        suscripcion la pantalla sigue sirviendo; sin categorias no se puede
+        registrar nada, y un desplegable vacio que no explica por que lo esta
+        hace parecer rota una pantalla que funciona.
       */
       consultarCategorias()
         .then((datos) => vigente && setCategorias(datos))
@@ -129,7 +143,7 @@ export default function Inventario() {
         });
     }
 
-    listarProductos(filtros)
+    listarProductos(consulta)
       .then((datos) => {
         if (!vigente) return;
         setProductos(datos.results || []);
@@ -146,7 +160,18 @@ export default function Inventario() {
     return () => {
       vigente = false;
     };
-  }, [filtros]);
+  }, [consulta]);
+
+  /*
+    Abrir o cerrar el formulario pasa siempre por aqui, y de paso retira el
+    aviso anterior. Un aviso informa del resultado de la ultima accion; si
+    sobrevive a la siguiente, deja de ser verdad: «Producto actualizado» seguia
+    en pantalla mientras se registraba otro distinto.
+  */
+  function abrirFormulario(producto) {
+    setAviso(null);
+    setEditando(producto);
+  }
 
   async function guardar(datos) {
     setOcupado(true);
@@ -173,11 +198,40 @@ export default function Inventario() {
     }
   }
 
-  async function descontinuar(producto) {
+  /*
+    Descontinuar se confirma antes, como inactivar una cuenta en la pantalla de
+    usuarios. Es la misma clase de accion: cambia lo que el negocio puede
+    vender y se dispara con un clic en una fila, donde errar de linea es facil.
+  */
+  async function confirmarDescontinuar() {
+    const producto = porDescontinuar;
     setOcupado(true);
     try {
       await inactivarProducto(producto.id);
       setAviso({ tipo: "ok", texto: `«${producto.nombre}» quedó descontinuado.` });
+      await refrescar();
+    } catch (error) {
+      setAviso({ tipo: "err", texto: mensajeDeError(error) });
+    } finally {
+      /*
+        La ventana se cierra tambien cuando la operacion falla. Dejandola
+        abierta para reintentar, el aviso del rechazo queda DETRAS de ella y la
+        persona no ve por que no paso nada.
+      */
+      setPorDescontinuar(null);
+      setOcupado(false);
+    }
+  }
+
+  /*
+    Reactivar no se confirma: devuelve la referencia al catalogo, que es lo
+    contrario de una perdida, y deshacerlo cuesta un clic.
+  */
+  async function reactivar(producto) {
+    setOcupado(true);
+    try {
+      await reactivarProducto(producto.id);
+      setAviso({ tipo: "ok", texto: `«${producto.nombre}» vuelve al catálogo.` });
       await refrescar();
     } catch (error) {
       setAviso({ tipo: "err", texto: mensajeDeError(error) });
@@ -188,7 +242,7 @@ export default function Inventario() {
 
   const motivo = motivoParaNoRegistrar(yo, suscripcion, "registrar ni modificar productos");
   const puedeRegistrar = motivo === null;
-  const hayFiltro = filtros.buscar || filtros.existencias || filtros.estado !== "activo";
+  const hayFiltro = buscado || filtros.existencias || filtros.estado !== "activo";
 
   return (
     <Disposicion titulo="Inventario">
@@ -200,16 +254,39 @@ export default function Inventario() {
           </div>
         </div>
 
-        {!editando && !cargando && puedeRegistrar && (
-          <button className="btn btn-cta" type="button" onClick={() => setEditando({})}>
-            Nuevo producto
-          </button>
+        {/*
+          La entrada de mercancia no se agrega a la barra lateral: ese menu es el
+          mapa de los seis modulos del documento de diseno, y una pantalla de un
+          modulo colada entre ellos haria leer el inventario como dos cosas. Se
+          llega desde aqui, que es donde se esta cuando llega una compra.
+        */}
+        {!editando && !cargando && (
+          <div className="acciones-cabecera">
+            {/*
+              El acceso a las entradas lo ve todo el mundo: alli el vendedor
+              consulta las ya registradas, igual que consulta el kardex, y el
+              formulario de registrar es lo unico que esa pantalla le esconde.
+            */}
+            <Link className="btn btn-out" to="/inventario/entradas">
+              Entrada de mercancía
+            </Link>
+            {puedeRegistrar && (
+              <button
+                className="btn btn-cta"
+                type="button"
+                onClick={() => abrirFormulario({})}
+              >
+                Nuevo producto
+              </button>
+            )}
+          </div>
         )}
       </div>
 
-      {!cargando && motivo && (
+      {!cargando && motivo && motivo.avisar && (
         <div className="aviso err" role="status">
-          {motivo.texto} <Link to={motivo.enlace.a}>{motivo.enlace.etiqueta}</Link>
+          {motivo.texto}{" "}
+          {motivo.enlace && <Link to={motivo.enlace.a}>{motivo.enlace.etiqueta}</Link>}
         </div>
       )}
 
@@ -222,13 +299,21 @@ export default function Inventario() {
         </div>
       )}
 
+      {/*
+        La `key` no es decorativa: ata el formulario al producto que edita. Sin
+        ella, pulsar «Editar» en otra fila con el formulario abierto cambia el
+        destino del guardado y NO lo que se ve, porque React reutiliza el mismo
+        formulario y su estado interno se copio del producto anterior. El
+        resultado era guardar los datos de una referencia encima de otra.
+      */}
       {editando && (
         <Formulario
+          key={editando.id || "nuevo"}
           inicial={editando}
           categorias={categorias}
           ocupado={ocupado}
           onGuardar={guardar}
-          onCancelar={() => setEditando(null)}
+          onCancelar={() => abrirFormulario(null)}
         />
       )}
 
@@ -241,6 +326,8 @@ export default function Inventario() {
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
         />
+
+        <span className="etiqueta-filtro">Existencias</span>
 
         <div className="chips">
           {NIVELES.map((nivel) => (
@@ -317,11 +404,21 @@ export default function Inventario() {
                     <EtiquetaDeEstado producto={fila} />
                   </td>
                   <td className="acciones-fila">
+                    {/*
+                      El kardex lo ve todo el mundo, tambien quien no puede
+                      registrar: consultar el historial no cambia nada.
+                    */}
+                    <Link
+                      className="btn btn-out btn-pequeno"
+                      to={`/inventario/productos/${fila.id}/kardex`}
+                    >
+                      Movimientos
+                    </Link>
                     {puedeRegistrar && (
                       <button
                         className="btn btn-out btn-pequeno"
                         type="button"
-                        onClick={() => setEditando(fila)}
+                        onClick={() => abrirFormulario(fila)}
                         disabled={ocupado}
                       >
                         Editar
@@ -331,10 +428,20 @@ export default function Inventario() {
                       <button
                         className="btn btn-out btn-pequeno"
                         type="button"
-                        onClick={() => descontinuar(fila)}
+                        onClick={() => setPorDescontinuar(fila)}
                         disabled={ocupado}
                       >
                         Descontinuar
+                      </button>
+                    )}
+                    {puedeRegistrar && !fila.activo && (
+                      <button
+                        className="btn btn-out btn-pequeno"
+                        type="button"
+                        onClick={() => reactivar(fila)}
+                        disabled={ocupado}
+                      >
+                        Reactivar
                       </button>
                     )}
                   </td>
@@ -344,6 +451,17 @@ export default function Inventario() {
           </table>
         )}
       </div>
+
+      {porDescontinuar && (
+        <Modal
+          titulo="Descontinuar producto"
+          mensaje={`«${porDescontinuar.nombre}» dejará de ofrecerse en el punto de venta. Sus existencias y su kardex se conservan, y la referencia se puede reactivar después.`}
+          textoConfirmar="Descontinuar"
+          ocupado={ocupado}
+          onConfirmar={confirmarDescontinuar}
+          onCancelar={() => setPorDescontinuar(null)}
+        />
+      )}
     </Disposicion>
   );
 }
@@ -439,6 +557,7 @@ function Formulario({ inicial, categorias, ocupado, onGuardar, onCancelar }) {
           etiqueta="Precio de venta"
           tipo="number"
           marcador="0"
+          minimo="0"
           valor={String(datos.precio_venta)}
           onChange={(v) => cambiar("precio_venta", v)}
           error={errores.precio_venta}
@@ -449,6 +568,7 @@ function Formulario({ inicial, categorias, ocupado, onGuardar, onCancelar }) {
           etiqueta="Existencias mínimas (alerta)"
           tipo="number"
           marcador="5"
+          minimo="0"
           valor={String(datos.stock_minimo)}
           onChange={(v) => cambiar("stock_minimo", v)}
           error={errores.stock_minimo}

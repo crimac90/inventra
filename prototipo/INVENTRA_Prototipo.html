@@ -265,8 +265,83 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px"><button class="btn btn-out">Cancelar</button><button class="btn btn-cta">Guardar producto</button></div>
 </div>
 
-<!-- 7 POS -->
-<div class="lbl">7 · Punto de venta (POS)</div>
+<!-- 7 ENTRADA DE MERCANCIA -->
+<div class="lbl">7 · Inventario — entrada de mercancía</div>
+<div class="card app">
+ <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
+   <div class="nav on"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg> Inventario</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 12h11l1.6-8H6"/></svg> Ventas</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg> Reportes</div>
+   <div class="grow"></div></div>
+ <div class="main">
+   <div class="tb"><div class="h">Entrada de mercancía</div><div class="r"><span class="avatar">CM</span></div></div>
+   <div class="content">
+     <div class="panel" style="padding:20px 22px">
+       <h4 style="margin-bottom:14px">Nueva entrada</h4>
+       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+         <div class="field"><label>Proveedor</label><input placeholder="Distribuidora La 70"></div>
+         <div class="field"><label>Observación</label><input placeholder="Factura 4521"></div>
+       </div>
+       <table style="margin-top:6px"><thead><tr><th>Producto</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th><th></th></tr></thead><tbody>
+         <tr><td>Aguardiente Antioqueño 750ml</td><td>24</td><td>$38.000</td><td>$912.000</td><td><a class="link">Quitar</a></td></tr>
+         <tr><td>Ron Medellín Añejo 750ml</td><td>12</td><td>$34.500</td><td>$414.000</td><td><a class="link">Quitar</a></td></tr>
+       </tbody></table>
+       <div style="margin-top:12px"><span class="btn btn-out" style="padding:8px 13px">+ Agregar otra línea</span></div>
+       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:14px;color:var(--muted)">
+         <span>2 líneas completas · 36 unidades</span><b style="color:var(--text);font-size:16px">Total de la compra: $1.326.000</b></div>
+       <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-cta">Registrar entrada</button></div>
+     </div>
+     <h4 style="margin:22px 0 12px">Entradas registradas</h4>
+     <div class="panel" style="padding:6px 16px">
+     <table><thead><tr><th>Fecha</th><th>Proveedor</th><th>Productos</th><th>Registró</th><th>Costo total</th></tr></thead><tbody>
+       <tr><td>12/07/2026 09:14</td><td>Distribuidora La 70</td><td>Cerveza Águila 330ml × 240</td><td>Cristian Macías</td><td>$504.000</td></tr>
+       <tr><td>05/07/2026 16:40</td><td>Licores del Valle</td><td>Whisky Buchanan's 750ml × 6<br>Vino Casillero 750ml × 12</td><td>Cristian Macías</td><td>$1.146.000</td></tr>
+     </tbody></table></div>
+   </div>
+ </div>
+</div>
+
+<!-- 8 KARDEX Y AJUSTE -->
+<div class="lbl">8 · Inventario — kardex y ajuste de existencias</div>
+<div class="card app">
+ <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
+   <div class="nav on"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/></svg> Inventario</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 12h11l1.6-8H6"/></svg> Ventas</div>
+   <div class="nav"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg> Reportes</div>
+   <div class="grow"></div></div>
+ <div class="main">
+   <div class="tb"><div class="h">Kardex</div><div class="r"><span class="avatar">CM</span></div></div>
+   <div class="content">
+     <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px">
+       <div><div style="font-size:19px;font-weight:700">Aguardiente Antioqueño 750ml</div>
+            <div class="hs" style="font-size:13px;color:var(--muted)">5 movimientos registrados.</div></div>
+       <div style="text-align:right"><div style="font-size:13px;color:var(--muted)">Existencias</div><b style="font-size:28px">33</b></div>
+     </div>
+     <div class="panel" style="padding:20px 22px;margin-bottom:22px">
+       <h4 style="margin-bottom:4px">Ajustar existencias</h4>
+       <div style="color:var(--muted);font-size:13px;margin-bottom:14px">Escribe la diferencia, no la cantidad final: 3 si sobraron tres unidades en el conteo, −3 si faltaron.</div>
+       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+         <div class="field"><label>Diferencia</label><input placeholder="-3"></div>
+         <div class="field"><label>Motivo</label><input placeholder="Dos botellas rotas en bodega"></div>
+       </div>
+       <div style="display:flex;justify-content:flex-end"><button class="btn btn-cta">Registrar ajuste</button></div>
+     </div>
+     <div class="panel" style="padding:6px 16px">
+     <table><thead><tr><th>Fecha</th><th>Movimiento</th><th>Cantidad</th><th>Costo unitario</th><th>Saldo</th><th>Registró</th></tr></thead><tbody>
+       <tr><td>14/07/2026 11:02</td><td>Ajuste negativo<br><span style="font-size:12px;color:var(--muted)">Dos botellas rotas en bodega</span></td><td><span class="stock st-out">−2</span></td><td>$38.000</td><td>33</td><td>Cristian Macías</td></tr>
+       <tr><td>13/07/2026 18:35</td><td>Venta</td><td><span class="stock st-out">−1</span></td><td>$38.000</td><td>35</td><td>Laura Díaz</td></tr>
+       <tr><td>12/07/2026 09:14</td><td>Entrada<br><span style="font-size:12px;color:var(--muted)">Entrada #8</span></td><td><span class="stock st-ok">+24</span></td><td>$38.000</td><td>36</td><td>Cristian Macías</td></tr>
+       <tr><td>28/06/2026 10:50</td><td>Venta</td><td><span class="stock st-out">−6</span></td><td>$36.500</td><td>12</td><td>Laura Díaz</td></tr>
+       <tr><td>20/06/2026 08:20</td><td>Entrada<br><span style="font-size:12px;color:var(--muted)">Entrada #5</span></td><td><span class="stock st-ok">+18</span></td><td>$36.500</td><td>18</td><td>Cristian Macías</td></tr>
+     </tbody></table></div>
+   </div>
+ </div>
+</div>
+
+<!-- 9 POS -->
+<div class="lbl">9 · Punto de venta (POS)</div>
 <div class="card">
  <div class="tb"><div class="logo"><span class="mk"></span> INVENTRA</div><div class="r"><span class="pill">Sede: Centro</span><span class="avatar">CM</span></div></div>
  <div class="posbody">
@@ -291,7 +366,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 </div>
 
 <!-- 8 REPORTES -->
-<div class="lbl">8 · Reportes</div>
+<div class="lbl">10 · Reportes</div>
 <div class="card app">
  <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
    <div class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
@@ -319,7 +394,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 </div>
 
 <!-- 9 USUARIOS -->
-<div class="lbl">9 · Usuarios de la licorera</div>
+<div class="lbl">11 · Usuarios de la licorera</div>
 <div class="card app">
  <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
    <div class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
@@ -347,7 +422,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 </div>
 
 <!-- 10 MI PERFIL -->
-<div class="lbl">10 · Mi perfil</div>
+<div class="lbl">12 · Mi perfil</div>
 <div class="card app">
  <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
    <div class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
@@ -394,7 +469,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 </div>
 
 <!-- 11 MI SUSCRIPCION -->
-<div class="lbl">11 · Mi suscripción</div>
+<div class="lbl">13 · Mi suscripción</div>
 <div class="card app">
  <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
    <div class="nav"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> Panel</div>
@@ -433,7 +508,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 </div>
 
 <!-- 12 PLATAFORMA -->
-<div class="lbl">12 · Plataforma (administrador de INVENTRA)</div>
+<div class="lbl">14 · Plataforma (administrador de INVENTRA)</div>
 <div class="card app">
  <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>
    <div class="nav on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg> Plataforma</div>
@@ -464,7 +539,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 </div>
 
 <!-- 13 ESTADOS -->
-<div class="lbl">13 · Mensajes y estados</div>
+<div class="lbl">15 · Mensajes y estados</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
  <div class="card" style="padding:22px">
    <div style="font-weight:700;margin-bottom:12px">Mensajes del sistema</div>
@@ -481,7 +556,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 </div>
 
 <!-- MOBILE -->
-<div class="lbl">14 · Versión móvil (login, panel, punto de venta)</div>
+<div class="lbl">16 · Versión móvil (login, panel, punto de venta)</div>
 <div class="phones">
  <div class="phone"><div class="st"></div><div class="ph-c">
    <div style="text-align:center;margin:18px 0 22px"><div class="logo" style="justify-content:center"><span class="mk"></span> INVENTRA</div></div>
@@ -511,7 +586,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 </div>
 
 <!-- DARK -->
-<div class="lbl">15 · Modo oscuro (panel principal)</div>
+<div class="lbl">17 · Modo oscuro (panel principal)</div>
 <div class="wrap-dark dark">
  <div class="card app" style="box-shadow:none">
   <div class="side"><div class="logo"><span class="mk"></span> INVENTRA</div>

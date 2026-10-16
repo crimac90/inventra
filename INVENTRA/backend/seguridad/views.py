@@ -19,6 +19,7 @@ from suscripciones.permissions import PuedeRegistrarOperaciones
 from .correo import enviar_correo_recuperacion, enviar_correo_verificacion
 from .models import Rol, Usuario
 from .permissions import EsAdministradorDeLicorera
+from .reglas import SIN_ADMINISTRADOR, es_el_unico_administrador
 from .serializers import (
     CambiarContrasenaSerializer, CierreSesionSerializer,
     CorregirCorreoSerializer, InicioSesionSerializer,
@@ -199,8 +200,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializador):
         """
         Si el administrador cambió el correo de alguien, esa cuenta vuelve a
-        quedar pendiente de confirmación y hay que enviarle el enlace nuevo
-        .
+        quedar pendiente de confirmación y hay que enviarle el enlace nuevo.
 
         El serializador es quien sabe si el correo cambió —compara con el valor
         anterior antes de guardarlo—; aquí solo se manda el correo, porque
@@ -243,6 +243,21 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return Response(
                 {"detalle": "No puedes inactivar tu propia cuenta."},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Por el camino normal esta rama no se alcanza: quien llega hasta aquí
+        # es, por el permiso, OTRO administrador activo de la misma licorera, de
+        # modo que la cuenta que inactiva nunca es la última. Se queda por el
+        # caso que sí puede ocurrir: dos administradores retirándose a la vez,
+        # cada uno viendo al otro todavía activo.
+        #
+        # Responde 409 y no 400 porque no hay nada mal escrito en la petición:
+        # lo que impide la operación es el estado de la licorera, igual que
+        # cuando el plan no admite otra cuenta.
+        if es_el_unico_administrador(usuario):
+            return Response(
+                {"detalle": SIN_ADMINISTRADOR},
+                status=status.HTTP_409_CONFLICT,
             )
 
         usuario.activo = False

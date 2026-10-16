@@ -1,5 +1,5 @@
 /*
-  Panel del Administrador INVENTRA (punto 8.8 del documento de diseno, RF-SUS-05).
+  Panel del Administrador INVENTRA (punto 8.12 del documento de diseno, RF-SUS-05).
 
   Es la pantalla del operador de la plataforma, no la de un negocio. Muestra las
   licoreras registradas con su plan y su estado, las cifras globales, y las tres

@@ -343,6 +343,52 @@ class EdicionYBajaTests(CatalogoBase):
         self.producto.refresh_from_db()
         self.assertFalse(self.producto.activo)
 
+    def test_una_referencia_descontinuada_vuelve_al_catalogo(self):
+        """
+        Descontinuar tiene vuelta atrás. Sin ella, un clic en la fila
+        equivocada obligaría a registrar la referencia otra vez —con otro
+        código de barras— y su historial quedaría partido en dos productos.
+        """
+        self.producto.activo = False
+        self.producto.save(update_fields=["activo"])
+
+        respuesta = self.client.post(
+            reverse("producto-reactivar", args=[self.producto.id]), **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.producto.refresh_from_db()
+        self.assertTrue(self.producto.activo)
+
+    def test_reactivar_no_toca_las_existencias(self):
+        """
+        El producto conserva sus lotes mientras está descontinuado: nunca
+        dejaron de existir, solo dejó de ofrecerse. Reactivarlo no los crea ni
+        los recalcula.
+        """
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.producto, "cantidad": 7,
+                     "costo_unitario": 30000}])
+        self.producto.activo = False
+        self.producto.save(update_fields=["activo"])
+
+        self.client.post(
+            reverse("producto-reactivar", args=[self.producto.id]), **self.entrar())
+
+        self.assertEqual(existencias_totales(self.producto), 7)
+
+    def test_no_se_reactiva_un_producto_de_otra_licorera(self):
+        otra = crear_negocio("Guarne")
+        ajeno = Producto.objects.create(
+            licorera=otra, categoria=Categoria.objects.filter(licorera=otra).first(),
+            nombre="Ajeno", presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=1, activo=False)
+
+        respuesta = self.client.post(
+            reverse("producto-reactivar", args=[ajeno.id]), **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_404_NOT_FOUND)
+
 
 class QuienPuedeTocarElCatalogoTests(CatalogoBase):
     """El vendedor consulta; registrar es del administrador y de la cuenta al día."""
@@ -365,6 +411,21 @@ class QuienPuedeTocarElCatalogoTests(CatalogoBase):
                                      content_type="application/json",
                                      **self.entrar(self.vendedor.correo))
         self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_el_vendedor_no_reactiva_productos(self):
+        """El camino de vuelta es una escritura, y las escrituras son del administrador."""
+        producto = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria, nombre="Guardado",
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=1000, stock_minimo=1, activo=False)
+
+        respuesta = self.client.post(
+            reverse("producto-reactivar", args=[producto.id]),
+            **self.entrar(self.vendedor.correo))
+
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+        producto.refresh_from_db()
+        self.assertFalse(producto.activo)
 
     def test_el_permiso_de_escritura_sigue_enganchado(self):
         """
