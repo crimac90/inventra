@@ -7,9 +7,7 @@ automático»—, y esa es la regla que manda: un sistema que reprecia solo al
 subir un costo rompe sin avisar una promoción, un precio acordado con el
 proveedor o un artículo que se vende casi a costo para atraer clientes.
 
-SOBRE QUÉ COSTO SE PROPONE
-
-Sobre el **promedio ponderado de las existencias**: lo que costó todo lo que
+Se propone sobre el **promedio ponderado de las existencias**: lo que costó todo lo que
 hay en bodega, dividido entre las unidades que hay. No sobre la última compra.
 
 La diferencia no es teórica. Con 100 unidades compradas a 60.000 y 20 de
@@ -21,9 +19,7 @@ precio único deja el margen pedido sobre el lote completo.
 Sin existencias no hay promedio, y entonces se usa el costo de la última
 compra: es lo único que se sabe, y conviene decirlo en la pantalla.
 
-LO QUE EL PROMEDIO ESCONDE, Y POR ESO SE PUBLICA EL RANGO
-
-Un promedio reparte: con lotes muy distintos, el precio que deja un 30 % sobre
+Un promedio reparte, y por eso se publica también el rango: con lotes muy distintos, el precio que deja un 30 % sobre
 el conjunto puede quedar por debajo del costo de algunas unidades. Eso es
 legítimo —el margen se cumple si se vende todo— pero no puede ser invisible,
 así que se devuelven también el costo mínimo y el máximo y el detalle de los
