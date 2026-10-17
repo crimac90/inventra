@@ -784,3 +784,28 @@ td.acciones-fila a.btn {
 .cifra.menos {
   color: var(--err-fuerte);
 }
+
+/* --- Propuesta de precio y ventana de margenes (punto 8.4) -------------- */
+
+/*
+  La propuesta se separa del campo con un fondo propio: no es un dato del
+  formulario, es algo que el sistema ofrece y que se puede ignorar.
+*/
+.propuesta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  margin: calc(var(--e3) * -1) 0 var(--e4);
+  padding: 10px 14px;
+  font-size: 14px;
+  background: var(--chip);
+  border-radius: var(--radio);
+}
+
+/* La ventana de confirmacion es estrecha a proposito; esta lleva seis campos. */
+.modal-ancho {
+  max-width: 560px;
+}
+

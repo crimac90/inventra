@@ -61,9 +61,17 @@ export function reactivarProducto(id) {
   return api.post(`/inventario/productos/${id}/reactivar/`, {});
 }
 
-/* Las categorias se siembran al registrar la licorera y no se gestionan. */
+/*
+  Las categorias se siembran al registrar la licorera. No se crean, no se
+  borran y no se renombran; lo unico ajustable es su margen.
+*/
 export function consultarCategorias() {
   return api.get("/inventario/categorias/");
+}
+
+/* Los seis margenes viajan juntos porque se editan juntos (RF-INV-11). */
+export function guardarMargenes(margenes) {
+  return api.put("/inventario/categorias/margenes/", { margenes });
 }
 
 /* --- Existencias (RF-INV-05, 06 y 07) ----------------------------------- */

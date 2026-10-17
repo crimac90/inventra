@@ -192,5 +192,8 @@ export const api = {
   get: (ruta) => conSesion(ruta, { method: "GET" }),
   post: (ruta, cuerpo) => conSesion(ruta, { method: "POST", body: JSON.stringify(cuerpo) }),
   patch: (ruta, cuerpo) => conSesion(ruta, { method: "PATCH", body: JSON.stringify(cuerpo) }),
+  /* PUT reemplaza el recurso entero; PATCH cambia una parte. Los margenes se
+     guardan los seis de una vez, asi que es PUT. */
+  put: (ruta, cuerpo) => conSesion(ruta, { method: "PUT", body: JSON.stringify(cuerpo) }),
   delete: (ruta) => conSesion(ruta, { method: "DELETE" }),
 };

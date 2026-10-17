@@ -5,6 +5,7 @@ Se ejecutan con `py manage.py test inventario`.
 """
 
 from datetime import timedelta
+from decimal import Decimal
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -1185,3 +1186,147 @@ class NivelDeExistenciasTests(CatalogoBase):
         vendedor = crear_usuario(self.licorera, "vendedor@prueba.com", Rol.VENDEDOR)
         self.assertEqual(self.alertas(correo=vendedor.correo).status_code,
                          status.HTTP_200_OK)
+
+
+class PrecioSugeridoTests(CatalogoBase):
+    """
+    El precio que el sistema propone y nunca aplica (RF-INV-11).
+
+    Dos cosas se vigilan aquí, y la segunda es la que importa. La primera es
+    que la propuesta salga bien. La segunda, que el requisito está escrito en
+    negativo —«nunca automático»—, así que una compra más cara no puede mover
+    el precio de venta.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.producto = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria,
+            nombre="Ron Medellín Añejo 750 ml",
+            presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=50000, stock_minimo=5)
+
+    def comprar(self, costo, cantidad=6):
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.producto, "cantidad": cantidad,
+                     "costo_unitario": costo}])
+
+    def leer(self):
+        respuesta = self.client.get(
+            reverse("producto-detail", args=[self.producto.id]), **self.entrar())
+        return respuesta.json()
+
+    def test_sin_compras_no_hay_nada_que_proponer(self):
+        """Sin costo no hay margen que aplicar, y proponer sobre cero daría cero."""
+        datos = self.leer()
+        self.assertIsNone(datos["costo_promedio"])
+        self.assertIsNone(datos["precio_sugerido"])
+
+    def test_con_un_solo_lote_el_promedio_es_su_costo(self):
+        self.comprar(Decimal("38000"))
+
+        datos = self.leer()
+        self.assertEqual(Decimal(datos["costo_promedio"]), Decimal("38000"))
+        self.assertEqual(Decimal(datos["precio_sugerido"]), Decimal("49400"))
+
+    def test_la_propuesta_sale_del_promedio_y_no_de_la_ultima_compra(self):
+        """
+        La prueba del lote de promoción, que es la que destapó el defecto.
+
+        Ciento cincuenta unidades a 70.000 y diez de oferta a 25.000: la última
+        compra dice 25.000 y lo que de verdad costó cada unidad en bodega es
+        67.187,50. Proponer sobre la última llevaría a vender a 32.500 las
+        ciento cincuenta que costaron 70.000.
+        """
+        self.comprar(Decimal("70000"), cantidad=150)
+        self.comprar(Decimal("25000"), cantidad=10)
+
+        datos = self.leer()
+        self.assertEqual(Decimal(datos["costo_ultima_compra"]), Decimal("25000"))
+        self.assertEqual(Decimal(datos["costo_promedio"]), Decimal("67187.50"))
+        self.assertEqual(Decimal(datos["precio_sugerido"]), Decimal("87400"))
+
+    def test_se_publica_el_rango_de_los_lotes(self):
+        """
+        Un promedio reparte, y la pantalla tiene que poder enseñar lo que
+        reparte: con lotes muy distintos, el precio que gana sobre el conjunto
+        puede no cubrir el costo de algunas unidades.
+        """
+        self.comprar(Decimal("70000"), cantidad=150)
+        self.comprar(Decimal("25000"), cantidad=10)
+
+        datos = self.leer()
+        self.assertEqual(Decimal(datos["costo_minimo"]), Decimal("25000"))
+        self.assertEqual(Decimal(datos["costo_maximo"]), Decimal("70000"))
+        self.assertEqual(
+            [(Decimal(l["costo_unitario"]), l["unidades"])
+             for l in datos["lotes_en_existencia"]],
+            [(Decimal("70000.00"), 150), (Decimal("25000.00"), 10)])
+
+    def test_sin_existencias_se_propone_sobre_la_ultima_compra(self):
+        """
+        Vendido todo, no hay nada cuyo costo promediar. Lo único que se sabe es
+        a cuánto se compró la última vez, y la pantalla lo dice así en vez de
+        quedarse sin proponer.
+        """
+        self.comprar(Decimal("40000"))
+        LoteInventario.objects.filter(producto=self.producto).update(cantidad_disponible=0)
+
+        datos = self.leer()
+        self.assertIsNone(datos["costo_promedio"])
+        self.assertEqual(Decimal(datos["precio_sugerido"]), Decimal("52000"))
+
+    def test_la_propuesta_se_redondea_a_la_centena_de_arriba(self):
+        """
+        Un precio de 49.832,90 no se cobra en ninguna parte. Se sube, nunca se
+        baja: redondear hacia abajo recortaría el margen que se acaba de pedir.
+        """
+        self.comprar(Decimal("38333"))
+
+        self.assertEqual(Decimal(self.leer()["precio_sugerido"]), Decimal("49900"))
+
+    def test_una_compra_mas_cara_no_mueve_el_precio_de_venta(self):
+        """
+        El corazón de RF-INV-11. Un sistema que reprecia solo rompe sin avisar
+        una promoción o un precio acordado con el proveedor.
+        """
+        self.comprar(Decimal("38000"))
+        self.comprar(Decimal("80000"))
+
+        self.producto.refresh_from_db()
+        self.assertEqual(self.producto.precio_venta, Decimal("50000.00"))
+
+    def test_cambiar_el_margen_cambia_la_propuesta(self):
+        self.comprar(Decimal("40000"))
+
+        respuesta = self.client.put(
+            reverse("margenes"),
+            {"margenes": [{"id": self.categoria.id, "margen_sugerido": "50.00"}]},
+            content_type="application/json", **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(Decimal(self.leer()["precio_sugerido"]), Decimal("60000"))
+
+    def test_no_se_toca_el_margen_de_otra_licorera(self):
+        otra = crear_negocio("Guarne")
+        ajena = Categoria.objects.filter(licorera=otra).first()
+
+        respuesta = self.client.put(
+            reverse("margenes"),
+            {"margenes": [{"id": ajena.id, "margen_sugerido": "99.00"}]},
+            content_type="application/json", **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        ajena.refresh_from_db()
+        self.assertEqual(ajena.margen_sugerido, Categoria.MARGEN_INICIAL)
+
+    def test_el_vendedor_no_guarda_margenes(self):
+        vendedor = crear_usuario(self.licorera, "vendedor@margen.com", Rol.VENDEDOR)
+
+        respuesta = self.client.put(
+            reverse("margenes"),
+            {"margenes": [{"id": self.categoria.id, "margen_sugerido": "50.00"}]},
+            content_type="application/json", **self.entrar(vendedor.correo))
+
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)

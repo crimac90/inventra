@@ -8,22 +8,25 @@ que volver a escribirla aquí.
 """
 
 from django.core.exceptions import ValidationError as ErrorDeValidacion
+from django.db import transaction
 from django.db.models import F, Q
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from seguridad.permissions import EsAdministradorDeLicorera
 from suscripciones.permissions import PuedeRegistrarOperaciones
 
 from .existencias import con_existencias
+from .precios import con_costos
 from .models import Categoria, EntradaMercancia, MovimientoInventario, Producto
 from .operaciones import ajustar_existencias, registrar_entrada
 from .serializers import (
     AjusteSerializer, CategoriaSerializer, EntradaCrearSerializer,
-    EntradaSerializer, MovimientoSerializer, ProductoGuardarSerializer,
-    ProductoSerializer)
+    EntradaSerializer, MargenesSerializer, MovimientoSerializer,
+    ProductoGuardarSerializer, ProductoSerializer)
 
 
 class CategoriasView(ListAPIView):
@@ -40,6 +43,37 @@ class CategoriasView(ListAPIView):
     def get_queryset(self):
         return Categoria.objects.filter(
             licorera=self.request.user.licorera, activo=True).order_by("id")
+
+
+class MargenesDeCategoriaView(APIView):
+    """
+    Los márgenes con los que se proponen precios (RF-INV-11).
+
+    Se guardan los seis de una vez porque se editan de una vez: quien abre esa
+    ventana está repartiendo márgenes entre categorías, y escribirlos a medias
+    dejaría la comparación entre ellas en un estado que nadie pidió.
+
+    Es la única parte de una categoría que el negocio puede cambiar. Ni se
+    crean, ni se borran, ni se renombran: las seis las fija RF-INV-01.
+    """
+
+    permission_classes = [EsAdministradorDeLicorera, PuedeRegistrarOperaciones]
+
+    def put(self, request):
+        serializador = MargenesSerializer(
+            data=request.data, context={"licorera": request.user.licorera})
+        serializador.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            for linea in serializador.validated_data["margenes"]:
+                (Categoria.objects
+                 .filter(licorera=request.user.licorera, id=linea["id"])
+                 .update(margen_sugerido=linea["margen_sugerido"]))
+
+        categorias = (Categoria.objects
+                      .filter(licorera=request.user.licorera, activo=True)
+                      .order_by("id"))
+        return Response(CategoriaSerializer(categorias, many=True).data)
 
 
 class ProductoViewSet(viewsets.ModelViewSet):
@@ -81,11 +115,15 @@ class ProductoViewSet(viewsets.ModelViewSet):
         # agrupar para sumar los lotes, Django deja de considerar ordenada la
         # consulta aunque el modelo declare su orden, y la paginación avisa de
         # que las páginas podrían salir barajadas.
-        consulta = con_existencias(
+        # `prefetch_related` trae los lotes de las veinticinco filas en UNA
+        # consulta más, no en veinticinco: la pantalla necesita el detalle para
+        # decir cuántas unidades quedan por encima del precio que se escribe.
+        consulta = con_costos(con_existencias(
             Producto.objects
             .filter(licorera=self.request.user.licorera)
             .select_related("categoria")
-        ).order_by("nombre")
+            .prefetch_related("lotes")
+        )).order_by("nombre")
 
         parametros = self.request.query_params
 

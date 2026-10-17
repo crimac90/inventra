@@ -19,6 +19,9 @@ El precio de venta sí vive en el producto, y vive **separado del costo**
 cambia solo.
 """
 
+from decimal import Decimal
+
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -27,12 +30,18 @@ class Categoria(models.Model):
     Categorías del catálogo, propias de cada licorera.
 
     Se siembran al registrar el negocio con los seis valores que enumera
-    RF-INV-01 y no se gestionan desde ninguna pantalla: ningún requisito permite
-    crearlas ni editarlas, y ninguna función existe sin requisito que la pida.
+    RF-INV-01. No se crean, no se borran y no se renombran: ningún requisito lo
+    permite. Lo único que el negocio ajusta de ellas es el margen con el que el
+    sistema propone precios (RF-INV-11).
     """
 
     # Las seis de RF-INV-01, en el orden en que las enumera el requisito.
     POR_DEFECTO = ("Aguardiente", "Ron", "Cerveza", "Whisky", "Vino", "Otros")
+
+    # El margen con el que nacen todas. Es un punto de partida para que el
+    # sistema pueda proponer algo desde el primer día, no una afirmación sobre
+    # lo que cobra una licorera: el negocio lo ajusta categoría por categoría.
+    MARGEN_INICIAL = Decimal("30.00")
 
     licorera = models.ForeignKey(
         "suscripciones.Licorera", on_delete=models.PROTECT, related_name="categorias",
@@ -40,6 +49,12 @@ class Categoria(models.Model):
         help_text="Licorera dueña del registro; sostiene el aislamiento entre negocios.",
     )
     nombre = models.CharField(max_length=50, help_text="Nombre de la categoría.")
+    margen_sugerido = models.DecimalField(
+        max_digits=5, decimal_places=2, default=MARGEN_INICIAL,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("500"))],
+        help_text=("Porcentaje sobre el costo con el que se propone el precio de venta "
+                   "de sus productos. El sistema propone; nunca aplica."),
+    )
     activo = models.BooleanField(default=True, help_text="Baja lógica.")
 
     class Meta:

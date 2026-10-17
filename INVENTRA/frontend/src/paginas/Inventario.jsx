@@ -22,6 +22,7 @@ import { Link } from "react-router-dom";
 import Campo from "../componentes/Campo";
 import CampoSeleccion from "../componentes/CampoSeleccion";
 import Disposicion from "../componentes/Disposicion";
+import MargenesPorCategoria from "../componentes/MargenesPorCategoria";
 import Modal from "../componentes/Modal";
 import { ErrorApi, mensajeDeError } from "../api/cliente";
 import {
@@ -94,6 +95,9 @@ export default function Inventario() {
 
   // Cuando lleva un producto dentro, la ventana de confirmacion esta abierta.
   const [porDescontinuar, setPorDescontinuar] = useState(null);
+
+  // Cuando es cierto, la ventana de margenes esta abierta (RF-INV-11).
+  const [ajustandoMargenes, setAjustandoMargenes] = useState(false);
 
   // Lo que la persona escribe y lo que de verdad se le pide al servidor son
   // dos cosas distintas: entre una y otra hay una espera, que ahora vive en
@@ -270,6 +274,15 @@ export default function Inventario() {
             <Link className="btn btn-out" to="/inventario/entradas">
               Entrada de mercancía
             </Link>
+            {puedeRegistrar && (
+              <button
+                className="btn btn-out"
+                type="button"
+                onClick={() => setAjustandoMargenes(true)}
+              >
+                Márgenes
+              </button>
+            )}
             {puedeRegistrar && (
               <button
                 className="btn btn-cta"
@@ -452,6 +465,22 @@ export default function Inventario() {
         )}
       </div>
 
+      {ajustandoMargenes && (
+        <MargenesPorCategoria
+          categorias={categorias}
+          onCerrar={() => setAjustandoMargenes(false)}
+          onGuardado={async (guardadas) => {
+            setCategorias(guardadas);
+            setAjustandoMargenes(false);
+            setAviso({ tipo: "ok", texto: "Márgenes guardados." });
+            // El precio sugerido de cada producto lo calcula el servidor con
+            // estos margenes, de modo que la lista queda atrasada hasta que se
+            // vuelve a pedir.
+            await refrescar();
+          }}
+        />
+      )}
+
       {porDescontinuar && (
         <Modal
           titulo="Descontinuar producto"
@@ -493,6 +522,49 @@ function Formulario({ inicial, categorias, ocupado, onGuardar, onCancelar }) {
   const [errores, setErrores] = useState({});
 
   const editando = Boolean(inicial.id);
+
+  /*
+    La propuesta de precio (RF-INV-11). Solo aparece con una compra detras: sin
+    costo no hay nada sobre lo que aplicar un margen, de modo que un producto
+    recien registrado no la tiene hasta su primera entrada.
+
+    Se esconde si se cambia la categoria en el formulario, porque el numero que
+    propone el servidor se calculo con el margen de la categoria ANTERIOR y
+    anunciarlo con el nombre de la nueva seria mentir.
+  */
+  const numero = (valor) => (valor == null ? null : Number(valor));
+  const promedio = numero(inicial.costo_promedio);
+  const ultimo = numero(inicial.costo_ultima_compra);
+  const minimo = numero(inicial.costo_minimo);
+  const maximo = numero(inicial.costo_maximo);
+  const sugerido = numero(inicial.precio_sugerido);
+  const lotes = inicial.lotes_en_existencia || [];
+  const unidades = lotes.reduce((suma, lote) => suma + lote.unidades, 0);
+
+  // Con existencias manda lo que costo lo que hay; sin ellas, lo unico que se
+  // sabe es la ultima compra, y la pantalla lo dice en vez de disimularlo.
+  const base = promedio !== null ? promedio : ultimo;
+  const suCategoria = categorias.find((c) => String(c.id) === String(inicial.categoria));
+  const mismaCategoria = String(datos.categoria) === String(inicial.categoria || "");
+  const hayPropuesta = base !== null && sugerido !== null && mismaCategoria && suCategoria;
+
+  /*
+    Dos avisos distintos, y ninguno bloquea: el precio lo decide el negocio.
+
+    El primero es una perdida real: por debajo del promedio, vender todas las
+    existencias deja menos dinero del que costaron. El segundo es lo que un
+    promedio esconde: con lotes muy distintos, un precio que gana sobre el
+    conjunto puede no cubrir el costo de algunas unidades, y el margen solo se
+    cumple si se venden todas.
+  */
+  const precio = Number(datos.precio_venta);
+  const hayPrecio = String(datos.precio_venta).trim() !== "" && precio > 0;
+  const bajoElCosto = base !== null && hayPrecio && precio < base;
+  const unidadesPorEncima = hayPrecio
+    ? lotes
+        .filter((lote) => Number(lote.costo_unitario) > precio)
+        .reduce((suma, lote) => suma + lote.unidades, 0)
+    : 0;
 
   function cambiar(campo, valor) {
     setDatos((previos) => ({ ...previos, [campo]: valor }));
@@ -574,6 +646,51 @@ function Formulario({ inicial, categorias, ocupado, onGuardar, onCancelar }) {
           error={errores.stock_minimo}
         />
       </div>
+
+      {hayPropuesta && (
+        <div className="propuesta">
+          <span>
+            {promedio !== null ? (
+              <>
+                {plural(unidades, "unidad", "unidades")} en existencia, a{" "}
+                <strong>{moneda(promedio)}</strong> cada una en promedio
+                {minimo !== null && maximo !== null && minimo !== maximo && (
+                  <> (lotes entre {moneda(minimo)} y {moneda(maximo)})</>
+                )}
+              </>
+            ) : (
+              <>Sin existencias; última compra a <strong>{moneda(ultimo)}</strong></>
+            )}
+            {" · "}margen de {suCategoria.nombre}:{" "}
+            <strong>{suCategoria.margen_sugerido}%</strong> · precio sugerido{" "}
+            <strong>{moneda(sugerido)}</strong>
+          </span>
+          <button
+            className="btn btn-out btn-pequeno"
+            type="button"
+            onClick={() => cambiar("precio_venta", String(sugerido))}
+          >
+            Usar el sugerido
+          </button>
+        </div>
+      )}
+
+      {bajoElCosto && (
+        <div className="aviso advertencia" role="status">
+          Ese precio queda por debajo de {moneda(base)}, que es lo que costó cada
+          unidad {promedio !== null ? "en promedio" : "en la última compra"}. Se puede
+          guardar —una liquidación es una decisión del negocio—, pero vender a ese
+          precio deja menos dinero del que costó la mercancía.
+        </div>
+      )}
+
+      {!bajoElCosto && unidadesPorEncima > 0 && (
+        <div className="aviso advertencia" role="status">
+          {plural(unidadesPorEncima, "unidad costó", "unidades costaron")} más que ese
+          precio, hasta {moneda(maximo)}. El promedio reparte esa diferencia entre
+          todas, así que el margen solo se cumple si se venden todas.
+        </div>
+      )}
 
       {/*
         Se dice en el formulario y no solo en el manual: un campo que falta se
