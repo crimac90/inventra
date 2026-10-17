@@ -39,6 +39,7 @@ import { moneda } from "../formato";
 import { plural } from "../texto";
 import { motivoParaNoRegistrar } from "../sesion/permisos";
 import { useSesion } from "../sesion/ContextoSesion";
+import { useAviso } from "../aviso";
 
 /* Las cinco del modelo de datos. Es una lista cerrada, no texto libre. */
 const PRESENTACIONES = [
@@ -85,7 +86,7 @@ export default function Inventario() {
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [aviso, setAviso] = useState(null);
+  const [aviso, setAviso] = useAviso();
   const [ocupado, setOcupado] = useState(false);
   const [suscripcion, setSuscripcion] = useState(null);
 

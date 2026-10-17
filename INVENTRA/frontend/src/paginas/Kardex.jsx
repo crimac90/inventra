@@ -30,6 +30,7 @@ import { fechaHora, moneda } from "../formato";
 import { plural } from "../texto";
 import { motivoParaNoRegistrar } from "../sesion/permisos";
 import { useSesion } from "../sesion/ContextoSesion";
+import { useAviso } from "../aviso";
 
 export default function Kardex() {
   const { id } = useParams();
@@ -43,7 +44,7 @@ export default function Kardex() {
 
   const [cargando, setCargando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
-  const [aviso, setAviso] = useState(null);
+  const [aviso, setAviso] = useAviso();
   const [errores, setErrores] = useState({});
   const [suscripcion, setSuscripcion] = useState(null);
 

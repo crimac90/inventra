@@ -28,6 +28,7 @@ import {
   consultarPlanes,
 } from "../api/suscripciones";
 import { useSesion } from "../sesion/ContextoSesion";
+import { useAviso } from "../aviso";
 
 /* Lo que incluye cada plan, dicho con lo que el propio plan declara. */
 function caracteristicas(plan) {
@@ -56,7 +57,7 @@ export default function MiSuscripcion() {
   const [planes, setPlanes] = useState([]);
   // Veredicto del servidor para cada plan: si se puede cambiar y, si no, por que.
   const [veredictos, setVeredictos] = useState({});
-  const [aviso, setAviso] = useState(null);
+  const [aviso, setAviso] = useAviso();
   const [porCambiar, setPorCambiar] = useState(null);
   const [ocupado, setOcupado] = useState(false);
 

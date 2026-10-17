@@ -30,6 +30,7 @@ import { fechaHora, moneda } from "../formato";
 import { plural } from "../texto";
 import { motivoParaNoRegistrar } from "../sesion/permisos";
 import { useSesion } from "../sesion/ContextoSesion";
+import { useAviso } from "../aviso";
 
 /*
   Cada linea lleva una clave propia que no es su posicion en la lista. Con el
@@ -52,7 +53,7 @@ export default function EntradaMercancia() {
   const [entradas, setEntradas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
-  const [aviso, setAviso] = useState(null);
+  const [aviso, setAviso] = useAviso();
   const [errores, setErrores] = useState({});
   const [suscripcion, setSuscripcion] = useState(null);
 

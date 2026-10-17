@@ -33,6 +33,7 @@ import {
 } from "../api/seguridad";
 import { ETIQUETA_DE_ROL, ROL_ADMINISTRADOR_LICORERA } from "../sesion/roles";
 import { useSesion } from "../sesion/ContextoSesion";
+import { useAviso } from "../aviso";
 
 export default function Perfil() {
   const { usuario, setUsuario, salir } = useSesion();
@@ -102,7 +103,7 @@ function DatosPersonales({ usuario, setUsuario }) {
   const [nombre, setNombre] = useState(usuario.nombre_completo);
   const [telefono, setTelefono] = useState(usuario.telefono || "");
   const [errores, setErrores] = useState({});
-  const [aviso, setAviso] = useState(null);
+  const [aviso, setAviso] = useAviso();
   const [guardando, setGuardando] = useState(false);
 
   // Sin cambios no hay nada que guardar: el boton se queda quieto.

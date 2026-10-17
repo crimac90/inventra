@@ -37,6 +37,7 @@ import { consultarMiSuscripcion } from "../api/suscripciones";
 import { plural } from "../texto";
 import { motivoParaNoRegistrar } from "../sesion/permisos";
 import { useSesion } from "../sesion/ContextoSesion";
+import { useAviso } from "../aviso";
 
 const NOMBRES_DE_ROL = {
   administrador_licorera: "Administrador",
@@ -58,7 +59,7 @@ export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [roles, setRoles] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [aviso, setAviso] = useState(null);
+  const [aviso, setAviso] = useAviso();
 
   // Cuando vale null no hay formulario abierto. Con un objeto vacío se está
   // creando; con un usuario dentro, editándolo.
