@@ -6,8 +6,10 @@ Se ejecutan con `py manage.py test inventario`.
 
 from datetime import timedelta
 from decimal import Decimal
+from io import StringIO
 
 from django.core.cache import cache
+from django.core.management import call_command
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
@@ -16,11 +18,13 @@ from django.utils import timezone
 from rest_framework import status
 
 from seguridad.models import Rol, Usuario
+from suscripciones.management.commands.cargar_datos_demo import DOMINIO
 from suscripciones.models import Licorera, Plan, Suscripcion
 from suscripciones.puesta_en_marcha import preparar_licorera_nueva
 
 from sedes.models import Sede
 
+from . import datos_demo
 from .existencias import existencias_de, existencias_totales
 from .kardex import registrar_movimiento
 from .models import Categoria, EntradaMercancia, LoteInventario, MovimientoInventario, Producto
@@ -1330,3 +1334,145 @@ class PrecioSugeridoTests(CatalogoBase):
             content_type="application/json", **self.entrar(vendedor.correo))
 
         self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class DatosDemoTests(TestCase):
+    """
+    La carga de datos de demostración (bloque de cierre de INV).
+
+    No se comprueba el catálogo línea por línea: eso sería escribir dos veces
+    la misma lista. Se comprueba lo que tiene que ser cierto el día de la
+    demostración, que es que el inventario esté cuadrado, que se puedan ver los
+    casos que la pantalla necesita enseñar y que volver a ejecutar la orden no
+    estropee nada.
+    """
+
+    def cargar(self):
+        # El modo de depuración está apagado durante las pruebas, así que la
+        # orden pide que se le insista. Es la misma red de seguridad que
+        # protege al servidor publicado.
+        call_command("cargar_datos_demo", "--si-estoy-seguro", stdout=StringIO())
+
+    def licorera_principal(self):
+        return Licorera.objects.get(correo__startswith="contacto@")
+
+    def test_el_catalogo_queda_cargado_con_sus_existencias(self):
+        self.cargar()
+        licorera = self.licorera_principal()
+
+        productos = Producto.objects.filter(licorera=licorera)
+        self.assertEqual(productos.count(), len(datos_demo.CATALOGO_PRINCIPAL))
+        self.assertTrue(
+            any(existencias_totales(p) > 0 for p in productos),
+            "ninguna referencia quedó con existencias")
+
+    def test_cada_existencia_cuadra_con_el_ultimo_saldo_del_kardex(self):
+        """
+        La comprobación que de verdad importa: las existencias se derivan de
+        los lotes y el saldo del kardex se guardó al registrar cada
+        movimiento. Si las dos cifras coinciden en todas las referencias, los
+        datos no se insertaron por un atajo.
+        """
+        self.cargar()
+        licorera = self.licorera_principal()
+        sede = Sede.principal_de(licorera)
+
+        for producto in Producto.objects.filter(licorera=licorera):
+            ultimo = (MovimientoInventario.objects
+                      .filter(producto=producto, sede=sede)
+                      .order_by("-fecha", "-id").first())
+            if ultimo is None:
+                self.assertEqual(existencias_de(producto, sede), 0)
+                continue
+            self.assertEqual(existencias_de(producto, sede), ultimo.saldo_resultante,
+                             "no cuadra: %s" % producto.nombre)
+
+    def test_los_lotes_nacen_en_fechas_distintas(self):
+        """
+        Sin esto el PEPS no se puede enseñar: todos los lotes tendrían la hora
+        de la carga y el orden de consumo no se vería por ninguna parte.
+        """
+        self.cargar()
+        licorera = self.licorera_principal()
+
+        lotes = (LoteInventario.objects
+                 .filter(producto__licorera=licorera,
+                         producto__nombre="Ron Medellín Añejo 3 años 750 ml")
+                 .order_by("fecha_ingreso", "id"))
+
+        self.assertEqual(lotes.count(), 3)
+        fechas = [lote.fecha_ingreso for lote in lotes]
+        self.assertEqual(fechas, sorted(fechas))
+        self.assertEqual(len(set(fechas)), 3)
+        # El más antiguo es el más barato, que es lo que hace visible la
+        # diferencia entre el costo de la última compra y el promedio.
+        self.assertLess(lotes.first().costo_unitario, lotes.last().costo_unitario)
+
+    def test_hay_referencias_por_debajo_de_su_minimo(self):
+        self.cargar()
+        licorera = self.licorera_principal()
+
+        bajas = [p for p in Producto.objects.filter(licorera=licorera, activo=True)
+                 if existencias_totales(p) < p.stock_minimo]
+
+        self.assertTrue(bajas, "la alerta de existencias bajas no tendría nada que mostrar")
+
+    def test_los_ajustes_quedan_en_el_kardex_con_su_motivo(self):
+        self.cargar()
+        licorera = self.licorera_principal()
+
+        ajustes = MovimientoInventario.objects.filter(
+            licorera=licorera,
+            documento_tipo=MovimientoInventario.Documento.AJUSTE)
+
+        self.assertEqual(ajustes.count(), len(datos_demo.AJUSTES))
+        for movimiento in ajustes:
+            self.assertTrue(movimiento.motivo)
+
+    def test_el_producto_descontinuado_conserva_su_historial(self):
+        self.cargar()
+        licorera = self.licorera_principal()
+
+        producto = Producto.objects.get(licorera=licorera,
+                                        nombre=datos_demo.DESCONTINUADOS[0])
+
+        self.assertFalse(producto.activo)
+        self.assertTrue(producto.movimientos.exists())
+
+    def test_cada_negocio_solo_ve_su_catalogo(self):
+        self.cargar()
+        principal = self.licorera_principal()
+        vecina = Licorera.objects.get(correo__startswith="contacto.vecino@")
+
+        compartida = "Cerveza Poker 330 ml"
+        de_una = Producto.objects.get(licorera=principal, nombre=compartida)
+        de_otra = Producto.objects.get(licorera=vecina, nombre=compartida)
+
+        self.assertNotEqual(de_una.id, de_otra.id)
+        self.assertNotEqual(de_una.precio_venta, de_otra.precio_venta)
+
+    def test_cargar_dos_veces_no_duplica_el_inventario(self):
+        self.cargar()
+        licorera = self.licorera_principal()
+        antes = {p.id: existencias_totales(p)
+                 for p in Producto.objects.filter(licorera=licorera)}
+        lotes = LoteInventario.objects.filter(producto__licorera=licorera).count()
+
+        self.cargar()
+
+        self.assertEqual(
+            {p.id: existencias_totales(p)
+             for p in Producto.objects.filter(licorera=licorera)}, antes)
+        self.assertEqual(
+            LoteInventario.objects.filter(producto__licorera=licorera).count(), lotes)
+
+    def test_limpiar_no_deja_inventario_detras(self):
+        self.cargar()
+        call_command("cargar_datos_demo", "--limpiar", "--si-estoy-seguro",
+                     stdout=StringIO())
+
+        self.assertFalse(
+            Producto.objects.filter(licorera__correo__endswith=DOMINIO).exists())
+        self.assertFalse(LoteInventario.objects.exists())
+        self.assertFalse(MovimientoInventario.objects.exists())
+        self.assertFalse(EntradaMercancia.objects.exists())

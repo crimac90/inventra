@@ -15,6 +15,12 @@ Toda suscripción que carga lleva fecha de fin, porque el estado se deriva de
 ella: una suscripción sin fecha es una que nunca vence, y el juego de datos
 enseñaría lo contrario de lo que el sistema hace.
 
+Con las cuentas viene el inventario de cada negocio: el catálogo, las compras
+que lo surtieron y las diferencias de conteo que se le aplicaron. Vive en
+`inventario/datos_demo.py` y entra por las mismas operaciones que usa la
+pantalla, de modo que los lotes y el kardex quedan cuadrados porque los calculó
+el sistema.
+
 USO
     py manage.py cargar_datos_demo
     py manage.py cargar_datos_demo --limpiar     (borra lo que cargó)
@@ -29,6 +35,7 @@ from django.utils import timezone
 
 from seguridad.models import Rol, Usuario
 
+from inventario import datos_demo
 from inventario.models import Categoria
 from sedes.models import Sede
 from suscripciones.puesta_en_marcha import preparar_licorera_nueva
@@ -54,6 +61,9 @@ NEGOCIOS = [
         "nombre": "Licorera La Esquina",
         "correo": f"contacto{DOMINIO}",
         "plan": "Pro",
+        "catalogo": datos_demo.CATALOGO_PRINCIPAL,
+        "ajustes": datos_demo.AJUSTES,
+        "descontinuados": datos_demo.DESCONTINUADOS,
         "usuarios": [
             ("Ana Gómez Restrepo", f"admin{DOMINIO}", Rol.ADMINISTRADOR_LICORERA, "3001112233"),
             ("Carlos Ruiz Mejía", f"vendedor{DOMINIO}", Rol.VENDEDOR, "3004445566"),
@@ -65,6 +75,7 @@ NEGOCIOS = [
         "nombre": "Licorera El Vecino",
         "correo": f"contacto.vecino{DOMINIO}",
         "plan": "B",
+        "catalogo": datos_demo.CATALOGO_SECUNDARIO,
         "usuarios": [
             ("Marta Díaz Salas", f"vecino{DOMINIO}", Rol.ADMINISTRADOR_LICORERA, "3007778899"),
         ],
@@ -75,7 +86,7 @@ SUPERADMINISTRADOR = ("Operador INVENTRA", f"plataforma{DOMINIO}")
 
 
 class Command(BaseCommand):
-    help = "Carga (o retira) el juego de cuentas de demostración."
+    help = "Carga (o retira) el juego de cuentas e inventario de demostración."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -140,8 +151,26 @@ class Command(BaseCommand):
                 self.anunciar("suscripción",
                               f"{licorera.nombre} → plan {plan.nombre}, vence {vence}", True)
 
+            responsable = None
             for nombre, correo, rol, telefono in datos["usuarios"]:
-                self.crear_usuario(nombre, correo, rol, licorera, telefono)
+                usuario = self.crear_usuario(nombre, correo, rol, licorera, telefono)
+                if responsable is None and rol == Rol.ADMINISTRADOR_LICORERA:
+                    responsable = usuario
+
+            # El catálogo queda a nombre de quien lo habría registrado en el
+            # negocio. El kardex exige un autor en cada movimiento, y poner ahí
+            # al operador de INVENTRA enseñaría algo que no ocurre: la
+            # plataforma no recibe mercancía de nadie.
+            creadas = datos_demo.sembrar(
+                licorera, responsable, datos["catalogo"],
+                ajustes=datos.get("ajustes", ()),
+                descontinuados=datos.get("descontinuados", ()),
+            )
+            if creadas:
+                self.anunciar("catálogo",
+                              f"{licorera.nombre} → {plural(creadas, 'referencia')}", True)
+            else:
+                self.anunciar("catálogo", licorera.nombre, False)
 
         # El operador de la plataforma no pertenece a ninguna licorera.
         nombre, correo = SUPERADMINISTRADOR
@@ -150,11 +179,13 @@ class Command(BaseCommand):
         self.resumen()
 
     def crear_usuario(self, nombre, correo, nombre_rol, licorera, telefono):
-        if Usuario.objects.filter(correo=correo).exists():
+        """Crea la cuenta si falta y la devuelve, exista ya o se acabe de crear."""
+        existente = Usuario.objects.filter(correo=correo).first()
+        if existente is not None:
             self.anunciar("usuario", correo, False)
-            return
+            return existente
 
-        Usuario.objects.create_user(
+        usuario = Usuario.objects.create_user(
             correo=correo,
             nombre_completo=nombre,
             password=CONTRASENA,
@@ -169,6 +200,7 @@ class Command(BaseCommand):
             correo_verificado=True,
         )
         self.anunciar("usuario", correo, True)
+        return usuario
 
     @transaction.atomic
     def limpiar(self):
@@ -178,6 +210,11 @@ class Command(BaseCommand):
         así que la base se niega a borrar una licorera con filas colgando. Hay
         que ir de las hojas a la raíz.
         """
+        # El inventario va primero de todo. Sus lotes apuntan a la sede, sus
+        # productos a la categoría y sus entradas y movimientos al usuario que
+        # los registró, las tres con PROTECT: mientras exista una sola fila de
+        # inventario, no se puede retirar nada de lo demás.
+        movimientos, lotes, entradas, productos = datos_demo.retirar(DOMINIO)
         usuarios = Usuario.objects.filter(correo__endswith=DOMINIO).delete()[0]
         suscripciones = Suscripcion.objects.filter(
             licorera__correo__endswith=DOMINIO
@@ -196,7 +233,11 @@ class Command(BaseCommand):
             self.style.WARNING(
                 # Se escribe el plural, no «(s)»: la misma regla que se aplica a
                 # los mensajes de la aplicación vale para lo que sale por consola.
-                f"Retirado: {plural(usuarios, 'usuario')}, "
+                f"Retirado: {plural(movimientos, 'movimiento')}, "
+                f"{plural(lotes, 'lote')}, "
+                f"{plural(entradas, 'entrada')}, "
+                f"{plural(productos, 'producto')}, "
+                f"{plural(usuarios, 'usuario')}, "
                 f"{plural(suscripciones, 'suscripción', 'suscripciones')}, "
                 f"{plural(sedes, 'sede')}, "
                 f"{plural(categorias, 'categoría', 'categorías')}, "

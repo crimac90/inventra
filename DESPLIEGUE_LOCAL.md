@@ -570,6 +570,30 @@ franja de advertencia se ve desde el primer momento, sin tener que mover una fec
 Si al cargar los datos El Vecino aparece en mora o suspendida, es que llevan varios días
 cargados: se retiran y se vuelven a cargar.
 
+Con las cuentas viene el **inventario de cada negocio**: La Esquina queda con cuarenta y
+cinco referencias repartidas en las seis categorías, surtidas con las compras que las
+trajeron, y El Vecino con seis. No es relleno. El juego de datos está armado para que cada
+pantalla de INV tenga algo que enseñar sin preparar nada antes:
+
+| Lo que se puede ver | Dónde |
+|---|---|
+| Un producto con tres compras a distinto costo | Ron Medellín Añejo 3 años 750 ml |
+| Referencias por debajo de su mínimo | Aguardiente Cristal, Cerveza Andina, Whisky Grant's |
+| Una referencia agotada, y con su explicación | Cerveza Costeña 330 ml |
+| Una referencia que todavía no se ha comprado | Vino Gran Tarapacá Cabernet Sauvignon |
+| Ajustes de conteo en los dos sentidos, con su motivo | Kardex |
+| Un producto descontinuado que conserva su historial | Ron Santa Fe 750 ml |
+| El mismo producto con otro precio en el otro negocio | Cerveza Poker 330 ml |
+
+Las compras no se escriben en la base: entran por las mismas operaciones que usa la pantalla
+de entrada de mercancía, de modo que los lotes, el kardex y los saldos quedan cuadrados
+porque los calculó el sistema. Lo único que se corrige después son las fechas. `fecha_ingreso`
+y `fecha` se llenan solas al crear la fila y no admiten un valor —así es como protegen al
+kardex de que nadie antedate un movimiento—, así que una carga hecha de una sentada nacería
+entera en el mismo minuto y el orden del PEPS no se vería por ninguna parte. Por eso, una vez
+creadas por la vía normal, sus marcas de tiempo se retroceden. Se cambia cuándo se dice que
+ocurrió, nunca qué ocurrió ni en qué orden.
+
 Para retirarlas:
 
 ```
