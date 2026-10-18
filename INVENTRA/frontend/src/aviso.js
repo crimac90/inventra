@@ -1,23 +1,21 @@
 /*
   Cuanto dura en pantalla el aviso de una operacion.
 
-  POR QUE AQUI Y NO EN CADA PANTALLA
-  Cinco pantallas escriben avisos y ninguna los retiraba: «Producto
-  actualizado» sobrevivia a abrir otro producto, y «Fecha corregida» seguia en
-  el panel diez minutos despues. Cada una lo habria resuelto a su manera, o
-  ninguna, que es lo que pasaba. Es el caso de `formato.js` y `texto.js`: una
-  regla que vale para todas vive en un sitio (regla 14).
+  La duracion vive aqui y no en cada pantalla porque es una sola regla y son
+  siete las pantallas que escriben avisos: repartida, cada una la resolveria a
+  su manera, y un «Producto actualizado» que sobrevive a abrir otro producto
+  deja de informar y empieza a confundir. Es el mismo criterio con el que
+  `formato.js` y `texto.js` guardan lo que vale para todas.
 
-  LA REGLA
   Lo que salio bien se anuncia y se va: la persona lo vio, la pantalla ya
   muestra el resultado y el aviso solo estorba. Lo que fallo se queda hasta que
   se intente otra cosa, porque hay algo que leer y casi siempre algo que
   corregir, y un mensaje que se desvanece mientras se lee es peor que no
   tenerlo.
 
-  SE USA COMO `useState`, a proposito: las pantallas siguen llamando a
-  `setAviso({ tipo, texto })` igual que antes. Lo unico que cambia es quien
-  decide cuanto dura.
+  Se usa como `useState`, a proposito: una pantalla llama a
+  `setAviso({ tipo, texto })` sin tener que saber que detras hay un
+  temporizador. Lo unico que decide este archivo es cuanto dura.
 */
 
 import { useCallback, useEffect, useRef, useState } from "react";
