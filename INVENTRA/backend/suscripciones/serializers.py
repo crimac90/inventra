@@ -282,6 +282,7 @@ class LicoreraDelPanelSerializer(serializers.Serializer):
     estado_texto = serializers.SerializerMethodField()
     fecha_fin = serializers.SerializerMethodField()
     dias_restantes = serializers.SerializerMethodField()
+    fin_del_periodo_anterior = serializers.SerializerMethodField()
     puede_operar = serializers.SerializerMethodField()
     usuarios_activos = serializers.SerializerMethodField()
 
@@ -291,6 +292,17 @@ class LicoreraDelPanelSerializer(serializers.Serializer):
         if not hasattr(licorera, "_actual"):
             licorera._actual = licorera.suscripcion_actual()
         return licorera._actual
+
+    def get_fin_del_periodo_anterior(self, licorera):
+        """
+        Hasta cuándo valió el período que había antes del actual.
+
+        Es la fecha a la que hay que volver cuando se abrió un período por un
+        pago que no entró, y el panel la ofrece para que nadie tenga que
+        recordarla.
+        """
+        anterior = licorera.suscripcion_anterior()
+        return anterior.fecha_fin if anterior else None
 
     def get_plan(self, licorera):
         s = self._suscripcion(licorera)

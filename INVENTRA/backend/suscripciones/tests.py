@@ -1568,7 +1568,7 @@ class PanelDeLaPlataformaTests(PanelBase):
     CAMPOS = {
         "id", "nombre", "nit", "correo", "telefono", "fecha_registro", "activo",
         "plan", "estado", "estado_texto", "fecha_fin", "dias_restantes",
-        "puede_operar", "usuarios_activos",
+        "fin_del_periodo_anterior", "puede_operar", "usuarios_activos",
     }
 
     def consultar(self):
@@ -1673,9 +1673,13 @@ class AbrirPeriodoTests(PanelBase):
         self.assertEqual(self.pedir(dias=None).status_code, status.HTTP_409_CONFLICT)
 
     def test_la_fecha_no_puede_quedar_en_el_pasado(self):
+        """
+        El rechazo tiene que decir por dónde se sale, porque devolver una
+        suscripción al pasado sí es algo que se hace: por la corrección.
+        """
         respuesta = self.pedir(dias=-1)
         self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("pasado", respuesta.json()["detalle"])
+        self.assertIn("corrección de vencimiento", respuesta.json()["detalle"])
 
     def test_avisa_por_correo_al_administrador_de_la_licorera(self):
         self.pedir(dias=45)
@@ -1754,7 +1758,16 @@ class AbrirPeriodoTests(PanelBase):
 
 
 class CorregirVencimientoTests(PanelBase):
-    """La fecha mal escrita se arregla; nada queda irreparable."""
+    """
+    La fecha se mueve en los dos sentidos, y los dos tienen un caso detrás.
+
+    Hacia adelante arregla un dedazo que dejó una cuenta suspendida. Hacia
+    atrás deshace un período abierto por un pago que no entró, que es lo que el
+    panel no sabía hacer: podía cobrar y no podía dejar de cobrar.
+    """
+
+    def panel(self):
+        return self.client.get(reverse("panel"), **self.cabecera()).json()
 
     def corregir(self, dias, correo=None):
         return self.client.patch(
@@ -1803,9 +1816,60 @@ class CorregirVencimientoTests(PanelBase):
         self.assertEqual(mail.outbox[0].to, [self.duena.correo])
         self.assertIn(nueva.strftime("%d/%m/%Y"), mail.outbox[0].body)
 
-    def test_no_se_puede_corregir_hacia_el_pasado(self):
-        respuesta = self.corregir(-1)
-        self.assertEqual(respuesta.status_code, status.HTTP_409_CONFLICT)
+    def test_corregir_hacia_atras_deshace_un_cobro_que_no_entro(self):
+        """
+        Se renovó por un pago que al final no llegó. Devolver la fecha a su
+        vencimiento real deja la cuenta suspendida, y el estado no se escribe:
+        se deriva de la fecha.
+        """
+        respuesta = self.corregir(-30)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.estado, Suscripcion.Estado.SUSPENDIDA)
+        self.assertFalse(self.suscripcion.esta_vigente())
+
+    def test_lo_que_deja_de_estar_vigente_deja_de_sumar_en_los_ingresos(self):
+        """
+        La razón de ser del cambio: un pago que no entró no puede seguir
+        contando como ingreso del servicio.
+        """
+        antes = self.panel()["metricas"]
+        self.assertGreater(float(antes["ingresos_mensuales_recurrentes"]), 0)
+
+        self.corregir(-30)
+
+        despues = self.panel()["metricas"]
+        self.assertEqual(
+            float(despues["ingresos_mensuales_recurrentes"]),
+            float(antes["ingresos_mensuales_recurrentes"])
+            - float(self.suscripcion.precio_pactado))
+        self.assertEqual(despues["cuentas_activas"], 0)
+
+    def test_dentro_de_la_gracia_la_cuenta_sigue_operando(self):
+        """
+        Una fecha de anteayer no suspende: deja en mora, que es el escalón que
+        RF-SUS-03 reserva a quien acaba de vencer y sigue trabajando.
+        """
+        self.corregir(-2)
+
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.estado, Suscripcion.Estado.EN_MORA)
+        self.assertTrue(self.suscripcion.esta_vigente())
+
+    def test_el_panel_dice_hasta_cuando_valio_el_periodo_anterior(self):
+        """
+        Para deshacer no hace falta recordar nada: al abrir un período, la
+        suscripción anterior se cierra con la fecha en que terminó su acceso, y
+        el panel la publica.
+        """
+        vencia = self.suscripcion.fecha_fin
+        abrir_periodo(self.licorera, self.basico, self.hoy + timedelta(days=60))
+
+        fila = next(l for l in self.panel()["licoreras"]
+                    if l["id"] == self.licorera.id)
+
+        self.assertEqual(fila["fin_del_periodo_anterior"], str(min(vencia, self.hoy)))
 
     def test_una_licorera_que_no_existe_responde_que_no_existe(self):
         respuesta = self.client.patch(

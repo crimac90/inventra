@@ -156,6 +156,23 @@ class Licorera(models.Model):
             .first()
         )
 
+    def suscripcion_anterior(self):
+        """
+        La suscripción que había antes de la actual, o None si solo hay una.
+
+        La necesita el panel para poder deshacer: al abrir un período, la fila
+        anterior se cierra con la fecha en que terminó su acceso, de modo que
+        esa fecha es exactamente a la que hay que volver si el pago no entró.
+        Preguntarla aquí ahorra que nadie tenga que recordarla.
+        """
+        return (
+            self.suscripciones
+            .exclude(estado=Suscripcion.Estado.CANCELADA)
+            .select_related("plan")
+            .order_by("-fecha_inicio", "-id")[1:2]
+            .first()
+        )
+
     def suscripcion_vigente(self):
         """
         La suscripción que hoy permite registrar operaciones, o None si ninguna.

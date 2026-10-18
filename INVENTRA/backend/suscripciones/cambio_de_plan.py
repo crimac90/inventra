@@ -183,21 +183,24 @@ def cambiar(licorera, destino):
 # Lo que ejecuta el Administrador INVENTRA (RF-SUS-01 y RF-SUS-05)
 # ---------------------------------------------------------------------------
 
-def _no_puede_ser_pasada(fecha_fin):
-    """
-    La fecha que escribe una persona nunca puede quedar en el pasado.
-
-    El mínimo es hoy, así que lo más agresivo que puede hacer una corrección es
-    dejar el vencimiento en hoy, nunca ayer: un negocio no puede quedarse sin
-    acceso por un día que ya trabajó. No aplica cuando es el sistema el que
-    cierra una fila al cambiar de plan; eso no lo escribe nadie a mano.
-    """
+def _hay_fecha(fecha_fin):
     if fecha_fin is None:
         raise CambioNoPermitido("Indica hasta cuándo vale la suscripción.")
+
+
+def _no_puede_ser_pasada(fecha_fin):
+    """
+    Un período que se abre no puede nacer vencido.
+
+    Abrir un período es cobrar por un tiempo que empieza ahora, de modo que una
+    fecha pasada ahí solo puede ser un dedazo. La corrección de vencimiento sí
+    la admite, porque es la vía para deshacer un cobro que no llegó a entrar.
+    """
+    _hay_fecha(fecha_fin)
     if fecha_fin < timezone.localdate():
         raise CambioNoPermitido(
-            "La fecha de vencimiento no puede quedar en el pasado. Lo más atrás "
-            "que puede ponerse es hoy.")
+            "Un período nuevo no puede vencer antes de hoy. Para devolver una "
+            "suscripción a una fecha anterior, usa la corrección de vencimiento.")
 
 
 @transaction.atomic
@@ -263,21 +266,35 @@ def corregir_vencimiento(licorera, fecha_fin):
     """
     Cambia la fecha de la suscripción vigente, sin abrir una fila nueva.
 
-    Es el caso de haber escrito dos años donde eran dos meses. No es una
-    renovación: no hay período nuevo, hay un dato mal puesto.
+    Mueve la fecha en los dos sentidos, y los dos tienen un caso real detrás.
+
+    HACIA ADELANTE: alguien escribió dos meses donde eran dos años, y la cuenta
+    quedó suspendida por un dedazo. De nada serviría poder editar si el daño ya
+    fuera irreversible, así que este es el único sitio que puede devolver una
+    suscripción a la vida. Lo hace una persona a conciencia, que es la
+    diferencia con la orden diaria: aquélla solo avanza, precisamente porque no
+    hay nadie mirando.
+
+    HACIA ATRÁS: se abrió un período por un pago que al final no entró. No es
+    un dedazo, es un hecho comercial, y sin esto el panel podía cobrar y no
+    podía dejar de cobrar: la licorera seguía contando como vigente y su precio
+    seguía sumando en los ingresos del servicio. La guarda que lo impedía
+    protegía de un error —suspender a quien ya trabajó ese día— y creaba el
+    contrario.
+
+    No hace falta recordar cuándo venció: la suscripción ANTERIOR quedó
+    guardada con la fecha en que terminó su acceso, y es la que el panel
+    ofrece.
+
+    El estado no se escribe: se deriva de la fecha. Una fecha de ayer deja la
+    cuenta en mora y una de hace un mes la deja suspendida, sin que aquí haya
+    que decidirlo.
 
     Devuelve `(cambió, suscripción)`. El booleano existe para que la vista sepa
     si mandar el correo: guardar el formulario sin tocar la fecha no son dos
     correos, es ninguno.
-
-    ESTE ES EL ÚNICO SITIO QUE PUEDE DEVOLVER UNA SUSCRIPCIÓN A LA VIDA, y por
-    eso está separado de todo lo demás. Si alguien tecleó una fecha demasiado
-    temprana y la cuenta quedó suspendida, corregirla tiene que arreglarlo —de
-    nada sirve poder editar si el daño ya es irreversible—. Lo hace una persona
-    a conciencia, que es la diferencia con la orden diaria: aquélla solo avanza
-    precisamente porque no hay nadie mirando.
     """
-    _no_puede_ser_pasada(fecha_fin)
+    _hay_fecha(fecha_fin)
 
     suscripcion = licorera.suscripcion_actual()
     if suscripcion is None:
@@ -287,10 +304,17 @@ def corregir_vencimiento(licorera, fecha_fin):
         return False, suscripcion
 
     suscripcion.fecha_fin = fecha_fin
+
+    # Estas tres líneas parecen sobrar y no sobran. `estado_por_fecha()`
+    # devuelve el estado GUARDADO cuando la fecha todavía no ha pasado, de modo
+    # que una fila suspendida con una fecha nueva en el futuro seguiría
+    # devolviendo «suspendida». Hay que levantarla primero a lo que era —en
+    # prueba o activa— para que el cálculo de abajo tenga de dónde partir.
     if suscripcion.estado in (Suscripcion.Estado.EN_MORA, Suscripcion.Estado.SUSPENDIDA):
         suscripcion.estado = (Suscripcion.Estado.EN_PRUEBA
                               if suscripcion.es_periodo_gratuito
                               else Suscripcion.Estado.ACTIVA)
+
     suscripcion.estado = suscripcion.estado_por_fecha()
     suscripcion.save(update_fields=["fecha_fin", "estado"])
     return True, suscripcion

@@ -27,6 +27,7 @@ import {
   darDeAltaLicorera,
 } from "../api/plataforma";
 import { consultarPlanes } from "../api/suscripciones";
+import { useAviso } from "../aviso";
 
 /* La fecha de hoy en el formato que espera un campo de tipo date. */
 function hoy() {
@@ -51,7 +52,7 @@ const TONO = {
 export default function Plataforma() {
   const [datos, setDatos] = useState(null);
   const [planes, setPlanes] = useState([]);
-  const [aviso, setAviso] = useState(null);
+  const [aviso, setAviso] = useAviso();
   const [ocupado, setOcupado] = useState(false);
 
   // Que formulario esta abierto: el alta, o una operacion sobre una licorera.
@@ -292,9 +293,18 @@ function FormularioAlta({ planes, ocupado, onGuardar, onCancelar }) {
              valor={valores.nombre_completo} onChange={cambiar("nombre_completo")} />
       <Campo id="correo" etiqueta="Correo del administrador" tipo="email"
              valor={valores.correo} onChange={cambiar("correo")} />
+      {/*
+        La opcion vacia no es un adorno. Sin ella el navegador ensena «Basico»
+        —la primera de la lista— mientras el formulario sigue creyendo que no
+        se ha elegido nada, de modo que el boton no se habilita nunca y la
+        pantalla no da ninguna pista de por que.
+      */}
       <CampoSeleccion id="plan" etiqueta="Plan contratado" valor={valores.plan}
                       onChange={cambiar("plan")}
-                      opciones={planes.map((p) => ({ valor: String(p.id), texto: p.nombre }))} />
+                      opciones={[
+                        { valor: "", texto: "Elige un plan" },
+                        ...planes.map((p) => ({ valor: String(p.id), texto: p.nombre })),
+                      ]} />
       <Campo id="fecha_fin" etiqueta="Vigente hasta" tipo="date" minimo={hoy()}
              valor={valores.fecha_fin} onChange={cambiar("fecha_fin")}
              ayuda="El negocio recibirá un correo con esta fecha." />
@@ -338,21 +348,58 @@ function FormularioSuscripcion({ licorera, modo, planes, ocupado, onGuardar, onC
       <div className="hs">
         {esPeriodo
           ? "Se cierra la suscripción actual y se abre una nueva con el plan y la fecha que indiques. Para bajar de plan, el cambio lo hace el propio negocio desde su cuenta."
-          : "Cambia la fecha de la suscripción vigente, sin abrir una nueva. Es para arreglar una fecha mal escrita, no para renovar."}
+          : "Cambia la fecha de la suscripción vigente, sin abrir una nueva. Sirve para arreglar una fecha mal escrita y también para deshacer un período que se abrió por un pago que no llegó a entrar."}
       </div>
+
+      {/*
+        Nadie tiene por que recordar cuando vencio. Al abrir un periodo, la
+        suscripcion anterior se cierra con la fecha en que termino su acceso, y
+        esa es exactamente la fecha a la que hay que volver.
+      */}
+      {!esPeriodo && licorera.fin_del_periodo_anterior && (
+        <div className="propuesta">
+          <span>
+            El período anterior terminó el{" "}
+            <strong>{fecha(licorera.fin_del_periodo_anterior)}</strong>
+          </span>
+          <button
+            className="btn btn-out btn-pequeno"
+            type="button"
+            onClick={() => cambiar("fecha_fin")(licorera.fin_del_periodo_anterior)}
+          >
+            Volver a esa fecha
+          </button>
+        </div>
+      )}
 
       {esPeriodo && (
         <CampoSeleccion id="plan" etiqueta="Plan" valor={valores.plan} onChange={cambiar("plan")}
                         opciones={planes.map((p) => ({ valor: String(p.id), texto: p.nombre }))} />
       )}
       {/*
-        El calendario no deja bajar de hoy: una fecha de vencimiento no puede
-        quedar en el pasado. Es una ayuda, no la regla; el servidor
-        vuelve a comprobarlo y es ahi donde la regla esta de verdad.
+        Al abrir un periodo el calendario no deja bajar de hoy: un periodo que
+        se cobra no puede nacer vencido. La correccion si admite el pasado, que
+        es como se deshace un cobro que no entro.
       */}
-      <Campo id="fecha_fin" etiqueta="Vigente hasta" tipo="date" minimo={hoy()}
+      <Campo id="fecha_fin" etiqueta="Vigente hasta" tipo="date"
+             minimo={esPeriodo ? hoy() : undefined}
              valor={valores.fecha_fin} onChange={cambiar("fecha_fin")}
-             ayuda="No puede quedar en el pasado. El negocio recibirá un correo con esta fecha." />
+             ayuda={esPeriodo
+               ? "No puede quedar en el pasado. El negocio recibirá un correo con esta fecha."
+               : "El negocio recibirá un correo con esta fecha."} />
+
+      {/*
+        Una fecha pasada suspende o deja en mora a un cliente, asi que se dice
+        antes de guardar y no despues. El calculo exacto lo hace el servidor;
+        esto solo anuncia la consecuencia.
+      */}
+      {!esPeriodo && valores.fecha_fin && valores.fecha_fin < hoy() && (
+        <div className="aviso advertencia" role="status">
+          Esa fecha ya pasó: «{licorera.nombre}» dejará de estar vigente y su plan saldrá de
+          los ingresos del servicio. Si el vencimiento es de los últimos días, conservará los
+          días de gracia que le queden.
+        </div>
+      )}
 
       <div className="acciones">
         <button className="btn btn-cta" type="submit" disabled={!valores.fecha_fin || ocupado}>
