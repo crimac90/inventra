@@ -376,3 +376,28 @@ a.btn {
 .link:hover {
   text-decoration: underline;
 }
+
+/*
+  El autocompletado del navegador pinta con su propio fondo los campos que
+  rellena, y en modo oscuro deja una caja blanca sobre un formulario oscuro.
+  No se puede cambiar con `background`: Chrome lo ignora en ese estado. La
+  sombra interior de mil pixeles es la forma de taparlo que funciona desde
+  hace anos, y `-webkit-text-fill-color` devuelve al texto su color.
+
+  Se dispara al elegir una sugerencia con las flechas del teclado, que es como
+  se encontro.
+*/
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+select:-webkit-autofill,
+textarea:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+  box-shadow: 0 0 0 1000px var(--surface) inset;
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
+  /* El navegador aplica su fondo con una transicion; alargarla deja de verse. */
+  transition: background-color 100000s ease-in-out 0s;
+}
+
