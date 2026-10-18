@@ -88,9 +88,13 @@ export function ajustarExistencias(id, { cantidad, motivo }) {
   return api.post(`/inventario/productos/${id}/ajustar/`, { cantidad, motivo });
 }
 
-/* Referencias en o por debajo de su minimo, para el aviso del panel. */
-export function consultarAlertas() {
-  return api.get("/inventario/alertas/");
+/*
+  Lo que el panel ensena del inventario: cuantas referencias activas hay y
+  cuales estan en o por debajo de su minimo. Los dos datos llegan juntos
+  porque se pintan juntos.
+*/
+export function consultarResumen() {
+  return api.get("/inventario/resumen/");
 }
 
 /* --- Kardex (RF-INV-09) -------------------------------------------------- */

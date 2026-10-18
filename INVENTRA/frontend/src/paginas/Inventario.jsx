@@ -17,7 +17,7 @@
 */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import CampoSeleccion from "../componentes/CampoSeleccion";
@@ -104,7 +104,16 @@ export default function Inventario() {
   // dos cosas distintas: entre una y otra hay una espera, que ahora vive en
   // `useEspera` porque el selector de producto de la entrada necesita la misma.
   const [texto, setTexto] = useState("");
-  const [filtros, setFiltros] = useState({ existencias: "", estado: "activo" });
+  // El filtro de existencias puede venir puesto desde la direccion, porque el
+  // panel enlaza aqui con las referencias por reponer ya seleccionadas. Si la
+  // pantalla ignorara el parametro, ese enlace abriria el catalogo entero y
+  // habria que volver a filtrar a mano lo que el panel acababa de senalar.
+  const [parametros] = useSearchParams();
+  const nivelInicial = parametros.get("existencias");
+  const [filtros, setFiltros] = useState({
+    existencias: NIVELES.some((n) => n.valor === nivelInicial) ? nivelInicial : "",
+    estado: "activo",
+  });
   const buscado = useEspera(texto, ESPERA);
 
   const primeraCarga = useRef(true);

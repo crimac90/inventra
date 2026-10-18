@@ -1151,20 +1151,24 @@ class NivelDeExistenciasTests(CatalogoBase):
 
     # -- La alerta del panel ----------------------------------------------
 
+    def resumen(self, correo=None):
+        return self.client.get(reverse("resumen-inventario"), **self.entrar(correo))
+
     def alertas(self, correo=None):
-        return self.client.get(reverse("alertas-inventario"), **self.entrar(correo))
+        """Solo las referencias por reponer, que es lo que miran estas pruebas."""
+        return self.resumen(correo).json()["existencias_bajas"]
 
     def test_la_alerta_incluye_los_agotados(self):
         """
         El requisito dice «igual o inferior al mínimo», y cero lo es. Una
         referencia agotada es el caso más urgente del mismo problema.
         """
-        nombres = [fila["nombre"] for fila in self.alertas().json()]
+        nombres = [fila["nombre"] for fila in self.alertas()]
         self.assertEqual(set(nombres),
                          {"Agotado", "En el mínimo", "Por debajo del mínimo"})
 
     def test_la_alerta_ordena_por_lo_mas_urgente(self):
-        existencias = [fila["existencias"] for fila in self.alertas().json()]
+        existencias = [fila["existencias"] for fila in self.alertas()]
         self.assertEqual(existencias, sorted(existencias))
 
     def test_la_alerta_no_avisa_de_referencias_descontinuadas(self):
@@ -1172,7 +1176,7 @@ class NivelDeExistenciasTests(CatalogoBase):
         self.agotado.activo = False
         self.agotado.save(update_fields=["activo"])
 
-        nombres = [fila["nombre"] for fila in self.alertas().json()]
+        nombres = [fila["nombre"] for fila in self.alertas()]
         self.assertNotIn("Agotado", nombres)
 
     def test_la_alerta_es_de_la_propia_licorera(self):
@@ -1182,14 +1186,32 @@ class NivelDeExistenciasTests(CatalogoBase):
             nombre="Ajeno agotado", presentacion=Producto.Presentacion.BOTELLA,
             precio_venta=1000, stock_minimo=5)
 
-        nombres = [fila["nombre"] for fila in self.alertas().json()]
+        nombres = [fila["nombre"] for fila in self.alertas()]
         self.assertNotIn("Ajeno agotado", nombres)
 
     def test_el_vendedor_ve_las_alertas(self):
         """Es quien está en el mostrador y el primero que nota que algo se acabó."""
         vendedor = crear_usuario(self.licorera, "vendedor@prueba.com", Rol.VENDEDOR)
-        self.assertEqual(self.alertas(correo=vendedor.correo).status_code,
+        self.assertEqual(self.resumen(correo=vendedor.correo).status_code,
                          status.HTTP_200_OK)
+
+    def test_el_resumen_cuenta_las_referencias_activas(self):
+        """El otro dato del panel: cuántas referencias tiene el catálogo hoy."""
+        self.assertEqual(self.resumen().json()["productos_activos"], 4)
+
+        self.agotado.activo = False
+        self.agotado.save(update_fields=["activo"])
+
+        self.assertEqual(self.resumen().json()["productos_activos"], 3)
+
+    def test_la_alerta_no_publica_lo_que_costo_cada_referencia(self):
+        """
+        El panel es la primera pantalla que se abre. El serializer del catálogo
+        trae los costos de los lotes, y aquí no hacen falta: lo que no se
+        necesita, no se envía.
+        """
+        self.assertEqual(set(self.alertas()[0]),
+                         {"id", "nombre", "existencias", "stock_minimo"})
 
 
 class PrecioSugeridoTests(CatalogoBase):

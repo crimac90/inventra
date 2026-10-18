@@ -24,7 +24,8 @@ from .precios import con_costos
 from .models import Categoria, EntradaMercancia, MovimientoInventario, Producto
 from .operaciones import ajustar_existencias, registrar_entrada
 from .serializers import (
-    AjusteSerializer, CategoriaSerializer, EntradaCrearSerializer,
+    AjusteSerializer, AlertaDeExistenciasSerializer, CategoriaSerializer,
+    EntradaCrearSerializer,
     EntradaSerializer, MargenesSerializer, MovimientoSerializer,
     ProductoGuardarSerializer, ProductoSerializer)
 
@@ -325,29 +326,34 @@ class EntradaMercanciaViewSet(mixins.CreateModelMixin,
         return Response(EntradaSerializer(entrada).data, status=status.HTTP_201_CREATED)
 
 
-class AlertasDeInventarioView(ListAPIView):
+class ResumenDeInventarioView(APIView):
     """
-    Las referencias que hay que reponer (RF-INV-07).
+    Lo que el panel principal enseña del inventario (RF-INV-07).
 
-    El requisito pide una alerta «cuando la existencia sea igual o inferior a
-    su mínimo configurado», así que incluye las agotadas: una referencia en
-    cero es el caso más urgente del mismo problema, no uno distinto.
+    Dos datos en una sola respuesta: cuántas referencias activas tiene el
+    catálogo y cuáles hay que reponer. Van juntos porque se pintan juntos, y
+    dos peticiones para una tarjeta son dos oportunidades de que una llegue y
+    la otra no, con el panel enseñando medio dato.
 
-    Solo mira productos activos: avisar de que hay que reponer una referencia
-    descontinuada sería ruido, y el ruido es lo que hace que una alerta se
-    deje de leer.
+    La alerta incluye las agotadas: el requisito pide avisar «cuando la
+    existencia sea igual o inferior a su mínimo configurado», y una referencia
+    en cero es el caso más urgente del mismo problema, no uno distinto. Y mira
+    solo productos activos, porque pedir que se reponga una referencia
+    descontinuada es ruido, y el ruido es lo que hace que una alerta se deje
+    de leer.
     """
 
-    serializer_class = ProductoSerializer
-    pagination_class = None
-
-    def get_queryset(self):
-        return (
-            con_existencias(
-                Producto.objects
-                .filter(licorera=self.request.user.licorera, activo=True)
-                .select_related("categoria")
-            )
+    def get(self, request):
+        activos = (
+            Producto.objects
+            .filter(licorera=request.user.licorera, activo=True)
+        )
+        bajas = (
+            con_existencias(activos)
             .filter(disponibles__lte=F("stock_minimo"))
             .order_by("disponibles", "nombre")
         )
+        return Response({
+            "productos_activos": activos.count(),
+            "existencias_bajas": AlertaDeExistenciasSerializer(bajas, many=True).data,
+        })

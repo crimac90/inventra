@@ -57,6 +57,23 @@ class MargenesSerializer(serializers.Serializer):
         return valor
 
 
+class AlertaDeExistenciasSerializer(serializers.ModelSerializer):
+    """
+    Una referencia por reponer, tal como la enseña el panel.
+
+    Deliberadamente corto. El panel no necesita costos ni lotes, y el
+    serializer del catálogo los trae: enviarlos aquí sería publicar en la
+    primera pantalla lo que cada referencia costó, sin que nadie lo haya
+    pedido.
+    """
+
+    existencias = serializers.IntegerField(source="disponibles", read_only=True)
+
+    class Meta:
+        model = Producto
+        fields = ("id", "nombre", "existencias", "stock_minimo")
+
+
 class ProductoSerializer(serializers.ModelSerializer):
     """
     Lo que la pantalla ve de un producto.
