@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "seguridad",                     # SEG: usuarios y roles
     "sedes",                         # SED: solo la tabla y la sede principal 
     "inventario",                    # INV: catálogo, lotes y kardex
+    "ventas",                        # VEN: punto de venta, anulación y cierre de caja
 ]
 
 MIDDLEWARE = [

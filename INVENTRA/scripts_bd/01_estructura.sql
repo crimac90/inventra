@@ -2,7 +2,7 @@
 --  INVENTRA — Inventario y ventas para licoreras
 --  Estructura de la base de datos (DDL)
 -- ============================================================
---  Generado el 2026-10-08 con py manage.py generar_scripts_sql
+--  Generado el 2026-10-18 con py manage.py generar_scripts_sql
 --  Django 5.2.17 · motor mysql · base «inventra»
 -- ============================================================
 
@@ -217,6 +217,20 @@ ALTER TABLE `movimiento_inventario` ADD CONSTRAINT `movimiento_inventario_produc
 ALTER TABLE `movimiento_inventario` ADD CONSTRAINT `movimiento_inventario_sede_id_57a6110a_fk_sede_id` FOREIGN KEY (`sede_id`) REFERENCES `sede` (`id`);
 ALTER TABLE `movimiento_inventario` ADD CONSTRAINT `movimiento_inventario_usuario_id_d3de09d8_fk_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id`);
 
+-- inventario.0004_categorias_de_las_licoreras_existentes: migración de datos, sin estructura
+
+
+-- ----------------------------------------------------------
+-- inventario.0005_categoria_margen_sugerido
+-- ----------------------------------------------------------
+--
+-- Add field margen_sugerido to categoria
+--
+ALTER TABLE `categoria` ADD COLUMN `margen_sugerido` numeric(5, 2) DEFAULT 30.00 NOT NULL;
+ALTER TABLE `categoria` ALTER COLUMN `margen_sugerido` DROP DEFAULT;
+
+-- sedes.0002_sede_de_las_licoreras_existentes: migración de datos, sin estructura
+
 -- seguridad.0002_datos_roles: migración de datos, sin estructura
 
 
@@ -348,4 +362,40 @@ ALTER TABLE `token_blacklist_blacklistedtoken` ADD CONSTRAINT `token_blacklist_b
 -- token_blacklist.0012_alter_outstandingtoken_user: no produjo sentencias en este proyecto; sus operaciones (AlterField) no llegan a la base
 
 -- token_blacklist.0013_alter_blacklistedtoken_options_and_more: no produjo sentencias en este proyecto; sus operaciones (AlterModelOptions) no llegan a la base
+
+
+-- ----------------------------------------------------------
+-- ventas.0001_initial
+-- ----------------------------------------------------------
+--
+-- Create model MedioPago
+--
+CREATE TABLE `medio_pago` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `nombre` varchar(30) NOT NULL UNIQUE, `activo` bool NOT NULL);
+--
+-- Create model Venta
+--
+CREATE TABLE `venta` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `consecutivo` integer UNSIGNED NOT NULL CHECK (`consecutivo` >= 0), `fecha` datetime(6) NOT NULL, `total` numeric(12, 2) NOT NULL, `monto_recibido` numeric(12, 2) NULL, `estado` varchar(10) NOT NULL, `motivo_anulacion` varchar(255) NULL, `licorera_id` bigint NOT NULL, `medio_pago_id` integer NOT NULL, `sede_id` integer NOT NULL, `usuario_id` bigint NOT NULL);
+--
+-- Create model DetalleVenta
+--
+CREATE TABLE `detalle_venta` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `cantidad` integer UNSIGNED NOT NULL CHECK (`cantidad` >= 0), `precio_unitario` numeric(12, 2) NOT NULL, `subtotal` numeric(12, 2) NOT NULL, `producto_id` integer NOT NULL, `venta_id` integer NOT NULL);
+--
+-- Create model CierreCaja
+--
+CREATE TABLE `cierre_caja` (`id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY, `fecha` date NOT NULL, `total_efectivo` numeric(12, 2) NOT NULL, `total_transferencia` numeric(12, 2) NOT NULL, `total_tarjeta` numeric(12, 2) NOT NULL, `efectivo_contado` numeric(12, 2) NOT NULL, `diferencia` numeric(12, 2) NOT NULL, `observacion` varchar(255) NULL, `licorera_id` bigint NOT NULL, `sede_id` integer NOT NULL, `usuario_id` bigint NOT NULL, CONSTRAINT `un_cierre_por_sede_y_jornada` UNIQUE (`sede_id`, `fecha`));
+--
+-- Create constraint consecutivo_unico_por_licorera on model venta
+--
+ALTER TABLE `venta` ADD CONSTRAINT `consecutivo_unico_por_licorera` UNIQUE (`licorera_id`, `consecutivo`);
+ALTER TABLE `venta` ADD CONSTRAINT `venta_licorera_id_8f232352_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
+ALTER TABLE `venta` ADD CONSTRAINT `venta_medio_pago_id_273a5e33_fk_medio_pago_id` FOREIGN KEY (`medio_pago_id`) REFERENCES `medio_pago` (`id`);
+ALTER TABLE `venta` ADD CONSTRAINT `venta_sede_id_a44917dc_fk_sede_id` FOREIGN KEY (`sede_id`) REFERENCES `sede` (`id`);
+ALTER TABLE `venta` ADD CONSTRAINT `venta_usuario_id_32b9f91d_fk_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id`);
+ALTER TABLE `detalle_venta` ADD CONSTRAINT `detalle_venta_producto_id_d6b1f3f3_fk_producto_id` FOREIGN KEY (`producto_id`) REFERENCES `producto` (`id`);
+ALTER TABLE `detalle_venta` ADD CONSTRAINT `detalle_venta_venta_id_ecf1a1a3_fk_venta_id` FOREIGN KEY (`venta_id`) REFERENCES `venta` (`id`);
+ALTER TABLE `cierre_caja` ADD CONSTRAINT `cierre_caja_licorera_id_58e83805_fk_licorera_id` FOREIGN KEY (`licorera_id`) REFERENCES `licorera` (`id`);
+ALTER TABLE `cierre_caja` ADD CONSTRAINT `cierre_caja_sede_id_b0309422_fk_sede_id` FOREIGN KEY (`sede_id`) REFERENCES `sede` (`id`);
+ALTER TABLE `cierre_caja` ADD CONSTRAINT `cierre_caja_usuario_id_bce03784_fk_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuario` (`id`);
+
+-- ventas.0002_datos_medios_de_pago: migración de datos, sin estructura
 
