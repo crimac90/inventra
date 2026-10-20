@@ -16,11 +16,13 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max
 
-from inventario.models import MovimientoInventario
+from inventario.kardex import registrar_movimiento
+from inventario.models import LoteInventario, MovimientoInventario
 from inventario.peps import consumir
 from sedes.models import Sede
 from suscripciones.models import Licorera
 
+from .jornada import jornada_actual, jornada_de
 from .models import DetalleVenta, Venta
 
 
@@ -137,3 +139,66 @@ def _siguiente_consecutivo(licorera):
         .aggregate(ultimo=Max("consecutivo"))["ultimo"]
     )
     return (ultimo or 0) + 1
+
+
+@transaction.atomic
+def anular_venta(*, venta, usuario, motivo):
+    """
+    Deshace una venta devolviendo la mercancía a sus lotes (RF-VEN-04).
+
+    La venta no se borra: se marca, conserva su número y su detalle, y queda
+    con el motivo y con quien la anuló. Un hueco en la numeración es lo único
+    que impediría afirmar después que no falta ninguna venta.
+
+    CADA UNIDAD VUELVE AL LOTE DEL QUE SALIÓ
+    El kardex sabe de qué lote salió cada tramo, de modo que la devolución es
+    exacta y el PEPS sigue siendo cierto después. Crear un lote nuevo con lo
+    devuelto sería más fácil y lo pondría al final de la cola: lo devuelto se
+    vendería después de lo que se compró más tarde, y su costo dejaría de
+    corresponder a la compra por la que entró.
+    """
+    if venta.estado != Venta.Estado.ACTIVA:
+        raise ValidationError("Esa venta ya está anulada.")
+    if not (motivo or "").strip():
+        raise ValidationError("Escribe el motivo de la anulación.")
+    if jornada_de(venta.fecha) != jornada_actual():
+        raise ValidationError(
+            "Solo se anulan las ventas de la jornada en curso. Una venta anterior "
+            "ya entró en un cierre de caja, y deshacerla descuadraría un día cerrado.")
+
+    salidas = (
+        MovimientoInventario.objects
+        .filter(licorera=venta.licorera,
+                documento_tipo=MovimientoInventario.Documento.VENTA,
+                documento_id=venta.id,
+                tipo=MovimientoInventario.Tipo.VENTA)
+        .select_related("lote", "producto")
+        .order_by("id")
+    )
+
+    for salida in salidas:
+        # Se bloquea el lote por lo mismo que al consumirlo: entre leer sus
+        # unidades y escribirlas no puede colarse otra operación.
+        lote = (LoteInventario.objects
+                .select_for_update()
+                .get(pk=salida.lote_id))
+        devueltas = -salida.cantidad
+        lote.cantidad_disponible += devueltas
+        lote.save(update_fields=["cantidad_disponible"])
+
+        registrar_movimiento(
+            producto=salida.producto, sede=venta.sede,
+            tipo=MovimientoInventario.Tipo.ANULACION_VENTA,
+            cantidad=devueltas, usuario=usuario, lote=lote,
+            # El costo es el que llevaba la salida, no el del lote hoy: lo que
+            # vuelve tiene que valer lo que valió al salir.
+            costo_unitario=salida.costo_unitario,
+            documento_tipo=MovimientoInventario.Documento.VENTA,
+            documento_id=venta.id,
+            motivo=motivo,
+        )
+
+    venta.estado = Venta.Estado.ANULADA
+    venta.motivo_anulacion = motivo.strip()
+    venta.save(update_fields=["estado", "motivo_anulacion"])
+    return venta

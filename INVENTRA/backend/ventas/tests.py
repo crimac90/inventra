@@ -31,7 +31,7 @@ from seguridad.models import Rol
 
 from .jornada import INICIO_DE_JORNADA, jornada_actual, jornada_de, limites_de
 from .models import CierreCaja, DetalleVenta, MedioPago, Venta
-from .operaciones import registrar_venta
+from .operaciones import anular_venta, registrar_venta
 
 
 def crear_producto(licorera, nombre, precio):
@@ -331,3 +331,124 @@ class RegistrarVentaTests(TestCase):
 
         with self.assertRaises(ValidationError):
             self.vender(1, medio=self.tarjeta, recibido="100000")
+
+
+class AnularVentaTests(TestCase):
+    """
+    Deshacer una venta (RF-VEN-04).
+
+    Lo que importa no es que la venta quede marcada, sino dónde vuelve la
+    mercancía: si no volviera a su lote, el costo de lo devuelto dejaría de
+    corresponder a la compra por la que entró.
+    """
+
+    def setUp(self):
+        self.licorera = crear_negocio("La Estrella")
+        self.sede = Sede.principal_de(self.licorera)
+        self.usuario = crear_usuario(self.licorera, "cajero@anular.com", Rol.VENDEDOR)
+        self.efectivo = MedioPago.objects.get(nombre=MedioPago.EFECTIVO)
+        self.ron = crear_producto(self.licorera, "Ron de prueba", precio="46000")
+
+    def comprar(self, cantidad, costo):
+        return registrar_entrada(
+            licorera=self.licorera, usuario=self.usuario,
+            lineas=[{"producto": self.ron, "cantidad": cantidad,
+                     "costo_unitario": Decimal(costo)}])
+
+    def vender(self, cantidad):
+        return registrar_venta(
+            licorera=self.licorera, usuario=self.usuario, medio_pago=self.efectivo,
+            lineas=[{"producto": self.ron, "cantidad": cantidad}])
+
+    def anular(self, venta, motivo="El cliente devolvió la mercancía"):
+        return anular_venta(venta=venta, usuario=self.usuario, motivo=motivo)
+
+    def test_las_existencias_vuelven(self):
+        self.comprar(10, "30000")
+        venta = self.vender(4)
+
+        self.anular(venta)
+
+        self.assertEqual(existencias_de(self.ron, self.sede), 10)
+
+    def test_cada_unidad_vuelve_al_lote_del_que_salio(self):
+        """
+        El corazón del requisito. La venta cruzó dos lotes; al anularla, cada
+        uno recupera exactamente lo que puso, y no aparece un lote nuevo que se
+        vendería después de lo comprado más tarde.
+        """
+        self.comprar(5, "30000")
+        self.comprar(4, "35000")
+        venta = self.vender(7)
+
+        self.anular(venta)
+
+        lotes = self.ron.lotes.order_by("fecha_ingreso", "id")
+        self.assertEqual([l.cantidad_disponible for l in lotes], [5, 4])
+        self.assertEqual(lotes.count(), 2)
+
+    def test_lo_devuelto_vale_lo_que_valio_al_salir(self):
+        self.comprar(5, "30000")
+        self.comprar(4, "35000")
+        venta = self.vender(7)
+
+        self.anular(venta)
+
+        vueltas = (MovimientoInventario.objects
+                   .filter(tipo=MovimientoInventario.Tipo.ANULACION_VENTA)
+                   .order_by("id"))
+        self.assertEqual([(m.cantidad, m.costo_unitario) for m in vueltas],
+                         [(5, Decimal("30000")), (2, Decimal("35000"))])
+
+    def test_la_venta_no_se_borra(self):
+        self.comprar(5, "30000")
+        venta = self.vender(2)
+
+        self.anular(venta, motivo="Se cobró de más")
+
+        venta.refresh_from_db()
+        self.assertEqual(venta.estado, Venta.Estado.ANULADA)
+        self.assertEqual(venta.motivo_anulacion, "Se cobró de más")
+        self.assertEqual(venta.consecutivo, 1)
+        self.assertEqual(venta.lineas.count(), 1)
+
+    def test_el_numero_no_se_reutiliza(self):
+        """Un hueco o un número repetido impediría afirmar que no falta ninguna venta."""
+        self.comprar(10, "30000")
+        self.anular(self.vender(1))
+
+        self.assertEqual(self.vender(1).consecutivo, 2)
+
+    def test_no_se_anula_dos_veces(self):
+        self.comprar(5, "30000")
+        venta = self.vender(1)
+        self.anular(venta)
+
+        with self.assertRaises(ValidationError):
+            self.anular(venta)
+
+    def test_el_motivo_es_obligatorio(self):
+        self.comprar(5, "30000")
+        venta = self.vender(1)
+
+        with self.assertRaises(ValidationError):
+            self.anular(venta, motivo="   ")
+
+        venta.refresh_from_db()
+        self.assertEqual(venta.estado, Venta.Estado.ACTIVA)
+
+    def test_no_se_anula_una_venta_de_otra_jornada(self):
+        """
+        Una venta de ayer ya entró en un cierre de caja cuadrado, y deshacerla
+        descuadraría un día que alguien dio por bueno.
+        """
+        self.comprar(5, "30000")
+        venta = self.vender(2)
+        Venta.objects.filter(pk=venta.pk).update(
+            fecha=timezone.now() - timedelta(days=2))
+        venta.refresh_from_db()
+
+        with self.assertRaises(ValidationError):
+            self.anular(venta)
+
+        self.assertEqual(existencias_de(self.ron, self.sede), 3)
