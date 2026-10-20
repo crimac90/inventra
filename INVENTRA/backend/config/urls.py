@@ -32,6 +32,7 @@ urlpatterns = [
     path("api/seguridad/", include("seguridad.urls")),
     path("api/suscripciones/", include("suscripciones.urls")),
     path("api/inventario/", include("inventario.urls")),
+    path("api/ventas/", include("ventas.urls")),
 
     # Las direcciones de los demás módulos se agregan aquí a medida que se construyen.
 ]

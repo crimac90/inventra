@@ -15,18 +15,21 @@ from decimal import Decimal
 
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
+from rest_framework import status
 
 # El helper de INV en vez de uno propio: una licorera lista para trabajar se
 # arma igual en los dos módulos, y VEN depende de INV de todas formas.
 from django.core import mail
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 
 from inventario.existencias import existencias_de
 from inventario.models import MovimientoInventario
 from inventario.operaciones import registrar_entrada
 from inventario.models import Categoria, Producto
-from inventario.tests import crear_negocio, crear_usuario
+from inventario.tests import CLAVE, crear_negocio, crear_usuario
 from sedes.models import Sede
 from seguridad.models import Rol
 
@@ -728,3 +731,218 @@ class HistorialTests(CajaBase):
         self.vender(1)
 
         self.assertEqual(filtrar(otra).count(), 0)
+
+
+class ApiBase(TestCase):
+    """Las direcciones del módulo, recorridas como las recorre la pantalla."""
+
+    def setUp(self):
+        cache.clear()
+        self.licorera = crear_negocio("Rionegro")
+        self.sede = Sede.principal_de(self.licorera)
+        self.duena = crear_usuario(self.licorera, "duena@api.com",
+                                   Rol.ADMINISTRADOR_LICORERA)
+        self.cajero = crear_usuario(self.licorera, "cajero@api.com", Rol.VENDEDOR)
+        self.efectivo = MedioPago.objects.get(nombre=MedioPago.EFECTIVO)
+        self.ron = crear_producto(self.licorera, "Ron de api", precio="50000")
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.duena,
+            lineas=[{"producto": self.ron, "cantidad": 50,
+                     "costo_unitario": Decimal("30000")}])
+        mail.outbox = []
+
+    def entrar(self, correo=None):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": correo or self.cajero.correo, "password": CLAVE},
+            content_type="application/json")
+        return {"HTTP_AUTHORIZATION": "Bearer %s" % respuesta.json()["acceso"]}
+
+    def cobrar(self, cantidad=1, correo=None, **extra):
+        cuerpo = {"medio_pago_id": self.efectivo.id,
+                  "lineas": [{"producto_id": self.ron.id, "cantidad": cantidad}]}
+        cuerpo.update(extra)
+        return self.client.post(reverse("venta-list"), cuerpo,
+                                content_type="application/json", **self.entrar(correo))
+
+
+class ApiDeVentaTests(ApiBase):
+    def test_el_vendedor_cobra(self):
+        """
+        Es la primera vez que un permiso reparte en esta dirección: vender es
+        del vendedor, y lo que el administrador se reserva es deshacer.
+        """
+        respuesta = self.cobrar(2)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Decimal(respuesta.json()["total"]), Decimal("100000"))
+        self.assertEqual(existencias_de(self.ron, self.sede), 48)
+
+    def test_el_precio_no_se_recibe_del_cliente(self):
+        """Aceptarlo permitiría cobrar lo que quisiera quien tenga la pantalla."""
+        respuesta = self.cobrar(1, lineas=[{"producto_id": self.ron.id,
+                                            "cantidad": 1, "precio_unitario": "1"}])
+
+        self.assertEqual(Decimal(respuesta.json()["total"]), Decimal("50000"))
+
+    def test_dos_lineas_del_mismo_producto_se_juntan(self):
+        """Pulsar dos veces el mismo producto es «dos unidades», no «dos renglones»."""
+        respuesta = self.cobrar(lineas=[{"producto_id": self.ron.id, "cantidad": 1},
+                                        {"producto_id": self.ron.id, "cantidad": 2}])
+
+        cuerpo = respuesta.json()
+        self.assertEqual(len(cuerpo["lineas"]), 1)
+        self.assertEqual(cuerpo["lineas"][0]["cantidad"], 3)
+
+    def test_un_producto_de_otra_licorera_se_rechaza_como_dato_invalido(self):
+        ajeno = crear_producto(crear_negocio("Guarne"), "Ajeno", precio="1000")
+
+        respuesta = self.cobrar(lineas=[{"producto_id": ajeno.id, "cantidad": 1}])
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_sin_existencias_responde_cuantas_hay(self):
+        respuesta = self.cobrar(80)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("50", respuesta.json()["detalle"])
+
+    def test_el_comprobante_trae_el_cambio(self):
+        respuesta = self.cobrar(1, monto_recibido="60000")
+
+        self.assertEqual(Decimal(respuesta.json()["cambio"]), Decimal("10000"))
+
+
+class ApiDeAnulacionTests(ApiBase):
+    def anular(self, venta_id, correo, motivo="El cliente devolvió la mercancía"):
+        return self.client.post(
+            reverse("venta-anular", args=[venta_id]), {"motivo": motivo},
+            content_type="application/json", **self.entrar(correo))
+
+    def test_el_administrador_anula(self):
+        venta = self.cobrar(2).json()
+
+        respuesta = self.anular(venta["id"], self.duena.correo)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(respuesta.json()["estado"], "anulada")
+        self.assertEqual(existencias_de(self.ron, self.sede), 50)
+
+    def test_el_vendedor_no_anula_su_propio_cobro(self):
+        venta = self.cobrar(2).json()
+
+        respuesta = self.anular(venta["id"], self.cajero.correo)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(existencias_de(self.ron, self.sede), 48)
+
+    def test_el_motivo_es_obligatorio(self):
+        venta = self.cobrar(1).json()
+
+        respuesta = self.anular(venta["id"], self.duena.correo, motivo="")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ApiDelHistorialTests(ApiBase):
+    def listar(self, **filtros):
+        return self.client.get(reverse("venta-list"), filtros, **self.entrar())
+
+    def test_el_vendedor_consulta_el_historial(self):
+        self.cobrar(1)
+
+        respuesta = self.listar()
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(respuesta.json()["count"], 1)
+
+    def test_la_lista_no_trae_el_detalle_de_cada_venta(self):
+        """Son cientos de filas y nadie las mira hasta que abre una."""
+        self.cobrar(1)
+
+        self.assertNotIn("lineas", self.listar().json()["results"][0])
+
+    def test_abrir_una_venta_si_trae_sus_lineas(self):
+        venta = self.cobrar(2).json()
+
+        respuesta = self.client.get(reverse("venta-detail", args=[venta["id"]]),
+                                    **self.entrar())
+
+        self.assertEqual(len(respuesta.json()["lineas"]), 1)
+
+    def test_no_se_ven_las_ventas_de_otra_licorera(self):
+        self.cobrar(1)
+        ajena = crear_negocio("Marinilla")
+        intrusa = crear_usuario(ajena, "ajena@api.com", Rol.ADMINISTRADOR_LICORERA)
+
+        respuesta = self.client.get(reverse("venta-list"), **self.entrar(intrusa.correo))
+
+        self.assertEqual(respuesta.json()["count"], 0)
+
+
+class ApiDelCierreTests(ApiBase):
+    def test_antes_de_cerrar_dice_lo_que_el_sistema_sabe(self):
+        self.cobrar(2)
+
+        cuerpo = self.client.get(reverse("cierre-de-caja"), **self.entrar()).json()
+
+        self.assertEqual(Decimal(cuerpo["total_efectivo"]), Decimal("100000"))
+        self.assertEqual(cuerpo["transacciones"], 1)
+        self.assertIsNone(cuerpo["cierre"])
+
+    def test_cerrar_con_faltante_avisa_por_correo(self):
+        self.cobrar(2)
+
+        respuesta = self.client.post(
+            reverse("cierre-de-caja"), {"efectivo_contado": "92000"},
+            content_type="application/json", **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Decimal(respuesta.json()["diferencia"]), Decimal("-8000"))
+        self.assertEqual(mail.outbox[0].to, [self.duena.correo])
+
+    def test_volver_a_cerrar_actualiza_el_mismo_cierre(self):
+        self.cobrar(2)
+        self.client.post(reverse("cierre-de-caja"), {"efectivo_contado": "100000"},
+                         content_type="application/json", **self.entrar())
+
+        self.cobrar(1)
+        respuesta = self.client.post(
+            reverse("cierre-de-caja"), {"efectivo_contado": "150000"},
+            content_type="application/json", **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(CierreCaja.objects.count(), 1)
+
+    def test_el_administrador_explica_una_diferencia(self):
+        self.cobrar(2)
+        cierre = self.client.post(
+            reverse("cierre-de-caja"), {"efectivo_contado": "92000"},
+            content_type="application/json", **self.entrar()).json()
+
+        respuesta = self.client.patch(
+            reverse("explicacion-del-cierre", args=[cierre["id"]]),
+            {"observacion": "Se pagó un domicilio"},
+            content_type="application/json", **self.entrar(self.duena.correo))
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(jornadas_sin_explicar(self.licorera)), 0)
+
+    def test_el_vendedor_no_explica_la_diferencia_que_el_mismo_dejo(self):
+        self.cobrar(2)
+        cierre = self.client.post(
+            reverse("cierre-de-caja"), {"efectivo_contado": "92000"},
+            content_type="application/json", **self.entrar()).json()
+
+        respuesta = self.client.patch(
+            reverse("explicacion-del-cierre", args=[cierre["id"]]),
+            {"observacion": "Nada que ver aquí"},
+            content_type="application/json", **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_los_medios_de_pago_se_consultan(self):
+        respuesta = self.client.get(reverse("medios-de-pago"), **self.entrar())
+
+        self.assertEqual([m["nombre"] for m in respuesta.json()],
+                         list(MedioPago.POR_DEFECTO))
