@@ -19,6 +19,7 @@ from django.utils import timezone
 
 # El helper de INV en vez de uno propio: una licorera lista para trabajar se
 # arma igual en los dos módulos, y VEN depende de INV de todas formas.
+from django.core import mail
 from django.core.exceptions import ValidationError
 
 from inventario.existencias import existencias_de
@@ -29,6 +30,9 @@ from inventario.tests import crear_negocio, crear_usuario
 from sedes.models import Sede
 from seguridad.models import Rol
 
+from .caja import (cerrar_jornada, explicar_diferencia, jornadas_sin_explicar,
+                   resumen_de)
+from .consultas import filtrar
 from .jornada import INICIO_DE_JORNADA, jornada_actual, jornada_de, limites_de
 from .models import CierreCaja, DetalleVenta, MedioPago, Venta
 from .operaciones import anular_venta, registrar_venta
@@ -452,3 +456,275 @@ class AnularVentaTests(TestCase):
             self.anular(venta)
 
         self.assertEqual(existencias_de(self.ron, self.sede), 3)
+
+
+class CajaBase(TestCase):
+    def setUp(self):
+        self.licorera = crear_negocio("Caldas")
+        self.sede = Sede.principal_de(self.licorera)
+        self.duena = crear_usuario(self.licorera, "duena@caja.com",
+                                   Rol.ADMINISTRADOR_LICORERA)
+        self.cajero = crear_usuario(self.licorera, "cajero@caja.com", Rol.VENDEDOR)
+        self.efectivo = MedioPago.objects.get(nombre=MedioPago.EFECTIVO)
+        self.tarjeta = MedioPago.objects.get(nombre=MedioPago.TARJETA)
+        self.ron = crear_producto(self.licorera, "Ron de caja", precio="50000")
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.cajero,
+            lineas=[{"producto": self.ron, "cantidad": 100,
+                     "costo_unitario": Decimal("30000")}])
+        mail.outbox = []
+
+    def vender(self, cantidad=1, medio=None, cuando=None):
+        venta = registrar_venta(
+            licorera=self.licorera, usuario=self.cajero,
+            medio_pago=medio or self.efectivo,
+            lineas=[{"producto": self.ron, "cantidad": cantidad}])
+        if cuando is not None:
+            Venta.objects.filter(pk=venta.pk).update(fecha=cuando)
+            venta.refresh_from_db()
+        return venta
+
+    def cerrar(self, contado, observacion=None):
+        return cerrar_jornada(
+            licorera=self.licorera, usuario=self.cajero,
+            efectivo_contado=Decimal(contado), observacion=observacion)
+
+
+class ResumenDeLaJornadaTests(CajaBase):
+    def test_los_tres_medios_salen_siempre_aunque_valgan_cero(self):
+        """
+        Un cierre que escondiera la fila de «tarjeta» porque hoy nadie pagó con
+        tarjeta obligaría a mirar dos veces para saber si es cero o si falta.
+        """
+        self.vender(1)
+
+        resumen = resumen_de(self.licorera, self.sede, jornada_actual())
+
+        self.assertEqual(resumen["efectivo"], Decimal("50000"))
+        self.assertEqual(resumen["transferencia"], Decimal("0"))
+        self.assertEqual(resumen["tarjeta"], Decimal("0"))
+
+    def test_cada_medio_suma_por_su_lado(self):
+        self.vender(2)
+        self.vender(1, medio=self.tarjeta)
+
+        resumen = resumen_de(self.licorera, self.sede, jornada_actual())
+
+        self.assertEqual(resumen["efectivo"], Decimal("100000"))
+        self.assertEqual(resumen["tarjeta"], Decimal("50000"))
+        self.assertEqual(resumen["transacciones"], 2)
+
+    def test_una_venta_anulada_no_es_dinero(self):
+        self.vender(1)
+        anular_venta(venta=self.vender(1), usuario=self.duena, motivo="Se devolvió")
+
+        resumen = resumen_de(self.licorera, self.sede, jornada_actual())
+
+        self.assertEqual(resumen["efectivo"], Decimal("50000"))
+        self.assertEqual(resumen["transacciones"], 1)
+
+    def test_lo_vendido_de_madrugada_es_de_la_noche_anterior(self):
+        """
+        El caso de D-36 contado en dinero: la caja de las dos de la mañana
+        pertenece a la jornada que se está cerrando, no a la siguiente.
+        """
+        anoche = jornada_actual() - timedelta(days=1)
+        inicio, _ = limites_de(anoche)
+        self.vender(1, cuando=inicio + timedelta(hours=15))   # 21:00
+        self.vender(2, cuando=inicio + timedelta(hours=20))   # 02:00 del día siguiente
+
+        resumen = resumen_de(self.licorera, self.sede, anoche)
+
+        self.assertEqual(resumen["transacciones"], 2)
+        self.assertEqual(resumen["efectivo"], Decimal("150000"))
+
+
+class CerrarJornadaTests(CajaBase):
+    def test_el_cierre_guarda_lo_que_dice_el_sistema_y_lo_contado(self):
+        self.vender(2)
+
+        cierre, creado = self.cerrar("100000")
+
+        self.assertTrue(creado)
+        self.assertEqual(cierre.total_efectivo, Decimal("100000"))
+        self.assertEqual(cierre.efectivo_contado, Decimal("100000"))
+        self.assertEqual(cierre.diferencia, Decimal("0"))
+
+    def test_un_faltante_queda_en_negativo(self):
+        self.vender(2)
+
+        cierre, _ = self.cerrar("92000")
+
+        self.assertEqual(cierre.diferencia, Decimal("-8000"))
+        self.assertTrue(cierre.hay_que_explicar)
+
+    def test_un_sobrante_queda_en_positivo(self):
+        self.vender(2)
+
+        self.assertEqual(self.cerrar("105000")[0].diferencia, Decimal("5000"))
+
+    def test_rehacer_no_crea_otro_cierre_y_recalcula_entero(self):
+        """
+        Quien cierra antes de tiempo no se queda sin salida: se vuelve a cerrar
+        y los totales se recalculan con toda la jornada, desde la primera
+        venta. No hay saldo que venga del cierre anterior.
+        """
+        self.vender(2)
+        self.cerrar("100000")
+
+        self.vender(1)
+        cierre, creado = self.cerrar("150000")
+
+        self.assertFalse(creado)
+        self.assertEqual(CierreCaja.objects.count(), 1)
+        self.assertEqual(cierre.total_efectivo, Decimal("150000"))
+        self.assertEqual(cierre.diferencia, Decimal("0"))
+
+    def test_no_se_cierra_una_jornada_que_ya_termino(self):
+        with self.assertRaises(ValidationError):
+            cerrar_jornada(licorera=self.licorera, usuario=self.cajero,
+                           efectivo_contado=Decimal("0"),
+                           jornada=jornada_actual() - timedelta(days=1))
+
+    def test_hay_que_contar_el_efectivo(self):
+        with self.assertRaises(ValidationError):
+            cerrar_jornada(licorera=self.licorera, usuario=self.cajero,
+                           efectivo_contado=None)
+
+
+class AvisoDeDiferenciaTests(CajaBase):
+    def test_un_faltante_avisa_por_correo_al_administrador(self):
+        self.vender(2)
+
+        self.cerrar("92000")
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.duena.correo])
+        self.assertIn("Faltan", mail.outbox[0].body)
+
+    def test_una_jornada_cuadrada_no_molesta_a_nadie(self):
+        """Un correo que llega todos los días deja de leerse."""
+        self.vender(2)
+
+        self.cerrar("100000")
+
+        self.assertEqual(mail.outbox, [])
+
+    def test_el_correo_lleva_la_explicacion_que_se_escribio(self):
+        """
+        Es lo que cierra el hueco de D-37: quien cierra puede escribir
+        cualquier cosa, y el administrador tiene que poder juzgarla sin entrar.
+        """
+        self.vender(2)
+
+        self.cerrar("92000", observacion="Se pagó un domicilio con la caja")
+
+        self.assertIn("Se pagó un domicilio con la caja", mail.outbox[0].body)
+
+    def test_sin_explicacion_el_correo_lo_dice(self):
+        self.vender(2)
+
+        self.cerrar("92000")
+
+        self.assertIn("No se escribió ninguna explicación", mail.outbox[0].body)
+
+    def test_el_vendedor_que_cerro_no_recibe_el_aviso(self):
+        self.vender(2)
+
+        self.cerrar("92000")
+
+        self.assertNotIn(self.cajero.correo, mail.outbox[0].to)
+
+
+class ExplicarDiferenciaTests(CajaBase):
+    def test_mientras_no_se_explique_la_jornada_sigue_a_la_vista(self):
+        self.vender(2)
+        self.cerrar("92000")
+
+        self.assertEqual(len(jornadas_sin_explicar(self.licorera)), 1)
+
+    def test_explicarla_la_retira(self):
+        self.vender(2)
+        cierre, _ = self.cerrar("92000")
+
+        explicar_diferencia(cierre=cierre, texto="Se pagó un domicilio")
+
+        self.assertEqual(len(jornadas_sin_explicar(self.licorera)), 0)
+
+    def test_se_puede_explicar_despues_de_cerrada_la_jornada(self):
+        """Es una nota, no una cifra: no mueve ningún total ni la diferencia."""
+        self.vender(2)
+        cierre, _ = self.cerrar("92000")
+        CierreCaja.objects.filter(pk=cierre.pk).update(
+            fecha=jornada_actual() - timedelta(days=3))
+        cierre.refresh_from_db()
+
+        explicar_diferencia(cierre=cierre, texto="Apareció el billete")
+
+        cierre.refresh_from_db()
+        self.assertEqual(cierre.diferencia, Decimal("-8000"))
+        self.assertFalse(cierre.hay_que_explicar)
+
+    def test_una_explicacion_vacia_no_vale(self):
+        self.vender(2)
+        cierre, _ = self.cerrar("92000")
+
+        with self.assertRaises(ValidationError):
+            explicar_diferencia(cierre=cierre, texto="   ")
+
+    def test_una_jornada_cuadrada_nunca_esta_a_la_vista(self):
+        self.vender(2)
+        self.cerrar("100000")
+
+        self.assertEqual(len(jornadas_sin_explicar(self.licorera)), 0)
+
+
+class HistorialTests(CajaBase):
+    def test_el_historial_si_muestra_las_anuladas(self):
+        """Una venta que desaparece deja un hueco que nadie puede explicar."""
+        self.vender(1)
+        anular_venta(venta=self.vender(1), usuario=self.duena, motivo="Devuelta")
+
+        self.assertEqual(filtrar(self.licorera).count(), 2)
+
+    def test_filtra_por_vendedor(self):
+        self.vender(1)
+
+        self.assertEqual(filtrar(self.licorera, vendedor=self.cajero).count(), 1)
+        self.assertEqual(filtrar(self.licorera, vendedor=self.duena).count(), 0)
+
+    def test_filtra_por_medio_de_pago(self):
+        self.vender(1)
+        self.vender(1, medio=self.tarjeta)
+
+        self.assertEqual(filtrar(self.licorera, medio_pago=self.tarjeta).count(), 1)
+
+    def test_busca_por_numero_de_venta(self):
+        self.vender(1)
+        segunda = self.vender(1)
+
+        encontradas = filtrar(self.licorera, buscar=str(segunda.consecutivo))
+        self.assertEqual([v.id for v in encontradas], [segunda.id])
+
+    def test_busca_por_nombre_de_producto(self):
+        self.vender(1)
+
+        self.assertEqual(filtrar(self.licorera, buscar="caja").count(), 1)
+        self.assertEqual(filtrar(self.licorera, buscar="whisky").count(), 0)
+
+    def test_el_rango_de_fechas_va_por_jornadas(self):
+        """
+        Buscar «el día 18» tiene que traer la venta de las dos de la madrugada
+        del 19, porque se vendió en la noche del 18.
+        """
+        anoche = jornada_actual() - timedelta(days=1)
+        inicio, _ = limites_de(anoche)
+        self.vender(1, cuando=inicio + timedelta(hours=20))   # 02:00 del día siguiente
+
+        self.assertEqual(filtrar(self.licorera, desde=anoche, hasta=anoche).count(), 1)
+
+    def test_solo_las_ventas_de_la_propia_licorera(self):
+        otra = crear_negocio("Copacabana")
+        self.vender(1)
+
+        self.assertEqual(filtrar(otra).count(), 0)
