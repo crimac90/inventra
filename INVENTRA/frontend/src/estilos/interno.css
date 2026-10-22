@@ -809,3 +809,95 @@ td.acciones-fila a.btn {
   max-width: 560px;
 }
 
+
+/* --- Punto de venta (apartado 8.7) --------------------------------------- */
+
+/*
+  Dos columnas en escritorio: a la izquierda se busca, a la derecha se cobra.
+  En pantallas menores se apilan, con la venta debajo del buscador, que es el
+  orden en que se trabaja.
+*/
+.venta { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .venta { grid-template-columns: 1fr; } }
+
+.venta .vacio { color: var(--muted); font-size: 14px; padding: 18px 0; }
+
+.renglon { display: flex; justify-content: space-between; align-items: flex-start;
+           gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.renglon .nombre { font-weight: 600; font-size: 14px; }
+.renglon .importe { font-weight: 700; font-size: 14px; white-space: nowrap; }
+
+.cantidad { display: flex; align-items: center; gap: 7px; margin-top: 5px; }
+.cantidad button { width: 24px; height: 24px; border: 1px solid var(--border);
+                   border-radius: 7px; background: var(--surface); color: var(--navy2);
+                   font-weight: 700; cursor: pointer; line-height: 1; }
+.cantidad button:hover { border-color: var(--navy2); }
+/*
+  La cantidad se escribe, no solo se pulsa. Cien cervezas son cien clics en un
+  boton y tres teclas en un campo.
+*/
+.cantidad input { width: 56px; padding: 3px 6px; border: 1px solid var(--border);
+                  border-radius: 7px; background: var(--surface); color: var(--text);
+                  font-size: 14px; font-weight: 600; text-align: center; }
+.cantidad button:disabled { opacity: .4; cursor: default; }
+.renglon .tope { font-size: 12px; color: var(--warn-fuerte); margin-top: 4px; }
+.recibe { display: flex; gap: 8px; align-items: flex-end; }
+.recibe > :first-child { flex: 1; margin-bottom: 0; }
+.cantidad .quitar { border: 0; background: none; color: var(--muted); font-size: 16px; }
+
+.total { display: flex; justify-content: space-between; font-weight: 700; font-size: 19px;
+         border-top: 1px solid var(--border); margin-top: 8px; padding-top: 10px; }
+
+.medios { display: flex; gap: 8px; margin: 14px 0; }
+.medio { flex: 1; padding: 9px 0; border: 1px solid var(--border); border-radius: 10px;
+         background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer;
+         text-transform: capitalize; color: var(--text); }
+.medio.on { border-color: var(--navy); background: var(--navy); color: #fff; }
+
+.cambio { display: flex; justify-content: space-between; font-weight: 700; font-size: 15px;
+          background: var(--ok-suave); color: var(--ok-fuerte);
+          padding: 9px 11px; border-radius: 9px; margin-top: 10px; }
+
+/*
+  El comprobante se dibuja con el ancho de una impresora termica, para que lo
+  que se ve en pantalla sea lo que sale en papel.
+*/
+.comprobante { width: 300px; max-width: 100%; font-family: ui-monospace, Menlo, Consolas, monospace;
+               font-size: 12.5px; border: 1px solid var(--border); border-radius: 12px;
+               padding: 16px; }
+.comprobante .centro { text-align: center; }
+.comprobante .fila { display: flex; justify-content: space-between; padding: 2px 0; }
+.comprobante hr { border: 0; border-top: 1px dashed var(--border); margin: 9px 0; }
+
+/*
+  La hoja de impresion: de la caja o del historial sale solo el comprobante,
+  con el ancho de una tirilla.
+
+  No basta con esconder lo demas. Un elemento invisible sigue ocupando su
+  sitio, de modo que el navegador pagina la pantalla entera y manda hojas en
+  blanco detras; y un comprobante sacado del flujo con posicion fija se repite
+  en cada una de esas hojas, que es como una sola venta acaba imprimiendose
+  dos veces. Por eso lo que sobra se retira con `display` y la disposicion se
+  desmonta: sin alturas de pantalla no hay mas de una pagina.
+
+  El ancho del papel no se declara. El navegador no admite un alto automatico
+  junto a un ancho fijo, y fijar el alto cortaria las ventas largas, de modo
+  que el papel lo pone la impresora y el comprobante se limita a 72 mm, que es
+  el ancho util de una tirilla de 80 y cabe en cualquier hoja.
+*/
+@media print {
+  html, body, .app, .main, .content {
+    display: block !important;
+    height: auto !important; min-height: 0 !important;
+    margin: 0 !important; padding: 0 !important;
+    background: #fff !important;
+  }
+  .side, .tb { display: none !important; }
+  .content > *:not(.hoja) { display: none !important; }
+  .hoja { border: 0 !important; padding: 0 !important; margin: 0 !important;
+          background: #fff !important; }
+  .hoja > h2, .hoja > .acciones { display: none !important; }
+  .comprobante { width: 72mm !important; max-width: 100% !important;
+                 border: 0 !important; padding: 0 !important; font-size: 11px; }
+  @page { margin: 3mm; }
+}

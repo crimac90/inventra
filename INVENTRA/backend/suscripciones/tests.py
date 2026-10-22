@@ -1144,9 +1144,18 @@ class ModulosSegunElPlanTests(TestCase):
         self.assertEqual(estados["inventario"], "disponible")
 
     def test_lo_que_falta_por_construir_aparece_como_pronto(self):
+        """
+        Ventas salió de esta lista el 20/10, al construirse su pantalla. La
+        prueba no se borra ni se afloja: cambia de sujeto, porque lo que fija
+        es que un módulo sin construir se anuncie y no se ofrezca.
+        """
         estados = self.consultar()
-        self.assertEqual(estados["ventas"], "pronto")
         self.assertEqual(estados["reportes"], "pronto")
+
+    def test_lo_construido_queda_disponible(self):
+        estados = self.consultar()
+        self.assertEqual(estados["inventario"], "disponible")
+        self.assertEqual(estados["ventas"], "disponible")
 
     def test_con_plan_pro_sedes_esta_pendiente_de_construir(self):
         """La prueba corre sobre Pro, así que multisede sí entra en su plan."""

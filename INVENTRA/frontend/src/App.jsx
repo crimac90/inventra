@@ -11,6 +11,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Acceso from "./paginas/Acceso";
 import EntradaMercancia from "./paginas/EntradaMercancia";
 import Kardex from "./paginas/Kardex";
+import PuntoDeVenta from "./paginas/PuntoDeVenta";
 import MiSuscripcion from "./paginas/MiSuscripcion";
 import Inventario from "./paginas/Inventario";
 import Panel from "./paginas/Panel";
@@ -83,6 +84,18 @@ export default function App() {
         element={
           <RutaPrivada roles={ROLES_DE_NEGOCIO}>
             <Kardex />
+          </RutaPrivada>
+        }
+      />
+      {/*
+        El punto de venta es de los dos roles del negocio, y aqui el reparto se
+        invierte respecto al inventario: quien vende es el vendedor.
+      */}
+      <Route
+        path="/ventas"
+        element={
+          <RutaPrivada roles={ROLES_DE_NEGOCIO}>
+            <PuntoDeVenta />
           </RutaPrivada>
         }
       />

@@ -57,7 +57,7 @@ def momento(dia, hora, minuto=0):
 
 class JornadaTests(TestCase):
     """
-    La definición de día del módulo (D-36).
+    La definición de día del módulo.
 
     Es la pieza con más consecuencias del bloque: de ella dependen el cierre, el
     indicador del panel y el filtro del historial.
@@ -69,9 +69,9 @@ class JornadaTests(TestCase):
 
     def test_la_madrugada_pertenece_a_la_noche_anterior(self):
         """
-        El caso que decidió D-36: el negocio abre el 18 a las 19:00 y cierra el
-        19 a las 02:00. Esas dos horas se cierran con la noche en la que se
-        vendieron, porque el cajón no se vacía a medianoche.
+        El negocio abre el 18 a las 19:00 y cierra el 19 a las 02:00. Esas dos
+        horas se cierran con la noche en la que se vendieron, porque el cajón
+        no se vacía a medianoche.
         """
         for hora in (0, 2, 5):
             self.assertEqual(jornada_de(momento(19, hora, 30)), date(2026, 10, 18),
@@ -528,8 +528,8 @@ class ResumenDeLaJornadaTests(CajaBase):
 
     def test_lo_vendido_de_madrugada_es_de_la_noche_anterior(self):
         """
-        El caso de D-36 contado en dinero: la caja de las dos de la mañana
-        pertenece a la jornada que se está cerrando, no a la siguiente.
+        Lo mismo contado en dinero: la caja de las dos de la mañana pertenece
+        a la jornada que se está cerrando, no a la siguiente.
         """
         anoche = jornada_actual() - timedelta(days=1)
         inicio, _ = limites_de(anoche)
@@ -615,8 +615,8 @@ class AvisoDeDiferenciaTests(CajaBase):
 
     def test_el_correo_lleva_la_explicacion_que_se_escribio(self):
         """
-        Es lo que cierra el hueco de D-37: quien cierra puede escribir
-        cualquier cosa, y el administrador tiene que poder juzgarla sin entrar.
+        Quien cierra puede escribir cualquier cosa, y el administrador tiene que
+        poder juzgarla sin entrar al sistema.
         """
         self.vender(2)
 

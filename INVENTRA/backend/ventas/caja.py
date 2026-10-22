@@ -2,7 +2,7 @@
 El cierre de caja (RF-VEN-06).
 
 Compara lo que dice el sistema con lo que hay en el cajón, para una sede y una
-jornada. Tres ideas lo gobiernan, y las tres están decididas en D-36 y D-37:
+jornada. Tres ideas lo gobiernan:
 
 **El día es una jornada, de las seis a las seis.** El cajón no se vacía a
 medianoche, así que un corte al filo del calendario repartiría entre dos
@@ -98,7 +98,7 @@ def explicar_diferencia(*, cierre, texto):
     cerrada la jornada.
 
     Es una nota y no una cifra: no mueve ningún total ni la diferencia. Mientras
-    esté vacía, la jornada sigue avisada en el panel (D-37).
+    esté vacía, la jornada sigue avisada en el panel.
     """
     if not (texto or "").strip():
         raise ValidationError("Escribe la explicación de la diferencia.")
@@ -111,7 +111,8 @@ def explicar_diferencia(*, cierre, texto):
 def jornadas_sin_explicar(licorera, limite=5):
     """
     Las jornadas que cerraron con diferencia y sin explicación, de la más
-    reciente a la más antigua. Es lo que el panel mantiene a la vista (D-37).
+    reciente a la más antigua. Es lo que el panel mantiene a la vista hasta que
+    alguien escriba el porqué.
     """
     return (
         CierreCaja.objects

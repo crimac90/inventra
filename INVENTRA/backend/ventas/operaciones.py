@@ -150,8 +150,8 @@ def anular_venta(*, venta, usuario, motivo):
     con el motivo y con quien la anuló. Un hueco en la numeración es lo único
     que impediría afirmar después que no falta ninguna venta.
 
-    CADA UNIDAD VUELVE AL LOTE DEL QUE SALIÓ
-    El kardex sabe de qué lote salió cada tramo, de modo que la devolución es
+    Cada unidad vuelve al lote del que salió: el kardex sabe de qué lote salió
+    cada tramo, de modo que la devolución es
     exacta y el PEPS sigue siendo cierto después. Crear un lote nuevo con lo
     devuelto sería más fácil y lo pondría al final de la cola: lo devuelto se
     vendería después de lo que se compró más tarde, y su costo dejaría de

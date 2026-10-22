@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-El aviso de que una jornada cerró descuadrada (D-37).
+El aviso de que una jornada cerró descuadrada.
 
 Es el único correo del módulo, y existe por una razón concreta: el aviso del
 panel se retira en cuanto alguien escribe una explicación, y quien cierra la

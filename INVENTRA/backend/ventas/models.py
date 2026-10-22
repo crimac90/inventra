@@ -6,11 +6,11 @@ claras antes de leer los campos:
 
 **El precio se congela en la línea; el costo no está aquí.** `detalle_venta`
 guarda el precio al que se vendió, porque cambiar mañana el precio del catálogo
-no puede cambiar lo que se cobró ayer. El costo, en cambio, no tiene columna, y
-no es un olvido del modelo: una línea puede salir de dos lotes a dos costos
-distintos, de modo que un solo costo por línea no podría ser cierto. El costo
-real queda en el kardex, un movimiento por tramo consumido, y la utilidad se
-calcula cruzando el detalle con esos movimientos.
+no puede cambiar lo que se cobró ayer. El costo no tiene columna porque una
+línea puede salir de dos lotes a dos costos distintos, de modo que un solo
+costo por línea no podría ser cierto. El costo real queda en el kardex, un
+movimiento por tramo consumido, y la utilidad se calcula cruzando el detalle
+con esos movimientos.
 
 **Nada se borra.** Una venta equivocada se anula y conserva su número; un cierre
 se rehace y conserva su fila. El consecutivo sin huecos es lo que permite

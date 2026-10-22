@@ -12,11 +12,10 @@ Por eso el día de este módulo es una jornada comercial: empieza a las seis de 
 mañana y termina a las seis de la mañana siguiente. Lo vendido en la madrugada
 pertenece a la jornada de la noche anterior.
 
-ES UNA CONSTANTE Y NO UNA COLUMNA
-Las seis valen para cualquier licorera, igual que los tres plazos de la
-suscripción son constantes y no configuración por negocio. Una que atienda hasta
-las cinco de la mañana queda cubierta. El día que haga falta por negocio, pasar
-de constante a columna es una migración pequeña.
+La hora es una constante y no una columna por la misma razón que los tres
+plazos de la suscripción: es la misma regla para cualquier licorera, y una que
+atienda hasta las cinco de la mañana queda cubierta. El día que haga falta por
+negocio, pasar de constante a columna es una migración pequeña.
 
 El MER no cambia: `cierre_caja.fecha` sigue siendo una fecha. Lo único distinto
 es qué significa —el día de la jornada— y qué ventas caen dentro.

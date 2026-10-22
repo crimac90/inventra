@@ -18,6 +18,12 @@
   los botones de crear, editar, descontinuar, registrar entradas y ajustar, y
   el servidor le respondia 403 en los cinco.
 
+  Y EL ROL NO SIEMPRE ES EL ADMINISTRADOR. En ventas se reparte al reves:
+  vender es del vendedor, y lo que se reserva el administrador es deshacer.
+  Por eso quien llama dice que rol exige la accion en vez de darlo por supuesto;
+  darlo por supuesto esconderia el boton de cobrar a quien esta en la caja,
+  que es el mismo defecto del 15/10 con el signo cambiado.
+
   La accion la pone cada pantalla —«crear ni modificar cuentas», «registrar
   ventas»— porque es lo unico que cambia de una a otra; el resto de la frase y la
   eleccion del motivo se deciden en este archivo y no en seis.
@@ -42,12 +48,14 @@ export const DESTINO_DE_LA_SUSCRIPCION = "/mi-suscripcion";
   los botones un instante a quien si los tiene es peor que mostrarlos y que el
   backend rechace.
 */
-export function motivoParaNoRegistrar(usuario, suscripcion, accion) {
+export function motivoParaNoRegistrar(usuario, suscripcion, accion,
+                                      { soloAdministrador = true } = {}) {
   /*
-    El vendedor no tiene adonde ir a arreglar esto, asi que este motivo no
-    lleva enlace: no es un tramite pendiente, es el reparto del trabajo.
+    Quien no tiene el rol no tiene adonde ir a arreglar esto, asi que este
+    motivo no lleva enlace: no es un tramite pendiente, es el reparto del
+    trabajo.
   */
-  if (usuario && usuario.rol !== ROL_ADMINISTRADOR_LICORERA) {
+  if (soloAdministrador && usuario && usuario.rol !== ROL_ADMINISTRADOR_LICORERA) {
     return {
       clave: "rol",
       avisar: false,

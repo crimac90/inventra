@@ -94,7 +94,7 @@ const MODULOS = [
   { clave: "panel", texto: "Panel", ruta: "/panel" },
   { clave: "usuarios", texto: "Usuarios", ruta: "/usuarios", soloAdministrador: true },
   { clave: "inventario", texto: "Inventario", ruta: "/inventario" },
-  { clave: "ventas", texto: "Ventas" },
+  { clave: "ventas", texto: "Ventas", ruta: "/ventas" },
   { clave: "reportes", texto: "Reportes" },
   { clave: "sedes", texto: "Sedes" },
 ];

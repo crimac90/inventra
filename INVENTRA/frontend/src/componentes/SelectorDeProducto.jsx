@@ -13,7 +13,7 @@
   para recorrer, Enter para elegir y Escape para descartar.
 */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { listarProductos } from "../api/inventario";
 import { useEspera } from "../espera";
@@ -26,6 +26,7 @@ export default function SelectorDeProducto({ id, valor, onElegir, excluir = [], 
   const [encontrados, setEncontrados] = useState([]);
   const [buscando, setBuscando] = useState(false);
   const [resaltado, setResaltado] = useState(0);
+  const cuadro = useRef(null);
   const buscado = useEspera(texto);
 
   useEffect(() => {
@@ -83,6 +84,13 @@ export default function SelectorDeProducto({ id, valor, onElegir, excluir = [], 
   function elegir(producto) {
     onElegir(producto);
     setTexto("");
+    /*
+      El foco se queda donde estaba. En el punto de venta, elegir es agregar y
+      lo siguiente es buscar otro producto: devolver el cursor al cuadro evita
+      un clic por cada referencia de la venta. Donde el selector pasa a
+      ensenar lo elegido, el cuadro ya no existe y esto no hace nada.
+    */
+    if (cuadro.current) cuadro.current.focus();
   }
 
   /*
@@ -113,6 +121,7 @@ export default function SelectorDeProducto({ id, valor, onElegir, excluir = [], 
     <div className="field selector">
       <label htmlFor={id}>Producto</label>
       <input
+        ref={cuadro}
         id={id}
         type="search"
         autoComplete="off"

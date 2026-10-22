@@ -169,7 +169,7 @@ class CierreDeCajaView(APIView):
 
 class ExplicacionDelCierreView(APIView):
     """
-    Escribe o corrige la explicación de una diferencia (D-37).
+    Escribe o corrige la explicación de una diferencia.
 
     Vive aparte del cierre porque se puede hacer mucho después, cuando la
     jornada ya terminó: es una nota y no una cifra.
