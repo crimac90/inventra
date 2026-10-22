@@ -8,11 +8,16 @@
   secundario, para que no se pulse por inercia.
 
   La tecla Escape cierra, como en cualquier ventana del sistema operativo.
+
+  Admite contenido dentro, entre la consecuencia y los botones, para las
+  acciones que ademas piden un dato: anular una venta exige el motivo, y
+  pedirlo en una pantalla aparte separaria la pregunta de su consecuencia.
 */
 
 import { useEffect } from "react";
 
-export default function Modal({ titulo, mensaje, textoConfirmar, onConfirmar, onCancelar, ocupado }) {
+export default function Modal({ titulo, mensaje, textoConfirmar, onConfirmar, onCancelar,
+                               ocupado, children }) {
   useEffect(() => {
     function alPulsar(evento) {
       if (evento.key === "Escape") onCancelar();
@@ -26,6 +31,8 @@ export default function Modal({ titulo, mensaje, textoConfirmar, onConfirmar, on
       <div className="modal">
         <h2>{titulo}</h2>
         <p>{mensaje}</p>
+
+        {children}
 
         <div className="acciones">
           <button className="btn btn-out" type="button" onClick={onCancelar} disabled={ocupado}>

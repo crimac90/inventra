@@ -24,6 +24,7 @@ import CampoSeleccion from "../componentes/CampoSeleccion";
 import Disposicion from "../componentes/Disposicion";
 import MargenesPorCategoria from "../componentes/MargenesPorCategoria";
 import Modal from "../componentes/Modal";
+import Paginacion from "../componentes/Paginacion";
 import { ErrorApi, mensajeDeError } from "../api/cliente";
 import {
   actualizarProducto,
@@ -84,6 +85,11 @@ export default function Inventario() {
   const { usuario: yo } = useSesion();
 
   const [productos, setProductos] = useState([]);
+  // Cuantas referencias hay en total y cual pagina se esta viendo. El servidor
+  // responde de veinticinco en veinticinco, de modo que sin esto un catalogo
+  // de cuarenta y cuatro referencias se veria como uno de veinticinco.
+  const [cuantos, setCuantos] = useState(0);
+  const [pagina, setPagina] = useState(1);
   const [categorias, setCategorias] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useAviso();
@@ -124,11 +130,12 @@ export default function Inventario() {
     de lo contrario el efecto que pide la lista se dispararia sin parar.
   */
   const consulta = useMemo(
-    () => ({ ...filtros, buscar: buscado }), [filtros, buscado]);
+    () => ({ ...filtros, buscar: buscado, page: pagina }), [filtros, buscado, pagina]);
 
   const refrescar = useCallback(async () => {
     const datos = await listarProductos(consulta);
     setProductos(datos.results || []);
+    setCuantos(datos.count || 0);
   }, [consulta]);
 
   useEffect(() => {
@@ -161,6 +168,7 @@ export default function Inventario() {
       .then((datos) => {
         if (!vigente) return;
         setProductos(datos.results || []);
+        setCuantos(datos.count || 0);
       })
       .catch((error) => {
         if (vigente) setAviso({ tipo: "err", texto: mensajeDeError(error) });
@@ -347,7 +355,7 @@ export default function Inventario() {
           aria-label="Buscar en el catálogo"
           placeholder="Buscar por nombre, categoría o código…"
           value={texto}
-          onChange={(e) => setTexto(e.target.value)}
+          onChange={(e) => { setPagina(1); setTexto(e.target.value); }}
         />
 
         <span className="etiqueta-filtro">Existencias</span>
@@ -359,7 +367,8 @@ export default function Inventario() {
               type="button"
               className={`chip${filtros.existencias === nivel.valor ? " on" : ""}`}
               onClick={() =>
-                setFiltros((previos) => ({ ...previos, existencias: nivel.valor }))
+                { setPagina(1);
+                  setFiltros((previos) => ({ ...previos, existencias: nivel.valor })); }
               }
             >
               {nivel.texto}
@@ -379,7 +388,8 @@ export default function Inventario() {
           aria-label="Estado del producto"
           value={filtros.estado}
           onChange={(e) =>
-            setFiltros((previos) => ({ ...previos, estado: e.target.value }))
+            { setPagina(1);
+              setFiltros((previos) => ({ ...previos, estado: e.target.value })); }
           }
         >
           {ESTADOS.map((estado) => (
@@ -391,6 +401,9 @@ export default function Inventario() {
       </div>
 
       <div className="tabla-caja">
+        <Paginacion total={cuantos} pagina={pagina} nombre="referencias"
+                    onCambiar={(numero) => { setAviso(null); setPagina(numero); }} />
+
         {cargando ? (
           <div className="vacio">Cargando…</div>
         ) : productos.length === 0 ? (
@@ -473,6 +486,9 @@ export default function Inventario() {
             </tbody>
           </table>
         )}
+
+        <Paginacion total={cuantos} pagina={pagina} nombre="referencias"
+                    onCambiar={(numero) => { setAviso(null); setPagina(numero); }} />
       </div>
 
       {ajustandoMargenes && (

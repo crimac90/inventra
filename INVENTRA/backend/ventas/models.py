@@ -101,9 +101,28 @@ class Venta(models.Model):
         max_length=10, choices=Estado.choices, default=Estado.ACTIVA,
         help_text="Las ventas no se borran: se anulan (RF-VEN-04).",
     )
+    observacion = models.CharField(
+        max_length=60, null=True, blank=True,
+        help_text=("Nota corta para reconocer la venta: «mesa 1, pedido 3». "
+                   "El negocio también sirve mesas, y quien cobra necesita "
+                   "poder identificar después una venta que no se llevó el "
+                   "cliente en la mano."),
+    )
     motivo_anulacion = models.CharField(
         max_length=255, null=True, blank=True,
         help_text="Por qué se anuló; obligatorio al anular.",
+    )
+    anulada_por = models.ForeignKey(
+        "seguridad.Usuario", on_delete=models.PROTECT, related_name="ventas_anuladas",
+        db_column="anulada_por", null=True, blank=True,
+        help_text=("Quién la anuló. No es quien la registró: anular es del "
+                   "administrador y cobrar es del vendedor."),
+    )
+    fecha_anulacion = models.DateTimeField(
+        null=True, blank=True,
+        help_text=("Cuándo se anuló. No se deriva de la fecha de la venta: "
+                   "entre una y otra pueden pasar horas dentro de la misma "
+                   "jornada, y es el dato que ordena los hechos."),
     )
 
     class Meta:

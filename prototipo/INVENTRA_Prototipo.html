@@ -72,6 +72,10 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip{padding:7px 13px;border-radius:20px;font-size:13px;font-weight:600;background:var(--chip);color:var(--navy2);cursor:pointer}
 .chip.on{background:var(--navy);color:#fff}
+.apartados{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.apartado{padding:7px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--muted);font-size:14px;font-weight:600}
+.apartado.on{background:var(--navy2);border-color:var(--navy2);color:#fff}
+.paginas{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 4px;margin-top:12px;border-top:1px solid var(--border);font-size:13px;font-weight:600;color:var(--muted)}
 
 /* landing */
 .land .hero{background:var(--navy);color:#fff;padding:40px}
@@ -247,13 +251,15 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
    <div class="content">
      <div style="display:flex;gap:12px;margin-bottom:16px"><input class="search" placeholder="Buscar por nombre o código…" style="flex:1"><div class="chips"><span class="chip on">Todos</span><span class="chip">Existencias bajas</span><span class="chip">Agotados</span></div></div>
      <div class="panel" style="padding:6px 16px">
+          <div class="paginas"><span>1 a 25 de 44 referencias</span><span style="display:flex;align-items:center;gap:12px"><span class="btn btn-out btn-pequeno">Anterior</span>Página 1 de 2<span class="btn btn-out btn-pequeno">Siguiente</span></span></div>
      <table><thead><tr><th>Producto</th><th>Categoría</th><th>Precio venta</th><th>Existencias</th><th>Estado</th><th></th></tr></thead><tbody>
        <tr><td>Aguardiente Antioqueño 750ml</td><td><span class="tag">Aguardiente</span></td><td>$52.000</td><td>24</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Ron Medellín Añejo 750ml</td><td><span class="tag">Ron</span></td><td>$48.500</td><td>15</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Cerveza Águila 330ml</td><td><span class="tag">Cerveza</span></td><td>$3.500</td><td>4</td><td><span class="stock st-low">Existencias bajas</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Whisky Buchanan's 750ml</td><td><span class="tag">Whisky</span></td><td>$185.000</td><td>9</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Ron Viejo de Caldas 750ml</td><td><span class="tag">Ron</span></td><td>$46.000</td><td>0</td><td><span class="stock st-out">Agotado</span></td><td><a class="link">Editar</a></td></tr>
-     </tbody></table></div>
+     </tbody></table>
+     <div class="paginas"><span>1 a 25 de 44 referencias</span><span style="display:flex;align-items:center;gap:12px"><span class="btn btn-out btn-pequeno">Anterior</span>Página 1 de 2<span class="btn btn-out btn-pequeno">Siguiente</span></span></div></div>
    </div>
  </div>
 </div>
@@ -361,6 +367,9 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
    <div class="grow"></div></div>
  <div class="main">
    <div class="tb"><div class="h"><span class="colapsar">&#9776;</span> Punto de venta</div><div class="r"><span class="pill">Sede: Centro</span><span class="pill">Venta #1.248</span><span class="avatar">CM</span></div></div>
+   <div class="content" style="padding-bottom:0">
+     <div class="apartados"><span class="apartado on">Vender</span><span class="apartado">Historial</span><span class="apartado">Cierre de caja</span></div>
+   </div>
    <div class="posbody">
      <div class="products"><input class="search" placeholder="Buscar producto o escanear código…">
        <div class="hs" style="font-size:12px;margin-top:7px">Se muestran los resultados de la búsqueda. Sin buscar, las referencias más vendidas.</div>
@@ -378,6 +387,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
        <div class="item"><div><div class="in">Cerveza Águila</div><div class="qty"><span>&minus;</span><input value="6"><span>+</span><span class="quitar">&times;</span></div></div><div class="ip">$21.000</div></div>
        <div class="item"><div><div class="in">Ron Medellín Añejo</div><div class="qty"><span>&minus;</span><input value="1"><span>+</span><span class="quitar">&times;</span></div></div><div class="ip">$48.500</div></div>
        <div class="tot big" style="margin-top:12px"><span>Total</span><span>$173.500</span></div>
+       <div class="field"><label>Nota</label><input value="Mesa 1, pedido 3"><div class="hs" style="font-size:12px;margin-top:4px">Opcional. Sale en el comprobante y el historial la encuentra.</div></div>
        <div class="pays"><span class="pay on">Efectivo</span><span class="pay">Transfer.</span><span class="pay">Tarjeta</span></div>
        <div style="display:flex;gap:8px;align-items:flex-end">
          <div class="field" style="margin-bottom:0;flex:1"><label>Recibe</label><input placeholder="$200.000"></div>
@@ -397,6 +407,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
    <div class="tl"><span>Venta</span><span>#1.248</span></div>
    <div class="tl"><span>Fecha</span><span>19/10/2026 19:42</span></div>
    <div class="tl"><span>Atendió</span><span>Carlos Ruiz</span></div>
+   <div class="tl"><span>Nota</span><b>Mesa 1, pedido 3</b></div>
    <hr>
    <div class="tl"><span>2 Aguardiente Ant. 750</span><span>104.000</span></div>
    <div class="tl"><span>6 Cerveza Águila 330</span><span>21.000</span></div>
@@ -429,6 +440,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
  <div class="main">
    <div class="tb"><div class="h"><span class="colapsar">&#9776;</span> Ventas</div><div class="r"><span class="pill">Octubre 2026</span><span class="avatar">CM</span></div></div>
    <div class="content">
+     <div class="apartados"><span class="apartado">Vender</span><span class="apartado on">Historial</span><span class="apartado">Cierre de caja</span></div>
      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
        <input class="search" style="flex:1;min-width:200px" placeholder="Buscar por número de venta o producto…">
        <select style="max-width:170px"><option>Todos los vendedores</option><option>Carlos Ruiz</option><option>Ana Gómez</option></select>
@@ -444,12 +456,14 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
        <div class="kpi"><div class="k">Venta promedio</div><div class="v">$30.186</div><div class="d">en el período</div></div>
      </div>
      <div class="panel" style="padding:6px 16px">
+          <div class="paginas"><span>1 a 25 de 142 ventas</span><span style="display:flex;align-items:center;gap:12px"><span class="btn btn-out btn-pequeno">Anterior</span>Página 1 de 6<span class="btn btn-out btn-pequeno">Siguiente</span></span></div>
      <table><thead><tr><th>Venta</th><th>Fecha</th><th>Vendedor</th><th>Medio</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>
-       <tr><td>#1.248</td><td>19/10/2026 19:42</td><td>Carlos Ruiz</td><td>Efectivo</td><td>$173.500</td><td><span class="stock st-ok">Activa</span></td><td style="text-align:right"><span class="btn btn-out btn-pequeno">Ver</span> <span class="btn btn-out btn-pequeno">Anular</span></td></tr>
+       <tr><td>#1.248<div class="hs" style="font-size:12px">Mesa 1, pedido 3</div></td><td>19/10/2026 19:42</td><td>Carlos Ruiz</td><td>Efectivo</td><td>$173.500</td><td><span class="stock st-ok">Activa</span></td><td style="text-align:right"><span class="btn btn-out btn-pequeno">Ver</span> <span class="btn btn-out btn-pequeno">Anular</span></td></tr>
        <tr><td>#1.247</td><td>19/10/2026 18:10</td><td>Carlos Ruiz</td><td>Transferencia</td><td>$52.000</td><td><span class="stock st-ok">Activa</span></td><td style="text-align:right"><span class="btn btn-out btn-pequeno">Ver</span> <span class="btn btn-out btn-pequeno">Anular</span></td></tr>
-       <tr><td>#1.246</td><td>19/10/2026 17:55</td><td>Ana Gómez</td><td>Efectivo</td><td>$21.000</td><td><span class="stock st-out">Anulada</span><br><span style="font-size:12px;color:var(--muted)">Cliente devolvió la mercancía</span></td><td style="text-align:right"><span class="btn btn-out btn-pequeno">Ver</span></td></tr>
+       <tr><td>#1.246</td><td>19/10/2026 17:55</td><td>Ana Gómez</td><td>Efectivo</td><td>$21.000</td><td><span class="stock st-out">Anulada</span><br><span style="font-size:12px;color:var(--muted)">Cliente devolvió la mercancía · Cristian Macías</span></td><td style="text-align:right"><span class="btn btn-out btn-pequeno">Ver</span></td></tr>
        <tr><td>#1.245</td><td>18/10/2026 20:31</td><td>Carlos Ruiz</td><td>Tarjeta</td><td>$185.000</td><td><span class="stock st-ok">Activa</span></td><td style="text-align:right"><span class="btn btn-out btn-pequeno">Ver</span></td></tr>
-     </tbody></table></div>
+     </tbody></table>
+     <div class="paginas"><span>1 a 25 de 142 ventas</span><span style="display:flex;align-items:center;gap:12px"><span class="btn btn-out btn-pequeno">Anterior</span>Página 1 de 6<span class="btn btn-out btn-pequeno">Siguiente</span></span></div></div>
      <div class="hs" style="font-size:13px;margin-top:12px">«Ver» abre la venta y vuelve a imprimir su comprobante. Solo las ventas de hoy ofrecen «Anular», y solo al administrador: una venta de ayer ya entró en un cierre de caja cuadrado.</div>
    </div>
  </div>
@@ -474,6 +488,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
  <div class="main">
    <div class="tb"><div class="h"><span class="colapsar">&#9776;</span> Cierre de caja</div><div class="r"><span class="pill">Sede: Centro</span><span class="avatar">CM</span></div></div>
    <div class="content">
+     <div class="apartados"><span class="apartado">Vender</span><span class="apartado">Historial</span><span class="apartado on">Cierre de caja</span></div>
      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px">
        <div><div style="font-size:19px;font-weight:700">Jornada del 18 de octubre de 2026</div>
             <div class="hs" style="font-size:13px;color:var(--muted)">De las 06:00 del 18 a las 06:00 del 19 · 142 transacciones en esta sede.</div></div>

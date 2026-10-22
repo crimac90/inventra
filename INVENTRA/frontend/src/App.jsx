@@ -11,6 +11,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Acceso from "./paginas/Acceso";
 import EntradaMercancia from "./paginas/EntradaMercancia";
 import Kardex from "./paginas/Kardex";
+import CierreDeCaja from "./paginas/CierreDeCaja";
 import PuntoDeVenta from "./paginas/PuntoDeVenta";
 import MiSuscripcion from "./paginas/MiSuscripcion";
 import Inventario from "./paginas/Inventario";
@@ -20,6 +21,7 @@ import Plataforma from "./paginas/Plataforma";
 import Recuperar from "./paginas/Recuperar";
 import Registro from "./paginas/Registro";
 import Usuarios from "./paginas/Usuarios";
+import Ventas from "./paginas/Ventas";
 import Restablecer from "./paginas/Restablecer";
 import VerificarCorreo from "./paginas/VerificarCorreo";
 import RutaPrivada from "./sesion/RutaPrivada";
@@ -96,6 +98,28 @@ export default function App() {
         element={
           <RutaPrivada roles={ROLES_DE_NEGOCIO}>
             <PuntoDeVenta />
+          </RutaPrivada>
+        }
+      />
+      {/*
+        Los otros dos apartados del modulo. Entran los dos roles: quien vende
+        necesita alcanzar una venta para reimprimir su comprobante, y cerrar la
+        caja es de quien termina el turno. Lo que el servidor sigue reservando
+        al administrador es anular y corregir la explicacion de un faltante.
+      */}
+      <Route
+        path="/ventas/historial"
+        element={
+          <RutaPrivada roles={ROLES_DE_NEGOCIO}>
+            <Ventas />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/ventas/cierre"
+        element={
+          <RutaPrivada roles={ROLES_DE_NEGOCIO}>
+            <CierreDeCaja />
           </RutaPrivada>
         }
       />

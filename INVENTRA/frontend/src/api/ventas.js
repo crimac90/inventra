@@ -13,10 +13,11 @@ export function consultarMediosDePago() {
 }
 
 /* Cobra la venta. `lineas` es [{ producto_id, cantidad }]. */
-export function cobrar({ medioPagoId, montoRecibido, lineas }) {
+export function cobrar({ medioPagoId, montoRecibido, observacion, lineas }) {
   return api.post("/ventas/", {
     medio_pago_id: medioPagoId,
     monto_recibido: montoRecibido,
+    observacion: observacion,
     lineas: lineas,
   });
 }

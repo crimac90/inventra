@@ -21,7 +21,7 @@ from seguridad.permissions import EsAdministradorDeLicorera
 from suscripciones.permissions import PuedeRegistrarOperaciones
 
 from .caja import cerrar_jornada, explicar_diferencia, resumen_de
-from .consultas import filtrar
+from .consultas import filtrar, resumen
 from .jornada import jornada_actual
 from .models import CierreCaja, MedioPago
 from .operaciones import anular_venta, registrar_venta
@@ -82,6 +82,27 @@ class VentaViewSet(mixins.ListModelMixin,
         )
         return consulta.order_by("-fecha", "-id")
 
+    def list(self, request, *args, **kwargs):
+        """
+        La página de resultados y, con ella, los totales del período.
+
+        Van en la misma respuesta y no en una dirección aparte porque los dos
+        salen de la misma consulta filtrada: separarlos admitiría que la tabla
+        y los indicadores llegaran de dos momentos distintos y dijeran cosas
+        que no concuerdan.
+        """
+        consulta = self.filter_queryset(self.get_queryset())
+        pagina = self.paginate_queryset(consulta)
+        datos = self.get_serializer(
+            pagina if pagina is not None else consulta, many=True).data
+
+        if pagina is None:
+            return Response({"results": datos, "resumen": resumen(consulta)})
+
+        respuesta = self.get_paginated_response(datos)
+        respuesta.data["resumen"] = resumen(consulta)
+        return respuesta
+
     def create(self, request):
         """Cobra una venta y descuenta el inventario."""
         serializador = VentaCrearSerializer(data=request.data)
@@ -99,6 +120,7 @@ class VentaViewSet(mixins.ListModelMixin,
                 licorera=licorera, usuario=request.user,
                 lineas=serializador.productos(licorera), medio_pago=medio,
                 monto_recibido=serializador.validated_data.get("monto_recibido"),
+                observacion=serializador.validated_data.get("observacion"),
             )
         except ErrorDeValidacion as error:
             return rechazo(error)

@@ -15,6 +15,7 @@ construyó en INV precisamente para llegar aquí resuelto.
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max
+from django.utils import timezone
 
 from inventario.kardex import registrar_movimiento
 from inventario.models import LoteInventario, MovimientoInventario
@@ -22,19 +23,23 @@ from inventario.peps import consumir
 from sedes.models import Sede
 from suscripciones.models import Licorera
 
+from .correo import enviar_aviso_de_anulacion
 from .jornada import jornada_actual, jornada_de
 from .models import DetalleVenta, Venta
 
 
 @transaction.atomic
 def registrar_venta(*, licorera, usuario, lineas, medio_pago, monto_recibido=None,
-                    sede=None):
+                    sede=None, observacion=None):
     """
     Registra una venta y descuenta el inventario (RF-VEN-01 y RF-VEN-02).
 
     `lineas` es una lista de diccionarios con `producto` y `cantidad`. El precio
     no se recibe: se toma del catálogo en este instante y se congela en la
     línea, porque es el sistema quien dice a cómo se vende y no quien llama.
+
+    `observacion` es la nota corta con la que el negocio reconoce una venta que
+    no se llevó el cliente en la mano, del estilo de «mesa 1, pedido 3».
 
     Va entera en una transacción. Una venta que descontara tres referencias de
     cuatro, o que cobrara sin descontar, dejaría el inventario diciendo una cosa
@@ -60,6 +65,7 @@ def registrar_venta(*, licorera, usuario, lineas, medio_pago, monto_recibido=Non
         licorera=licorera, sede=sede, usuario=usuario,
         consecutivo=_siguiente_consecutivo(licorera),
         total=total, medio_pago=medio_pago, monto_recibido=monto_recibido,
+        observacion=(observacion or "").strip() or None,
     )
 
     for producto, cantidad, subtotal in revisadas:
@@ -142,6 +148,19 @@ def _siguiente_consecutivo(licorera):
 
 
 @transaction.atomic
+def se_puede_anular(venta):
+    """
+    Si una venta admite anulación ahora mismo.
+
+    La respuesta la da el servidor y no la pantalla: la jornada empieza a las
+    seis de la mañana, y escribir esa hora también en el navegador la dejaría
+    en dos sitios que pueden dejar de coincidir. La pantalla pregunta y
+    enseña el botón según lo que se le conteste; aquí se decide.
+    """
+    return (venta.estado == Venta.Estado.ACTIVA
+            and jornada_de(venta.fecha) == jornada_actual())
+
+
 def anular_venta(*, venta, usuario, motivo):
     """
     Deshace una venta devolviendo la mercancía a sus lotes (RF-VEN-04).
@@ -161,7 +180,7 @@ def anular_venta(*, venta, usuario, motivo):
         raise ValidationError("Esa venta ya está anulada.")
     if not (motivo or "").strip():
         raise ValidationError("Escribe el motivo de la anulación.")
-    if jornada_de(venta.fecha) != jornada_actual():
+    if not se_puede_anular(venta):
         raise ValidationError(
             "Solo se anulan las ventas de la jornada en curso. Una venta anterior "
             "ya entró en un cierre de caja, y deshacerla descuadraría un día cerrado.")
@@ -200,5 +219,13 @@ def anular_venta(*, venta, usuario, motivo):
 
     venta.estado = Venta.Estado.ANULADA
     venta.motivo_anulacion = motivo.strip()
-    venta.save(update_fields=["estado", "motivo_anulacion"])
+    venta.anulada_por = usuario
+    venta.fecha_anulacion = timezone.now()
+    venta.save(update_fields=["estado", "motivo_anulacion", "anulada_por",
+                              "fecha_anulacion"])
+
+    # El aviso sale al administrador por lo mismo que el de la caja
+    # descuadrada: una anulación no deja rastro en el cierre —lo anulado no
+    # cuenta como dinero— y el historial solo la enseña a quien va a buscarla.
+    enviar_aviso_de_anulacion(venta)
     return venta

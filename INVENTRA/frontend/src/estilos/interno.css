@@ -869,6 +869,104 @@ td.acciones-fila a.btn {
 .comprobante .fila { display: flex; justify-content: space-between; padding: 2px 0; }
 .comprobante hr { border: 0; border-top: 1px dashed var(--border); margin: 9px 0; }
 
+/* --- Apartados de un modulo (punto 8.8) --------------------------------- */
+
+/*
+  Ventas es el primer modulo con tres pantallas hermanas, y la barra lateral
+  lleva una entrada por modulo. Este grupo las reune arriba del contenido.
+*/
+.apartados {
+  display: flex;
+  gap: var(--e2);
+  margin-bottom: var(--e4);
+  flex-wrap: wrap;
+}
+
+.apartado {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radio);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.apartado:hover { color: var(--text); }
+
+.apartado.on {
+  background: var(--navy2);
+  border-color: var(--navy2);
+  color: var(--navy2-texto);
+}
+
+/* --- Recorrer una lista larga (punto 6.4) ------------------------------- */
+
+.paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  padding-top: var(--e3);
+  margin-top: var(--e3);
+  border-top: 1px solid var(--border);
+}
+
+.paginacion .cuenta {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.paginacion .acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  margin: 0;
+}
+
+/* --- Cierre de caja (punto 8.9) ----------------------------------------- */
+
+.cabecera-jornada {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--e4);
+  flex-wrap: wrap;
+  margin-bottom: var(--e4);
+}
+
+.cabecera-jornada h1 { margin-bottom: 2px; }
+
+.total-jornada { text-align: right; }
+
+.total-jornada .k {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.total-jornada b { font-size: 28px; }
+
+/* Una linea de «concepto … importe», como las del recuento de la jornada. */
+.tot {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tot.total {
+  border-bottom: 0;
+  margin-top: 4px;
+  padding-top: 13px;
+  border-top: 2px solid var(--border);
+  font-size: 18px;
+  font-weight: 700;
+}
+
 /*
   La hoja de impresion: de la caja o del historial sale solo el comprobante,
   con el ancho de una tirilla.
@@ -894,9 +992,19 @@ td.acciones-fila a.btn {
   }
   .side, .tb { display: none !important; }
   .content > *:not(.hoja) { display: none !important; }
-  .hoja { border: 0 !important; padding: 0 !important; margin: 0 !important;
-          background: #fff !important; }
-  .hoja > h2, .hoja > .acciones { display: none !important; }
+  /*
+    `hoja` la lleva el elemento de mas afuera, que en el historial es la
+    ventana: aqui se le quita lo que la hace ventana —la posicion fija y el
+    fondo oscuro— para que lo impreso sea el papel y no una captura de la
+    pantalla con el comprobante encima.
+  */
+  .hoja, .hoja .tarjeta {
+    border: 0 !important; padding: 0 !important; margin: 0 !important;
+    background: #fff !important;
+  }
+  .hoja { position: static !important; inset: auto !important;
+          display: block !important; }
+  .hoja h2, .hoja .acciones { display: none !important; }
   .comprobante { width: 72mm !important; max-width: 100% !important;
                  border: 0 !important; padding: 0 !important; font-size: 11px; }
   @page { margin: 3mm; }

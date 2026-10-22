@@ -15,7 +15,7 @@ con el cajón.
 
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import Count, Q, Sum
 
 from .jornada import limites_de
 from .models import MedioPago, Venta
@@ -79,6 +79,41 @@ def filtrar(licorera, *, desde=None, hasta=None, vendedor=None, producto=None,
         if texto.isdigit():
             consulta = consulta.filter(consecutivo=int(texto))
         else:
-            consulta = consulta.filter(lineas__producto__nombre__icontains=texto).distinct()
+            # Por nombre de producto o por la nota de la venta. La nota existe
+            # para reconocer después una venta de mesa, y una nota que no se
+            # puede buscar no sirve para reconocer nada.
+            consulta = consulta.filter(
+                Q(lineas__producto__nombre__icontains=texto)
+                | Q(observacion__icontains=texto)).distinct()
 
     return consulta
+
+
+def resumen(consulta):
+    """
+    Lo que los tres indicadores del historial dicen sobre el período.
+
+    Se calcula sobre la misma consulta que llena la tabla, y no sobre la
+    página que se está enseñando: con veinticinco filas a la vista, un total
+    sacado de ellas hablaría de veinticinco ventas mientras el encabezado
+    anuncia el mes entero.
+
+    Lo anulado se cuenta aparte en vez de restarse del total. Son dos hechos
+    distintos —lo que se vendió y lo que hubo que deshacer—, y mezclarlos
+    escondería justo el que conviene mirar.
+    """
+    activas = consulta.filter(estado=Venta.Estado.ACTIVA).aggregate(
+        total=Sum("total"), cuantas=Count("id"))
+    anuladas = consulta.filter(estado=Venta.Estado.ANULADA).aggregate(
+        total=Sum("total"), cuantas=Count("id"))
+
+    vendido = activas["total"] or Decimal("0")
+    transacciones = activas["cuantas"] or 0
+
+    return {
+        "vendido": vendido,
+        "transacciones": transacciones,
+        "promedio": (vendido / transacciones) if transacciones else Decimal("0"),
+        "anuladas": anuladas["cuantas"] or 0,
+        "valor_anulado": anuladas["total"] or Decimal("0"),
+    }

@@ -24,6 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import ApartadosDeVentas from "../componentes/ApartadosDeVentas";
 import Campo from "../componentes/Campo";
 import Comprobante from "../componentes/Comprobante";
 import Disposicion from "../componentes/Disposicion";
@@ -49,6 +50,8 @@ export default function PuntoDeVenta() {
   // inventario no puede costar diez referencias ya preguntadas al cliente.
   const [lineas, setLineas] = useState(() => leerVenta(yo));
   const [recibido, setRecibido] = useState("");
+  // La nota con la que el negocio reconoce una venta de mesa.
+  const [nota, setNota] = useState("");
   const [suscripcion, setSuscripcion] = useState(null);
   const [comprobante, setComprobante] = useState(null);
   const [aviso, setAviso] = useAviso();
@@ -158,12 +161,14 @@ export default function PuntoDeVenta() {
       const venta = await cobrar({
         medioPagoId: medio.id,
         montoRecibido: enEfectivo ? recibido : null,
+        observacion: nota,
         lineas: lineas.map((l) => ({ producto_id: l.id, cantidad: l.cantidad })),
       });
       setComprobante(venta);
       setLineas([]);
       olvidarVenta(yo);
       setRecibido("");
+      setNota("");
       setAviso({ tipo: "ok", texto: `Venta #${venta.consecutivo} registrada.` });
     } catch (error) {
       setAviso({
@@ -179,6 +184,8 @@ export default function PuntoDeVenta() {
 
   return (
     <Disposicion titulo="Punto de venta">
+      <ApartadosDeVentas />
+
       <h1>Punto de venta</h1>
       <div className="hs">
         Busca el producto, ajusta la cantidad y cobra. El precio lo pone el catálogo.
@@ -249,6 +256,16 @@ export default function PuntoDeVenta() {
                 <span>Total</span>
                 <span>{moneda(total)}</span>
               </div>
+
+              <Campo
+                id="nota"
+                etiqueta="Nota"
+                requerido={false}
+                valor={nota}
+                onChange={setNota}
+                marcador="Mesa 1, pedido 3"
+                ayuda="Opcional. Sale en el comprobante y el historial la encuentra."
+              />
 
               <div className="medios">
                 {medios.map((cada) => (

@@ -35,10 +35,10 @@ from seguridad.models import Rol
 
 from .caja import (cerrar_jornada, explicar_diferencia, jornadas_sin_explicar,
                    resumen_de)
-from .consultas import filtrar
+from .consultas import filtrar, resumen
 from .jornada import INICIO_DE_JORNADA, jornada_actual, jornada_de, limites_de
 from .models import CierreCaja, DetalleVenta, MedioPago, Venta
-from .operaciones import anular_venta, registrar_venta
+from .operaciones import anular_venta, registrar_venta, se_puede_anular
 
 
 def crear_producto(licorera, nombre, precio):
@@ -639,6 +639,75 @@ class AvisoDeDiferenciaTests(CajaBase):
         self.assertNotIn(self.cajero.correo, mail.outbox[0].to)
 
 
+class AvisoDeAnulacionTests(CajaBase):
+    def test_anular_avisa_por_correo_al_administrador(self):
+        """
+        Una anulación no deja rastro en el cierre, y el historial solo la
+        enseña a quien va a buscarla.
+        """
+        venta = self.vender(2)
+
+        anular_venta(venta=venta, usuario=self.duena, motivo="El cliente devolvió todo")
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.duena.correo])
+        self.assertIn("#%s" % venta.consecutivo, mail.outbox[0].body)
+        self.assertIn("El cliente devolvió todo", mail.outbox[0].body)
+
+    def test_la_venta_guarda_quien_la_anulo_y_cuando(self):
+        """
+        El motivo sin su autor no sirve para rendir cuentas: el historial
+        podría decir por qué se deshizo una venta y no quién la deshizo.
+        """
+        venta = self.vender(1)
+
+        anular_venta(venta=venta, usuario=self.duena, motivo="Devuelta")
+
+        venta.refresh_from_db()
+        self.assertEqual(venta.anulada_por, self.duena)
+        self.assertIsNotNone(venta.fecha_anulacion)
+
+    def test_quien_anula_no_es_quien_cobro(self):
+        """Anular es del administrador y cobrar del vendedor: son dos datos."""
+        venta = self.vender(1)
+
+        anular_venta(venta=venta, usuario=self.duena, motivo="Devuelta")
+
+        venta.refresh_from_db()
+        self.assertEqual(venta.usuario, self.cajero)
+        self.assertNotEqual(venta.anulada_por, venta.usuario)
+
+    def test_una_venta_activa_no_tiene_quien_la_anulo(self):
+        venta = self.vender(1)
+
+        self.assertIsNone(venta.anulada_por)
+        self.assertIsNone(venta.fecha_anulacion)
+
+    def test_el_correo_dice_quien_registro_la_venta_y_quien_la_anulo(self):
+        """Son dos personas distintas y el correo existe para poder juzgarlo."""
+        anular_venta(venta=self.vender(1), usuario=self.duena, motivo="Devuelta")
+
+        cuerpo = mail.outbox[0].body
+        self.assertIn("La registró: %s" % self.cajero.nombre_completo, cuerpo)
+        self.assertIn("La anuló: %s" % self.duena.nombre_completo, cuerpo)
+
+    def test_una_venta_que_no_se_anula_no_avisa(self):
+        self.vender(2)
+
+        self.assertEqual(mail.outbox, [])
+
+    def test_un_rechazo_no_manda_correo(self):
+        """Si la anulación no ocurrió, no hay nada de qué avisar."""
+        venta = self.vender(1)
+        anular_venta(venta=venta, usuario=self.duena, motivo="Devuelta")
+        mail.outbox = []
+
+        with self.assertRaises(ValidationError):
+            anular_venta(venta=venta, usuario=self.duena, motivo="Otra vez")
+
+        self.assertEqual(mail.outbox, [])
+
+
 class ExplicarDiferenciaTests(CajaBase):
     def test_mientras_no_se_explique_la_jornada_sigue_a_la_vista(self):
         self.vender(2)
@@ -731,6 +800,100 @@ class HistorialTests(CajaBase):
         self.vender(1)
 
         self.assertEqual(filtrar(otra).count(), 0)
+
+
+class ResumenDelHistorialTests(CajaBase):
+    def test_lo_anulado_se_cuenta_aparte_y_no_resta_de_lo_vendido(self):
+        """
+        Son dos hechos distintos —lo que se vendió y lo que hubo que
+        deshacer—, y mezclarlos escondería justo el que conviene mirar.
+        """
+        self.vender(1)
+        self.vender(2)
+        anular_venta(venta=self.vender(1), usuario=self.duena, motivo="Devuelta")
+
+        cifras = resumen(filtrar(self.licorera))
+
+        self.assertEqual(cifras["vendido"], Decimal("150000"))
+        self.assertEqual(cifras["transacciones"], 2)
+        self.assertEqual(cifras["anuladas"], 1)
+        self.assertEqual(cifras["valor_anulado"], Decimal("50000"))
+
+    def test_la_venta_promedio_sale_de_las_activas(self):
+        self.vender(1)
+        self.vender(3)
+
+        self.assertEqual(resumen(filtrar(self.licorera))["promedio"], Decimal("100000"))
+
+    def test_un_periodo_sin_ventas_da_ceros_y_no_se_cae(self):
+        """Dividir entre ninguna transacción es el caso de la licorera que abre hoy."""
+        cifras = resumen(filtrar(self.licorera))
+
+        self.assertEqual(cifras["vendido"], Decimal("0"))
+        self.assertEqual(cifras["promedio"], Decimal("0"))
+
+    def test_el_resumen_respeta_los_filtros_de_la_tabla(self):
+        self.vender(1)
+        self.vender(1, medio=self.tarjeta)
+
+        cifras = resumen(filtrar(self.licorera, medio_pago=self.tarjeta))
+
+        self.assertEqual(cifras["transacciones"], 1)
+
+
+class NotaDeLaVentaTests(CajaBase):
+    def test_la_nota_se_guarda_con_la_venta(self):
+        """El negocio también sirve mesas: «mesa 1, pedido 3» identifica la venta."""
+        venta = registrar_venta(
+            licorera=self.licorera, usuario=self.cajero, medio_pago=self.efectivo,
+            lineas=[{"producto": self.ron, "cantidad": 1}],
+            observacion="Mesa 1, pedido 3")
+
+        venta.refresh_from_db()
+        self.assertEqual(venta.observacion, "Mesa 1, pedido 3")
+
+    def test_una_venta_de_mostrador_no_lleva_nota(self):
+        """Es opcional, y un espacio en blanco no es una nota."""
+        venta = registrar_venta(
+            licorera=self.licorera, usuario=self.cajero, medio_pago=self.efectivo,
+            lineas=[{"producto": self.ron, "cantidad": 1}], observacion="   ")
+
+        self.assertIsNone(venta.observacion)
+
+    def test_el_buscador_del_historial_encuentra_la_nota(self):
+        """Una nota que no se puede buscar no sirve para reconocer nada."""
+        registrar_venta(
+            licorera=self.licorera, usuario=self.cajero, medio_pago=self.efectivo,
+            lineas=[{"producto": self.ron, "cantidad": 1}], observacion="Mesa 4")
+        self.vender(1)
+
+        self.assertEqual(filtrar(self.licorera, buscar="mesa 4").count(), 1)
+
+    def test_buscar_por_producto_sigue_funcionando(self):
+        """La nota se suma al buscador, no lo sustituye."""
+        registrar_venta(
+            licorera=self.licorera, usuario=self.cajero, medio_pago=self.efectivo,
+            lineas=[{"producto": self.ron, "cantidad": 1}], observacion="Mesa 4")
+
+        self.assertEqual(filtrar(self.licorera, buscar="caja").count(), 1)
+
+
+class SePuedeAnularTests(CajaBase):
+    def test_una_venta_de_la_jornada_en_curso_si(self):
+        self.assertTrue(se_puede_anular(self.vender(1)))
+
+    def test_una_venta_ya_anulada_no(self):
+        venta = self.vender(1)
+        anular_venta(venta=venta, usuario=self.duena, motivo="Devuelta")
+
+        self.assertFalse(se_puede_anular(venta))
+
+    def test_una_venta_de_una_jornada_anterior_no(self):
+        """Esa venta ya entró en un cierre que alguien dio por bueno."""
+        anoche = jornada_actual() - timedelta(days=1)
+        inicio, _ = limites_de(anoche)
+
+        self.assertFalse(se_puede_anular(self.vender(1, cuando=inicio + timedelta(hours=14))))
 
 
 class ApiBase(TestCase):
@@ -878,6 +1041,48 @@ class ApiDelHistorialTests(ApiBase):
         respuesta = self.client.get(reverse("venta-list"), **self.entrar(intrusa.correo))
 
         self.assertEqual(respuesta.json()["count"], 0)
+
+
+    def test_la_pagina_trae_los_totales_del_periodo(self):
+        """
+        La tabla y los indicadores salen de la misma consulta: separarlos
+        admitiría que llegaran de dos momentos distintos y no concordaran.
+        """
+        self.cobrar(1)
+        self.cobrar(2)
+
+        cuerpo = self.listar().json()
+
+        self.assertEqual(Decimal(cuerpo["resumen"]["vendido"]), Decimal("150000"))
+        self.assertEqual(cuerpo["resumen"]["transacciones"], 2)
+
+    def test_los_totales_hablan_del_periodo_y_no_de_la_pagina(self):
+        """
+        Con veinticinco filas a la vista, un total sacado de ellas hablaría de
+        veinticinco ventas mientras el encabezado anuncia el mes entero.
+        """
+        # Se registran por la operación y no por la API: veintisiete cobros son
+        # veintisiete ingresos de sesión, y el límite de intentos los corta.
+        for _ in range(27):
+            registrar_venta(licorera=self.licorera, usuario=self.cajero,
+                            medio_pago=self.efectivo,
+                            lineas=[{"producto": self.ron, "cantidad": 1}])
+
+        cuerpo = self.listar().json()
+
+        self.assertEqual(len(cuerpo["results"]), 25)
+        self.assertEqual(cuerpo["resumen"]["transacciones"], 27)
+
+    def test_la_nota_viaja_desde_la_pantalla_y_vuelve_en_el_comprobante(self):
+        respuesta = self.cobrar(1, observacion="Mesa 2, pedido 1")
+
+        self.assertEqual(respuesta.json()["observacion"], "Mesa 2, pedido 1")
+
+    def test_la_fila_dice_si_la_venta_admite_anulacion(self):
+        """La pantalla no sabe a qué hora empieza la jornada: lo pregunta."""
+        self.cobrar(1)
+
+        self.assertTrue(self.listar().json()["results"][0]["se_puede_anular"])
 
 
 class ApiDelCierreTests(ApiBase):

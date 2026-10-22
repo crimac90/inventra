@@ -12,6 +12,7 @@ from rest_framework import serializers
 from inventario.models import Producto
 
 from .models import CierreCaja, DetalleVenta, MedioPago, Venta
+from .operaciones import se_puede_anular
 
 
 class MedioPagoSerializer(serializers.ModelSerializer):
@@ -33,6 +34,8 @@ class VentaCrearSerializer(serializers.Serializer):
     medio_pago_id = serializers.IntegerField()
     monto_recibido = serializers.DecimalField(
         max_digits=12, decimal_places=2, required=False, allow_null=True)
+    observacion = serializers.CharField(
+        max_length=60, required=False, allow_blank=True, allow_null=True)
     lineas = LineaSerializer(many=True, allow_empty=False)
 
     def validate_lineas(self, lineas):
@@ -90,13 +93,20 @@ class VentaSerializer(serializers.ModelSerializer):
     lineas = LineaDeVentaSerializer(many=True, read_only=True)
     medio_pago_nombre = serializers.CharField(source="medio_pago.nombre", read_only=True)
     vendedor = serializers.CharField(source="usuario.nombre_completo", read_only=True)
+    anulada_por_nombre = serializers.CharField(
+        source="anulada_por.nombre_completo", read_only=True, default=None)
     cambio = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    se_puede_anular = serializers.SerializerMethodField()
 
     class Meta:
         model = Venta
         fields = ("id", "consecutivo", "fecha", "total", "medio_pago",
                   "medio_pago_nombre", "monto_recibido", "cambio", "estado",
-                  "motivo_anulacion", "vendedor", "lineas")
+                  "observacion", "motivo_anulacion", "anulada_por_nombre",
+                  "fecha_anulacion", "vendedor", "se_puede_anular", "lineas")
+
+    def get_se_puede_anular(self, venta):
+        return se_puede_anular(venta)
 
 
 class VentaDeLaListaSerializer(serializers.ModelSerializer):
@@ -109,11 +119,24 @@ class VentaDeLaListaSerializer(serializers.ModelSerializer):
 
     medio_pago_nombre = serializers.CharField(source="medio_pago.nombre", read_only=True)
     vendedor = serializers.CharField(source="usuario.nombre_completo", read_only=True)
+    anulada_por_nombre = serializers.CharField(
+        source="anulada_por.nombre_completo", read_only=True, default=None)
+    se_puede_anular = serializers.SerializerMethodField()
 
     class Meta:
         model = Venta
         fields = ("id", "consecutivo", "fecha", "total", "medio_pago_nombre",
-                  "estado", "motivo_anulacion", "vendedor")
+                  "estado", "observacion", "motivo_anulacion",
+                  "anulada_por_nombre", "vendedor", "se_puede_anular")
+
+    def get_se_puede_anular(self, venta):
+        """
+        Para que la tabla ofrezca «Anular» solo donde el servidor lo aceptaría.
+
+        Sin esto la pantalla tendría que saber a qué hora empieza la jornada,
+        y esa definición no puede vivir en dos sitios.
+        """
+        return se_puede_anular(venta)
 
 
 class CierreCrearSerializer(serializers.Serializer):

@@ -26,8 +26,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import connection
 
-# Las aplicaciones del proyecto, en el orden en que conviene leerlas.
-APLICACIONES = ["suscripciones", "seguridad"]
+# Las aplicaciones del proyecto, en el orden en que conviene leerlas: primero
+# de quién es el sistema y quién entra, después dónde se guarda la mercancía,
+# qué hay en ella y qué se vendió. Están TODAS a propósito: un documento que
+# dice describir lo construido y deja fuera el inventario y las ventas no
+# describe lo construido, describe una parte.
+APLICACIONES = ["suscripciones", "seguridad", "sedes", "inventario", "ventas"]
 
 DESTINO = (
     Path(settings.BASE_DIR).parent.parent

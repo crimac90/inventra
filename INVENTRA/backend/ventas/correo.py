@@ -1,14 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-El aviso de que una jornada cerró descuadrada.
+Los dos avisos del módulo: una jornada que cerró descuadrada y una venta
+anulada.
 
-Es el único correo del módulo, y existe por una razón concreta: el aviso del
-panel se retira en cuanto alguien escribe una explicación, y quien cierra la
-caja suele ser el vendedor. Sin este correo bastaría escribir cualquier cosa
-para que el dueño no se enterara nunca de que faltó dinero.
+**La diferencia de caja.** El aviso del panel se retira en cuanto alguien
+escribe una explicación, y quien cierra la caja suele ser el vendedor. Sin
+este correo bastaría escribir cualquier cosa para que el dueño no se enterara
+nunca de que faltó dinero. Por eso el mensaje lleva dentro la explicación:
+quien lo recibe puede juzgar si lo escrito explica algo sin entrar al sistema.
 
-Por eso el mensaje **lleva dentro la explicación**: quien lo recibe puede
-juzgar si lo escrito explica algo sin tener que entrar al sistema.
+**La anulación.** Una venta anulada no deja rastro en el cierre, y no por un
+descuido: lo anulado no cuenta como dinero, de modo que si el efectivo se
+devolvió al cliente el cajón cuadra igual. Eso vale tanto para la devolución
+legítima como para la que no lo es —quien anula una venta y se queda el
+efectivo deja la caja cuadrada al céntimo—, así que el cierre no puede
+detectarla y el historial solo la enseña a quien va a buscarla. El correo es
+el único sitio donde una anulación sale a buscar a quien debe juzgarla.
 """
 
 from django.conf import settings
@@ -17,6 +24,7 @@ from django.core.mail import send_mail
 from suscripciones.correo import administradores
 
 ASUNTO = "Diferencia en el cierre de caja"
+ASUNTO_ANULACION = "Se anuló una venta"
 
 
 def enviar_aviso_de_diferencia(cierre):
@@ -45,12 +53,49 @@ def enviar_aviso_de_diferencia(cierre):
         + (f"Explicación de quien cerró:\n{explicacion}\n\n" if explicacion
            else "No se escribió ninguna explicación.\n\n")
         + "Puedes revisar el cierre y escribir o corregir la explicación desde el\n"
-          "historial de ventas.\n\n"
+          "apartado de cierre de caja.\n\n"
           "INVENTRA\n"
     )
 
     send_mail(
         subject=ASUNTO,
+        message=cuerpo,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=destinatarios,
+        fail_silently=False,
+    )
+
+
+def enviar_aviso_de_anulacion(venta):
+    """
+    Avisa a los administradores activos de que una venta se deshizo.
+
+    Lleva el número, el monto, el motivo y quién la anuló, que es lo que hace
+    falta para juzgarla sin entrar.
+
+    No se excluye del envío a quien anuló. Es el mismo grupo de destinatarios,
+    y quitarlo obligaría a preguntarse quién recibió qué el día que haya que
+    reconstruir lo que pasó.
+    """
+    destinatarios = [u.correo for u in administradores(venta.licorera)]
+    if not destinatarios:
+        return
+
+    cuerpo = (
+        f"Se anuló la venta #{venta.consecutivo} de «{venta.sede}».\n\n"
+        f"Fecha de la venta: {venta.fecha:%d/%m/%Y %H:%M}\n"
+        f"Total: ${venta.total:,.0f} ({venta.medio_pago.nombre})\n"
+        f"La registró: {venta.usuario.nombre_completo}\n"
+        f"La anuló: {venta.anulada_por.nombre_completo}\n\n"
+        f"Motivo:\n{venta.motivo_anulacion}\n\n"
+        "La mercancía volvió al inventario, cada unidad al lote del que salió.\n"
+        "El cierre de caja no refleja esta venta, de modo que si el efectivo no\n"
+        "se devolvió al cliente la caja cerrará con un sobrante.\n\n"
+        "INVENTRA\n"
+    )
+
+    send_mail(
+        subject=ASUNTO_ANULACION,
         message=cuerpo,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=destinatarios,
