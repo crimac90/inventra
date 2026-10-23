@@ -9,8 +9,8 @@ Guía para levantar el proyecto en un equipo de desarrollo.
 
 | Herramienta | Versión fijada | Comprobación |
 |---|---|---|
-| Python | 3.13.7 | `py --version` |
-| Node.js | 22.19.0 | `node --version` |
+| Python | 3.13.17 | `py --version` |
+| Node.js | 24.22.1 | `node --version` |
 | npm | 11.19.1 | `npm --version` |
 | MySQL Community Server | 8.4 LTS | `mysql --version` |
 | Git | 2.54 o superior | `git --version` |
@@ -18,6 +18,23 @@ Guía para levantar el proyecto en un equipo de desarrollo.
 
 En Windows, el intérprete de Python se invoca con `py`. El comando `python3` no existe en
 este sistema y `python` puede quedar capturado por el alias de la Tienda de Microsoft.
+
+**Las versiones de la tabla son las que hay que usar, también cuando exista una más nueva.**
+Python está en la última de su serie —la 3.13— y no en la última que publica python.org,
+porque Django 5.2 soporta oficialmente de la 3.10 a la 3.14 y nada por encima: instalar una
+serie posterior deja el proyecto en una combinación que el propio marco de trabajo no
+sostiene. Dentro de la serie 3.13 sí conviene estar siempre en la última, que es lo que
+Django pide expresamente. Node se mantiene en la última de su línea con soporte a
+largo plazo, y **npm es el que esa versión de Node trae dentro**: no se
+actualiza por separado. Instalar Node reemplaza el npm global, de modo que un
+`npm install -g npm@…` lanzado antes queda deshecho en cuanto se actualiza
+Node; y la pareja que el proyecto usa es la que sus autores publican junta.
+
+Al reinstalar Python sobre una versión de la misma serie, el entorno virtual sigue sirviendo
+y no hay que rehacerlo. Eso sí, `.venv/pyvenv.cfg` conserva escrita la versión con la que se
+creó, de modo que esa línea puede quedar desfasada sin que signifique nada: la versión real
+la dice `py --version`. Y el pip que vive dentro del entorno no se actualiza solo al
+reinstalar Python, hay que subirlo aparte con `python -m pip install --upgrade pip`.
 
 ## 2. Instalación de MySQL
 
@@ -250,12 +267,20 @@ Con el entorno activo:
 
 ```
 py -m pip install --upgrade pip
-pip install "Django==5.2.*" "djangorestframework==3.18.*" mysqlclient django-cors-headers djangorestframework-simplejwt python-dotenv
-pip freeze > requirements.txt
+pip install -r requirements.txt
 ```
 
-El archivo `requirements.txt` deja registradas las versiones exactas instaladas. Con él,
-cualquier persona reproduce el mismo entorno con `pip install -r requirements.txt`.
+El archivo `requirements.txt` ya está en el repositorio con las versiones exactas, y es lo
+que se instala: con él, cualquier persona reproduce el mismo entorno.
+
+**No se regenera con `pip freeze > requirements.txt`**, aunque sea lo habitual, por dos
+razones que costaron una corrección. La primera es que `pip freeze` lista *todo* lo que haya
+en el entorno, y en el equipo de trabajo conviven con la aplicación las librerías que usan
+los generadores de documentos; dejarlas en el archivo obliga a quien despliegue a instalar
+cosas que el sistema no necesita para funcionar. La segunda es el `>` de PowerShell, que
+escribe en UTF-16: pip lo lee porque detecta la marca de orden de bytes, pero cualquier otra
+herramienta trata el archivo como binario. El archivo se edita a mano, en UTF-8, y lista
+solo lo que la aplicación necesita para correr.
 
 Comprobación:
 
