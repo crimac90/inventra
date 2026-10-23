@@ -23,6 +23,8 @@ from suscripciones.models import Licorera, Plan, Suscripcion
 from suscripciones.puesta_en_marcha import preparar_licorera_nueva
 
 from sedes.models import Sede
+from ventas.models import MedioPago
+from ventas.operaciones import registrar_venta
 
 from . import datos_demo
 from .existencias import existencias_de, existencias_totales
@@ -265,6 +267,31 @@ class ConsultaDelCatalogoTests(CatalogoBase):
 
     def listar(self, **filtros):
         return self.client.get(reverse("producto-list"), filtros, **self.entrar())
+
+    def test_el_filtro_de_rotacion_deja_las_que_no_se_venden(self):
+        """
+        RF-INV-08 desde la pantalla donde se actúa: el catálogo filtrado por
+        cuánto hace que no se vende una referencia.
+        """
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.ron, "cantidad": 10,
+                     "costo_unitario": Decimal("30000")}])
+        medio = MedioPago.objects.get(nombre=MedioPago.EFECTIVO)
+        registrar_venta(licorera=self.licorera, usuario=self.administrador, medio_pago=medio,
+                        lineas=[{"producto": self.ron, "cantidad": 1}])
+
+        nombres = [p["nombre"] for p in self.listar(rotacion="60").json()["results"]]
+
+        self.assertNotIn(self.ron.nombre, nombres)
+        self.assertIn(self.aguila.nombre, nombres)
+
+    def test_sin_el_filtro_estan_todas(self):
+        """La rotación es una dimensión más, no el estado normal de la lista."""
+        nombres = [p["nombre"] for p in self.listar().json()["results"]]
+
+        self.assertIn(self.ron.nombre, nombres)
+        self.assertIn(self.aguila.nombre, nombres)
 
     def test_solo_se_ve_el_catalogo_propio(self):
         otra = crear_negocio("Fredonia")

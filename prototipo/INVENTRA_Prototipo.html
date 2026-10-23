@@ -218,11 +218,16 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
    <div class="tb"><div class="h">Panel principal</div><div class="r"><span class="pill">Sede: Centro</span><span class="avatar">CM</span></div></div>
    <div class="content">
      <div class="kpis">
-       <div class="kpi"><div class="k">Ventas de hoy</div><div class="v">$1.240.000</div><div class="d up">▲ 12% vs. ayer</div></div>
-       <div class="kpi"><div class="k">Productos activos</div><div class="v">318</div><div class="d" style="color:var(--muted)">en catálogo</div></div>
-       <div class="kpi"><div class="k">Existencias bajas</div><div class="v" style="color:var(--warn)">7</div><div class="d" style="color:var(--warn)">requieren reabastecer</div></div>
-       <div class="kpi"><div class="k">Utilidad del mes</div><div class="v">$6.980.000</div><div class="d up">▲ 8%</div></div>
+       <div class="kpi"><div class="k">Ventas de la jornada</div><div class="v">$1.240.000</div><div class="d" style="color:var(--muted)">41 transacciones</div></div>
+       <div class="kpi"><div class="k">Utilidad del mes</div><div class="v">$6.980.000</div><div class="d" style="color:var(--muted)">sobre $21.340.000 vendidos</div></div>
+       <div class="kpi"><div class="k">Referencias activas</div><div class="v">318</div><div class="d" style="color:var(--muted)">en el catálogo</div></div>
+       <div class="kpi"><div class="k">Existencias bajas</div><div class="v" style="color:var(--warn)">7</div><div class="d" style="color:var(--warn)">igual o por debajo del mínimo</div></div>
+       <div class="kpi"><div class="k">Sin rotación</div><div class="v">12</div><div class="d"><a class="link">sin venderse en 60 días</a></div></div>
      </div>
+     <div class="panel" style="margin-bottom:16px"><h4>Cajas con diferencia sin explicar</h4>
+       <div class="hs" style="font-size:13px;margin-bottom:8px">El aviso se retira cuando alguien escribe el porqué, no cuando lo lee.</div>
+       <div class="li"><span>18/10/2026 · Centro</span><span><span class="stock st-out">Faltan $8.000</span> <a class="link">Explicar</a></span></div>
+       <div class="li"><span>14/10/2026 · Centro</span><span><span class="stock st-out">Sobran $15.000</span> <a class="link">Explicar</a></span></div></div>
      <div class="two">
        <div class="panel"><h4>Alertas de existencias bajas <a class="link">Ver todo</a></h4>
          <div class="li"><span>Cerveza Águila 330ml</span><span class="stock st-low">4 uds</span></div>
@@ -249,7 +254,7 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
  <div class="main">
    <div class="tb"><div class="h">Inventario</div><div class="r"><span class="btn btn-cta" style="padding:9px 15px">+ Nuevo producto</span><span class="avatar">CM</span></div></div>
    <div class="content">
-     <div style="display:flex;gap:12px;margin-bottom:16px"><input class="search" placeholder="Buscar por nombre o código…" style="flex:1"><div class="chips"><span class="chip on">Todos</span><span class="chip">Existencias bajas</span><span class="chip">Agotados</span></div></div>
+     <div style="display:flex;gap:12px;margin-bottom:16px"><input class="search" placeholder="Buscar por nombre o código…" style="flex:1"><div class="chips"><span class="chip on">Todos</span><span class="chip">Existencias bajas</span><span class="chip">Agotados</span></div><select style="max-width:200px"><option>Toda rotación</option><option>Sin vender en 30 días</option><option>Sin vender en 60 días</option><option>Sin vender en 90 días</option></select></div>
      <div class="panel" style="padding:6px 16px">
           <div class="paginas"><span>1 a 25 de 44 referencias</span><span style="display:flex;align-items:center;gap:12px"><span class="btn btn-out btn-pequeno">Anterior</span>Página 1 de 2<span class="btn btn-out btn-pequeno">Siguiente</span></span></div>
      <table><thead><tr><th>Producto</th><th>Categoría</th><th>Precio venta</th><th>Existencias</th><th>Estado</th><th></th></tr></thead><tbody>

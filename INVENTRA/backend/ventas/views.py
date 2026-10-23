@@ -11,6 +11,7 @@ demostración.
 """
 
 from django.core.exceptions import ValidationError as ErrorDeValidacion
+from django.utils.dateparse import parse_date
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView
@@ -20,8 +21,9 @@ from rest_framework.views import APIView
 from seguridad.permissions import EsAdministradorDeLicorera
 from suscripciones.permissions import PuedeRegistrarOperaciones
 
-from .caja import cerrar_jornada, explicar_diferencia, resumen_de
-from .consultas import filtrar, resumen
+from .caja import (cerrar_jornada, explicar_diferencia, jornadas_sin_explicar,
+                   resumen_de)
+from .consultas import de_la_jornada, filtrar, resumen, utilidad_del_mes
 from .jornada import jornada_actual
 from .models import CierreCaja, MedioPago
 from .operaciones import anular_venta, registrar_venta
@@ -29,6 +31,9 @@ from .serializers import (AnulacionSerializer, CierreCrearSerializer,
                           CierreSerializer, ExplicacionSerializer,
                           MedioPagoSerializer, VentaCrearSerializer,
                           VentaDeLaListaSerializer, VentaSerializer)
+from django.db.models import Sum
+
+from seguridad.models import Rol
 from sedes.models import Sede
 
 
@@ -148,6 +153,11 @@ class CierreDeCajaView(APIView):
 
     Un GET devuelve lo que dice el sistema antes de contar, y el cierre de hoy
     si ya se hizo; un POST lo guarda o lo rehace.
+
+    El GET admite una jornada en la dirección, que es por donde se llega desde
+    el aviso del panel a una caja que cerró descuadrada hace días. Se lee, no
+    se cierra: el POST sigue siendo solo de la jornada en curso, porque rehacer
+    una anterior sería contar un cajón que ya se vació.
     """
 
     def get_permissions(self):
@@ -159,12 +169,19 @@ class CierreDeCajaView(APIView):
     def get(self, request):
         licorera = request.user.licorera
         sede = Sede.principal_de(licorera)
+
         jornada = jornada_actual()
+        pedida = parse_date(request.query_params.get("jornada") or "")
+        # Una fecha ilegible no es motivo para no abrir la pantalla: se enseña
+        # la jornada en curso, que es lo que se pedía sin parámetro.
+        if pedida is not None:
+            jornada = pedida
         cierre = CierreCaja.objects.filter(sede=sede, fecha=jornada).first()
 
         resumen = resumen_de(licorera, sede, jornada)
         return Response({
             "jornada": jornada,
+            "en_curso": jornada == jornada_actual(),
             "transacciones": resumen["transacciones"],
             "total_efectivo": resumen["efectivo"],
             "total_transferencia": resumen["transferencia"],
@@ -218,3 +235,44 @@ class ExplicacionDelCierreView(APIView):
             return rechazo(error)
 
         return Response(CierreSerializer(cierre).data, status=status.HTTP_200_OK)
+
+
+class ResumenDeVentasView(APIView):
+    """
+    Lo que el panel principal enseña de las ventas.
+
+    Tres cosas en una respuesta: lo vendido en la jornada en curso, la utilidad
+    del mes y las jornadas que cerraron descuadradas y sin explicar. Van juntas
+    por lo mismo que el resumen del inventario: se pintan juntas, y tres
+    peticiones para una fila de tarjetas son tres ocasiones de que llegue media.
+
+    El aviso de las jornadas sin explicar solo se le da a quien administra. Un
+    vendedor no puede escribir la explicación —esa es la mitad de la razón por
+    la que el aviso existe—, de modo que enseñárselo sería ponerle delante algo
+    que no puede resolver.
+    """
+
+    def get(self, request):
+        licorera = request.user.licorera
+        sede = Sede.principal_de(licorera)
+        jornada = jornada_actual()
+
+        del_dia = de_la_jornada(licorera, sede, jornada)
+        mes = utilidad_del_mes(licorera, jornada)
+
+        sin_explicar = []
+        if request.user.rol.nombre == Rol.ADMINISTRADOR_LICORERA:
+            sin_explicar = [
+                {"id": c.id, "fecha": c.fecha, "sede_nombre": c.sede.nombre,
+                 "diferencia": c.diferencia}
+                for c in jornadas_sin_explicar(licorera)
+            ]
+
+        return Response({
+            "jornada": jornada,
+            "vendido_en_la_jornada": del_dia.aggregate(t=Sum("total"))["t"] or 0,
+            "transacciones_de_la_jornada": del_dia.count(),
+            "utilidad_del_mes": mes["utilidad"],
+            "vendido_en_el_mes": mes["vendido"],
+            "jornadas_sin_explicar": sin_explicar,
+        })

@@ -69,6 +69,23 @@ const NIVELES = [
   { valor: "agotado", texto: "Agotados" },
 ];
 
+/*
+  La tercera pregunta que admite la lista (RF-INV-08): cuanto hace que una
+  referencia no se vende. Es una dimension aparte del estado y del nivel de
+  existencias —una referencia activa y bien surtida puede llevar tres meses
+  parada—, de modo que va en su propio control y se combina con los otros dos.
+
+  El plazo forma parte del filtro y no se guarda en ninguna parte: asi es como
+  el requisito pide «configurable» sin que haga falta una columna donde dejarlo
+  fijado. Los mismos tres plazos que ofrece el servidor.
+*/
+const ROTACIONES = [
+  { valor: "", texto: "Toda rotación" },
+  { valor: "30", texto: "Sin vender en 30 días" },
+  { valor: "60", texto: "Sin vender en 60 días" },
+  { valor: "90", texto: "Sin vender en 90 días" },
+];
+
 const FORMULARIO_VACIO = {
   nombre: "",
   categoria: "",
@@ -116,8 +133,10 @@ export default function Inventario() {
   // habria que volver a filtrar a mano lo que el panel acababa de senalar.
   const [parametros] = useSearchParams();
   const nivelInicial = parametros.get("existencias");
+  const rotacionInicial = parametros.get("rotacion");
   const [filtros, setFiltros] = useState({
     existencias: NIVELES.some((n) => n.valor === nivelInicial) ? nivelInicial : "",
+    rotacion: ROTACIONES.some((r) => r.valor === rotacionInicial) ? rotacionInicial : "",
     estado: "activo",
   });
   const buscado = useEspera(texto, ESPERA);
@@ -264,7 +283,7 @@ export default function Inventario() {
 
   const motivo = motivoParaNoRegistrar(yo, suscripcion, "registrar ni modificar productos");
   const puedeRegistrar = motivo === null;
-  const hayFiltro = buscado || filtros.existencias || filtros.estado !== "activo";
+  const hayFiltro = buscado || filtros.existencias || filtros.rotacion || filtros.estado !== "activo";
 
   return (
     <Disposicion titulo="Inventario">
@@ -395,6 +414,23 @@ export default function Inventario() {
           {ESTADOS.map((estado) => (
             <option key={estado.valor || "todos"} value={estado.valor}>
               {estado.texto}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="buscador"
+          style={{ flex: "0 0 auto" }}
+          aria-label="Rotación de la referencia"
+          value={filtros.rotacion}
+          onChange={(e) =>
+            { setPagina(1);
+              setFiltros((previos) => ({ ...previos, rotacion: e.target.value })); }
+          }
+        >
+          {ROTACIONES.map((rotacion) => (
+            <option key={rotacion.valor || "toda"} value={rotacion.valor}>
+              {rotacion.texto}
             </option>
           ))}
         </select>

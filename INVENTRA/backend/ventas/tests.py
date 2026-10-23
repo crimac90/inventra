@@ -35,8 +35,9 @@ from seguridad.models import Rol
 
 from .caja import (cerrar_jornada, explicar_diferencia, jornadas_sin_explicar,
                    resumen_de)
-from .consultas import filtrar, resumen
+from .consultas import filtrar, resumen, utilidad_del_mes
 from .jornada import INICIO_DE_JORNADA, jornada_actual, jornada_de, limites_de
+from .rotacion import DIAS_POR_OMISION, dias_validos, sin_rotacion
 from .models import CierreCaja, DetalleVenta, MedioPago, Venta
 from .operaciones import anular_venta, registrar_venta, se_puede_anular
 
@@ -896,6 +897,76 @@ class SePuedeAnularTests(CajaBase):
         self.assertFalse(se_puede_anular(self.vender(1, cuando=inicio + timedelta(hours=14))))
 
 
+class RotacionTests(CajaBase):
+    """RF-INV-08: qué referencias llevan un plazo sin venderse."""
+
+    def catalogo(self):
+        return Producto.objects.filter(licorera=self.licorera, activo=True)
+
+    def test_una_referencia_recien_vendida_no_esta_estancada(self):
+        self.vender(1)
+
+        estancadas = sin_rotacion(self.catalogo(), self.licorera, 60)
+
+        self.assertNotIn(self.ron, estancadas)
+
+    def test_una_referencia_que_nunca_se_vendio_si(self):
+        """Una que nadie ha comprado es el caso más claro de estancada."""
+        quieto = crear_producto(self.licorera, "Whisky que nadie pide", precio="200000")
+
+        self.assertIn(quieto, sin_rotacion(self.catalogo(), self.licorera, 60))
+
+    def test_una_venta_vieja_no_la_salva(self):
+        self.vender(1, cuando=timezone.now() - timedelta(days=90))
+
+        self.assertIn(self.ron, sin_rotacion(self.catalogo(), self.licorera, 60))
+
+    def test_una_venta_anulada_no_cuenta_como_venta(self):
+        """
+        Si contara, la referencia que solo aparece en ventas deshechas se
+        escondería, y es justo la que se quiere encontrar.
+        """
+        anular_venta(venta=self.vender(1), usuario=self.duena, motivo="Devuelta")
+
+        self.assertIn(self.ron, sin_rotacion(self.catalogo(), self.licorera, 60))
+
+    def test_el_plazo_cambia_la_respuesta(self):
+        self.vender(1, cuando=timezone.now() - timedelta(days=45))
+
+        self.assertIn(self.ron, sin_rotacion(self.catalogo(), self.licorera, 30))
+        self.assertNotIn(self.ron, sin_rotacion(self.catalogo(), self.licorera, 60))
+
+    def test_un_plazo_imposible_no_rompe_la_consulta(self):
+        """La pantalla se abre igual y enseña la pregunta que sí sabe contestar."""
+        self.assertEqual(dias_validos("45"), DIAS_POR_OMISION)
+        self.assertEqual(dias_validos("ayer"), DIAS_POR_OMISION)
+        self.assertEqual(dias_validos(None), DIAS_POR_OMISION)
+        self.assertEqual(dias_validos("30"), 30)
+
+
+class UtilidadDelMesTests(CajaBase):
+    def test_la_utilidad_descuenta_el_costo_del_lote(self):
+        """
+        Se vende a 50.000 lo que costó 30.000: la utilidad es la diferencia, y
+        el costo sale del kardex y no del catálogo.
+        """
+        self.vender(2)
+
+        cifras = utilidad_del_mes(self.licorera)
+
+        self.assertEqual(cifras["vendido"], Decimal("100000"))
+        self.assertEqual(cifras["costo"], Decimal("60000"))
+        self.assertEqual(cifras["utilidad"], Decimal("40000"))
+
+    def test_una_venta_anulada_no_deja_utilidad(self):
+        anular_venta(venta=self.vender(2), usuario=self.duena, motivo="Devuelta")
+
+        self.assertEqual(utilidad_del_mes(self.licorera)["utilidad"], Decimal("0"))
+
+    def test_un_mes_sin_ventas_no_se_cae(self):
+        self.assertEqual(utilidad_del_mes(self.licorera)["utilidad"], Decimal("0"))
+
+
 class ApiBase(TestCase):
     """Las direcciones del módulo, recorridas como las recorre la pantalla."""
 
@@ -1085,7 +1156,70 @@ class ApiDelHistorialTests(ApiBase):
         self.assertTrue(self.listar().json()["results"][0]["se_puede_anular"])
 
 
+class ApiDelResumenTests(ApiBase):
+    def resumen(self, correo=None):
+        return self.client.get(reverse("resumen-de-ventas"), **self.entrar(correo))
+
+    def test_el_panel_recibe_lo_vendido_en_la_jornada(self):
+        self.cobrar(2)
+
+        cuerpo = self.resumen().json()
+
+        self.assertEqual(Decimal(cuerpo["vendido_en_la_jornada"]), Decimal("100000"))
+        self.assertEqual(cuerpo["transacciones_de_la_jornada"], 1)
+
+    def test_el_panel_recibe_la_utilidad_del_mes(self):
+        self.cobrar(2)
+
+        self.assertEqual(Decimal(self.resumen().json()["utilidad_del_mes"]),
+                         Decimal("40000"))
+
+    def test_el_vendedor_no_recibe_las_jornadas_sin_explicar(self):
+        """
+        No puede escribir la explicación —esa es media razón de que el aviso
+        exista—, de modo que enseñárselo sería ponerle delante algo que no
+        puede resolver.
+        """
+        self.assertEqual(self.resumen().json()["jornadas_sin_explicar"], [])
+
+    def test_el_administrador_si_las_recibe(self):
+        self.cobrar(2)
+        self.client.post(reverse("cierre-de-caja"), {"efectivo_contado": "92000"},
+                         content_type="application/json", **self.entrar())
+
+        cuerpo = self.resumen(self.duena.correo).json()
+
+        self.assertEqual(len(cuerpo["jornadas_sin_explicar"]), 1)
+        self.assertEqual(Decimal(cuerpo["jornadas_sin_explicar"][0]["diferencia"]),
+                         Decimal("-8000"))
+
+
 class ApiDelCierreTests(ApiBase):
+    def test_se_puede_mirar_una_jornada_anterior(self):
+        """
+        Es por donde se llega desde el aviso del panel a una caja que cerró
+        descuadrada hace días.
+        """
+        anoche = jornada_actual() - timedelta(days=1)
+
+        respuesta = self.client.get(reverse("cierre-de-caja"),
+                                    {"jornada": anoche.isoformat()}, **self.entrar())
+
+        self.assertEqual(respuesta.json()["jornada"], anoche.isoformat())
+        self.assertFalse(respuesta.json()["en_curso"])
+
+    def test_sin_jornada_en_la_direccion_se_mira_la_de_hoy(self):
+        respuesta = self.client.get(reverse("cierre-de-caja"), **self.entrar())
+
+        self.assertEqual(respuesta.json()["jornada"], jornada_actual().isoformat())
+        self.assertTrue(respuesta.json()["en_curso"])
+
+    def test_una_fecha_ilegible_no_impide_abrir_la_pantalla(self):
+        respuesta = self.client.get(reverse("cierre-de-caja"),
+                                    {"jornada": "el martes"}, **self.entrar())
+
+        self.assertEqual(respuesta.json()["jornada"], jornada_actual().isoformat())
+
     def test_antes_de_cerrar_dice_lo_que_el_sistema_sabe(self):
         self.cobrar(2)
 

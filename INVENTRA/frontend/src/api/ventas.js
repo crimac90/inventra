@@ -45,9 +45,18 @@ export function anularVenta(id, motivo) {
 
 /* --- Cierre de caja (RF-VEN-06) ------------------------------------------- */
 
-/* Lo que el sistema sabe de la jornada en curso, y su cierre si ya se hizo. */
-export function consultarCierre() {
-  return api.get("/ventas/cierre/");
+/*
+  Lo que el sistema sabe de una jornada, y su cierre si ya se hizo. Sin
+  argumento es la jornada en curso; con una fecha, la de ese dia, que es por
+  donde se llega desde el aviso del panel a una caja descuadrada de hace dias.
+*/
+export function consultarCierre(jornada) {
+  return api.get("/ventas/cierre/" + (jornada ? `?jornada=${jornada}` : ""));
+}
+
+/* Lo que el panel principal ensena de las ventas. */
+export function consultarResumenDeVentas() {
+  return api.get("/ventas/resumen/");
 }
 
 export function cerrarJornada({ efectivoContado, observacion }) {

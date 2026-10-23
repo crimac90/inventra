@@ -12,6 +12,11 @@
   porque es la pregunta que se hace quien cierra a las dos de la madrugada. La
   jornada se la dice el servidor: aqui no se calcula ninguna fecha.
 
+  SE PUEDE ABRIR UNA JORNADA ANTERIOR, y es por donde se llega desde el aviso
+  del panel a una caja que cerro descuadrada hace dias. Una jornada cerrada no
+  se vuelve a contar —el cajon ya se vacio—, de modo que alli lo unico que se
+  puede escribir es la explicacion.
+
   Cerrar no bloquea nada ni se hace una sola vez. Mientras la jornada siga
   abierta el cierre se rehace —se actualiza el mismo registro, con los totales
   recalculados desde la primera venta—, que es la salida para quien conto
@@ -26,6 +31,7 @@
 */
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import ApartadosDeVentas from "../componentes/ApartadosDeVentas";
 import Campo from "../componentes/Campo";
@@ -45,6 +51,9 @@ export default function CierreDeCaja() {
   const { usuario: yo } = useSesion();
   const esAdministrador = yo.rol === "administrador_licorera";
 
+  const [parametros] = useSearchParams();
+  const pedida = parametros.get("jornada");
+
   const [jornada, setJornada] = useState(null);
   const [contado, setContado] = useState("");
   const [observacion, setObservacion] = useState("");
@@ -58,7 +67,7 @@ export default function CierreDeCaja() {
   const puedeCerrar = impedimento === null;
 
   const traer = useCallback(async () => {
-    const datos = await consultarCierre();
+    const datos = await consultarCierre(pedida);
     setJornada(datos);
     /*
       Lo ya contado vuelve al campo. Quien abre la pantalla sobre una caja
@@ -70,7 +79,7 @@ export default function CierreDeCaja() {
       setObservacion(datos.cierre.observacion || "");
     }
     return datos;
-  }, []);
+  }, [pedida]);
 
   useEffect(() => {
     let vigente = true;
@@ -87,6 +96,7 @@ export default function CierreDeCaja() {
   }, [traer, setAviso]);
 
   const cerrado = jornada && jornada.cierre;
+  const enCurso = jornada ? jornada.en_curso !== false : true;
   const efectivo = jornada ? Number(jornada.total_efectivo) : 0;
   const vendido = jornada
     ? Number(jornada.total_efectivo) + Number(jornada.total_transferencia)
@@ -166,19 +176,27 @@ export default function CierreDeCaja() {
             <div className="tarjeta">
               <h2>Lo que hay en la caja</h2>
               <p className="hs">
-                Cuenta el efectivo y escríbelo. Solo se compara el efectivo: lo
-                demás no pasa por el cajón.
+                {enCurso
+                  ? "Cuenta el efectivo y escríbelo. Solo se compara el efectivo: lo demás no pasa por el cajón."
+                  : "Esta jornada ya terminó y su cajón se vació: no se vuelve a contar. Lo que sí se puede escribir es la explicación de la diferencia."}
               </p>
 
-              <Campo
-                id="contado"
-                etiqueta="Efectivo contado"
-                tipo="number"
-                minimo={0}
-                valor={contado}
-                onChange={setContado}
-                marcador={String(efectivo)}
-              />
+              {enCurso ? (
+                <Campo
+                  id="contado"
+                  etiqueta="Efectivo contado"
+                  tipo="number"
+                  minimo={0}
+                  valor={contado}
+                  onChange={setContado}
+                  marcador={String(efectivo)}
+                />
+              ) : (
+                <div className="tot">
+                  <span>Efectivo contado</span>
+                  <b>{contado === "" ? "—" : moneda(Number(contado))}</b>
+                </div>
+              )}
 
               {diferencia !== null && (
                 diferencia === 0 ? (
@@ -211,15 +229,22 @@ export default function CierreDeCaja() {
                     Guardar la explicación
                   </button>
                 )}
-                <button
-                  className="btn btn-cta"
-                  type="button"
-                  title={impedimento ? impedimento.texto : undefined}
-                  disabled={ocupado || !puedeCerrar || contado === ""}
-                  onClick={guardar}
-                >
-                  {ocupado ? "Guardando…" : cerrado ? "Rehacer el cierre" : "Cerrar el día"}
-                </button>
+                {/*
+                  Contar el cajón solo tiene sentido mientras la jornada siga
+                  abierta. En una anterior el cajón ya se vació, de modo que el
+                  botón no se apaga: no está.
+                */}
+                {enCurso && (
+                  <button
+                    className="btn btn-cta"
+                    type="button"
+                    title={impedimento ? impedimento.texto : undefined}
+                    disabled={ocupado || !puedeCerrar || contado === ""}
+                    onClick={guardar}
+                  >
+                    {ocupado ? "Guardando…" : cerrado ? "Rehacer el cierre" : "Cerrar el día"}
+                  </button>
+                )}
               </div>
             </div>
           </div>

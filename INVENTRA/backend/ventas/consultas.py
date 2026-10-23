@@ -17,7 +17,7 @@ from decimal import Decimal
 
 from django.db.models import Count, Q, Sum
 
-from .jornada import limites_de
+from .jornada import jornada_actual, limites_de
 from .models import MedioPago, Venta
 
 
@@ -117,3 +117,44 @@ def resumen(consulta):
         "anuladas": anuladas["cuantas"] or 0,
         "valor_anulado": anuladas["total"] or Decimal("0"),
     }
+
+
+def utilidad_del_mes(licorera, hoy=None):
+    """
+    Lo vendido y lo ganado en el mes, contado por jornadas.
+
+    El mes empieza en la jornada del día 1 y termina en la que esté en curso,
+    de modo que una venta de las dos de la madrugada del día 1 pertenece al mes
+    anterior, que es la noche en la que se vendió. Es la misma definición de
+    día que usan el cierre y el historial.
+
+    La utilidad sale del kardex y no del catálogo. Cada salida por venta guardó
+    el costo real del lote del que salió, de modo que lo que costó lo vendido
+    es la suma de esas salidas; el costo de hoy del producto diría otra cosa, y
+    la diría mal en cuanto los lotes se compraran a precios distintos.
+
+    Las anuladas no entran, ni por el lado del ingreso ni por el del costo: el
+    movimiento que devuelve la mercancía anula al que la sacó.
+    """
+    from inventario.models import MovimientoInventario
+
+    hoy = hoy or jornada_actual()
+    primera = hoy.replace(day=1)
+    desde, _ = limites_de(primera)
+    _, hasta = limites_de(hoy)
+
+    ventas = activas(licorera).filter(fecha__gte=desde, fecha__lt=hasta)
+    ingreso = ventas.aggregate(total=Sum("total"))["total"] or Decimal("0")
+
+    # El kardex apunta a la venta por su identificador, de modo que el costo se
+    # cruza con las mismas ventas que acaban de sumarse y no con un rango de
+    # fechas propio, que podría no coincidir en el borde de la jornada.
+    salidas = MovimientoInventario.objects.filter(
+        licorera=licorera,
+        documento_tipo=MovimientoInventario.Documento.VENTA,
+        tipo=MovimientoInventario.Tipo.VENTA,
+        documento_id__in=ventas.values("id"),
+    )
+    costo = sum((-m.cantidad) * m.costo_unitario for m in salidas) or Decimal("0")
+
+    return {"vendido": ingreso, "costo": costo, "utilidad": ingreso - costo}

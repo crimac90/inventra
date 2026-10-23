@@ -19,6 +19,8 @@ from rest_framework.views import APIView
 from seguridad.permissions import EsAdministradorDeLicorera
 from suscripciones.permissions import PuedeRegistrarOperaciones
 
+from ventas.rotacion import DIAS_POR_OMISION, dias_validos, sin_rotacion
+
 from .existencias import con_existencias
 from .precios import con_costos
 from .models import Categoria, EntradaMercancia, MovimientoInventario, Producto
@@ -156,6 +158,16 @@ class ProductoViewSet(viewsets.ModelViewSet):
         elif nivel == "bajo":
             consulta = consulta.filter(disponibles__gt=0,
                                        disponibles__lte=F("stock_minimo"))
+
+        # La tercera dimensión, la de RF-INV-08: cuánto hace que no se vende.
+        # La consulta vive en el módulo de ventas, porque «sin rotación» es
+        # «sin ventas» y las ventas no son de aquí; el plazo llega en la
+        # dirección en vez de guardarse, que es como este sistema entiende
+        # «configurable» para un dato que nadie ha pedido dejar fijado.
+        if parametros.get("rotacion"):
+            consulta = sin_rotacion(
+                consulta, self.request.user.licorera,
+                dias_validos(parametros.get("rotacion")))
 
         return consulta
 
@@ -353,7 +365,15 @@ class ResumenDeInventarioView(APIView):
             .filter(disponibles__lte=F("stock_minimo"))
             .order_by("disponibles", "nombre")
         )
+        # La baja rotación se cuenta y no se lista. Es el único requisito de
+        # prioridad baja del módulo, y darle en el panel el mismo sitio que a
+        # lo urgente empujaría hacia abajo lo que sí hay que mirar a diario;
+        # las referencias concretas están a un clic, en el catálogo filtrado.
+        estancadas = sin_rotacion(activos, request.user.licorera, DIAS_POR_OMISION)
+
         return Response({
             "productos_activos": activos.count(),
             "existencias_bajas": AlertaDeExistenciasSerializer(bajas, many=True).data,
+            "dias_sin_rotacion": DIAS_POR_OMISION,
+            "sin_rotacion": estancadas.count(),
         })
