@@ -113,6 +113,13 @@ export default function CierreDeCaja() {
   // justo el numero por el que se abre esta pantalla.
   const escrito = contado === "" ? null : Number(contado);
   const diferencia = escrito === null || Number.isNaN(escrito) ? null : escrito - efectivo;
+  const hayDiferencia = diferencia !== null && diferencia !== 0;
+
+  const ayudaDeLaCasilla = cerrado && !esAdministrador
+    ? "La jornada ya está cerrada: la explicación la corrige quien administra."
+    : cerrandoTarde && hayDiferencia
+      ? "Escribe también a qué se debe la diferencia."
+      : undefined;
 
   const guardar = useCallback(async () => {
     setOcupado(true);
@@ -222,17 +229,30 @@ export default function CierreDeCaja() {
                 )
               )}
 
-              <Campo
-                id="observacion"
-                etiqueta="Explicación de la diferencia"
-                requerido={false}
-                valor={observacion}
-                onChange={setObservacion}
-                marcador="Se pagó un domicilio con efectivo de la caja"
-                ayuda={cerrado && !esAdministrador
-                  ? "La jornada ya está cerrada: la explicación la corrige quien administra."
-                  : undefined}
-              />
+              {/*
+                La misma casilla contesta dos preguntas distintas, y por eso no
+                se llama igual en los dos casos. Cerrando tarde, lo que hay que
+                explicar es POR QUE SE CIERRA ASI, cuadre o no cuadre: la cifra
+                escrita no es un conteo. En la jornada en curso lo que se
+                explica es la diferencia, de modo que sin diferencia no hay
+                nada que pedir y la casilla no aparece: pedir la explicacion de
+                algo que no ocurrio hace dudar de que la caja cuadre.
+              */}
+              {(cerrandoTarde || hayDiferencia || observacion.trim() !== "") && (
+                <Campo
+                  id="observacion"
+                  etiqueta={cerrandoTarde
+                    ? "Por qué se cierra fuera de tiempo"
+                    : "Explicación de la diferencia"}
+                  requerido={false}
+                  valor={observacion}
+                  onChange={setObservacion}
+                  marcador={cerrandoTarde
+                    ? "El vendedor se fue sin cerrar y el cajón ya se vació"
+                    : "Se pagó un domicilio con efectivo de la caja"}
+                  ayuda={ayudaDeLaCasilla}
+                />
+              )}
 
               <div className="acciones">
                 {cerrado && esAdministrador && (
