@@ -12,6 +12,7 @@ from rest_framework import serializers
 from inventario.models import Producto
 
 from .models import CierreCaja, DetalleVenta, MedioPago, Venta
+from .jornada import jornada_de
 from .operaciones import se_puede_anular
 
 
@@ -95,6 +96,11 @@ class VentaSerializer(serializers.ModelSerializer):
     vendedor = serializers.CharField(source="usuario.nombre_completo", read_only=True)
     anulada_por_nombre = serializers.CharField(
         source="anulada_por.nombre_completo", read_only=True, default=None)
+    # El comprobante es el papel con el que el cliente reclama, de modo que
+    # tiene que decir ante quién reclama. Van en la venta y no se leen de la
+    # sesión de quien mira: un documento dice de quién es, no de quién lo abre.
+    licorera_nombre = serializers.CharField(source="licorera.nombre", read_only=True)
+    licorera_nit = serializers.CharField(source="licorera.nit", read_only=True)
     cambio = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     se_puede_anular = serializers.SerializerMethodField()
 
@@ -103,7 +109,8 @@ class VentaSerializer(serializers.ModelSerializer):
         fields = ("id", "consecutivo", "fecha", "total", "medio_pago",
                   "medio_pago_nombre", "monto_recibido", "cambio", "estado",
                   "observacion", "motivo_anulacion", "anulada_por_nombre",
-                  "fecha_anulacion", "vendedor", "se_puede_anular", "lineas")
+                  "fecha_anulacion", "vendedor", "se_puede_anular",
+                  "licorera_nombre", "licorera_nit", "lineas")
 
     def get_se_puede_anular(self, venta):
         return se_puede_anular(venta)
@@ -121,13 +128,24 @@ class VentaDeLaListaSerializer(serializers.ModelSerializer):
     vendedor = serializers.CharField(source="usuario.nombre_completo", read_only=True)
     anulada_por_nombre = serializers.CharField(
         source="anulada_por.nombre_completo", read_only=True, default=None)
+    jornada = serializers.SerializerMethodField()
     se_puede_anular = serializers.SerializerMethodField()
+
+    def get_jornada(self, venta):
+        """
+        A qué jornada pertenece la venta, por la misma razón que
+        `se_puede_anular`: la hora de corte no puede vivir también en el
+        navegador. Es lo que explica que dos ventas del mismo día del
+        calendario no se comporten igual.
+        """
+        return jornada_de(venta.fecha)
 
     class Meta:
         model = Venta
-        fields = ("id", "consecutivo", "fecha", "total", "medio_pago_nombre",
-                  "estado", "observacion", "motivo_anulacion",
-                  "anulada_por_nombre", "vendedor", "se_puede_anular")
+        fields = ("id", "consecutivo", "fecha", "jornada", "total",
+                  "medio_pago_nombre", "estado", "observacion",
+                  "motivo_anulacion", "anulada_por_nombre", "vendedor",
+                  "se_puede_anular")
 
     def get_se_puede_anular(self, venta):
         """
@@ -142,6 +160,9 @@ class VentaDeLaListaSerializer(serializers.ModelSerializer):
 class CierreCrearSerializer(serializers.Serializer):
     efectivo_contado = serializers.DecimalField(
         max_digits=12, decimal_places=2, min_value=0)
+    # Sin jornada se cierra la que está en curso, que es el caso de todas las
+    # noches. Llega con fecha cuando se cierra tarde una que quedó sin cerrar.
+    jornada = serializers.DateField(required=False, allow_null=True)
     observacion = serializers.CharField(
         max_length=255, required=False, allow_blank=True, allow_null=True)
 

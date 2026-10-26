@@ -31,7 +31,7 @@
 */
 
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import ApartadosDeVentas from "../componentes/ApartadosDeVentas";
 import Campo from "../componentes/Campo";
@@ -96,7 +96,13 @@ export default function CierreDeCaja() {
   }, [traer, setAviso]);
 
   const cerrado = jornada && jornada.cierre;
+  const anteriores = jornada ? jornada.anteriores || [] : [];
   const enCurso = jornada ? jornada.en_curso !== false : true;
+  // Una jornada anterior que nadie cerró todavía se puede cerrar, y el
+  // servidor exige la explicación: aquí se pide igual, para no mandar una
+  // petición que se sabe que va a ser rechazada.
+  const cerrandoTarde = !enCurso && !cerrado;
+  const faltaElPorque = cerrandoTarde && observacion.trim() === "";
   const efectivo = jornada ? Number(jornada.total_efectivo) : 0;
   const vendido = jornada
     ? Number(jornada.total_efectivo) + Number(jornada.total_transferencia)
@@ -112,7 +118,11 @@ export default function CierreDeCaja() {
     setOcupado(true);
     setAviso(null);
     try {
-      await cerrarJornada({ efectivoContado: contado, observacion });
+      await cerrarJornada({
+        efectivoContado: contado,
+        observacion,
+        jornada: enCurso ? undefined : jornada.jornada,
+      });
       await traer();
       setAviso({ tipo: "ok", texto: "La jornada quedó cerrada." });
     } catch (error) {
@@ -178,10 +188,12 @@ export default function CierreDeCaja() {
               <p className="hs">
                 {enCurso
                   ? "Cuenta el efectivo y escríbelo. Solo se compara el efectivo: lo demás no pasa por el cajón."
-                  : "Esta jornada ya terminó y su cajón se vació: no se vuelve a contar. Lo que sí se puede escribir es la explicación de la diferencia."}
+                  : cerrandoTarde
+                    ? "Esta jornada terminó sin que nadie cerrara la caja. Su cajón ya se vació, de modo que la cifra que escribas no es un conteo sino una decisión tuya: por eso hay que explicar por qué se cierra tarde."
+                    : "Esta jornada ya terminó y su cajón se vació: no se vuelve a contar. Lo que sí se puede escribir es la explicación de la diferencia."}
               </p>
 
-              {enCurso ? (
+              {enCurso || cerrandoTarde ? (
                 <Campo
                   id="contado"
                   etiqueta="Efectivo contado"
@@ -234,15 +246,21 @@ export default function CierreDeCaja() {
                   abierta. En una anterior el cajón ya se vació, de modo que el
                   botón no se apaga: no está.
                 */}
-                {enCurso && (
+                {(enCurso || cerrandoTarde) && (
                   <button
                     className="btn btn-cta"
                     type="button"
                     title={impedimento ? impedimento.texto : undefined}
-                    disabled={ocupado || !puedeCerrar || contado === ""}
+                    disabled={ocupado || !puedeCerrar || contado === "" || faltaElPorque}
                     onClick={guardar}
                   >
-                    {ocupado ? "Guardando…" : cerrado ? "Rehacer el cierre" : "Cerrar el día"}
+                    {ocupado
+                      ? "Guardando…"
+                      : cerrado
+                        ? "Rehacer el cierre"
+                        : cerrandoTarde
+                          ? "Cerrar esta jornada"
+                          : "Cerrar el día"}
                   </button>
                 )}
               </div>
@@ -255,6 +273,77 @@ export default function CierreDeCaja() {
               abierta el cierre se puede rehacer: los totales se recalculan enteros,
               desde la primera venta.
             </p>
+          )}
+
+          {/*
+            La historia del módulo. No es un informe —cuánto se vendió por
+            período es del módulo de reportes—: es el registro de qué noche se
+            contó la caja, con cuánto y si cuadró, que es lo que RF-VEN-06
+            pide dejar. Un registro al que no se puede llegar no es un
+            registro.
+          */}
+          {anteriores.length > 0 && (
+            <div className="tarjeta">
+              <h2>Cierres anteriores</h2>
+              {/*
+                «Vendido» y «contado» no se comparan entre sí, y ponerlos uno
+                al lado del otro hacía parecer un error lo que no lo era: una
+                jornada de $78.000 en transferencia se cuenta con $0 en el
+                cajón y cuadra. Entre los dos va el efectivo que el sistema
+                esperaba, que es contra lo que de verdad se compara lo contado.
+              */}
+              <div className="hs">
+                Solo se compara el efectivo: la transferencia y la tarjeta no
+                pasan por el cajón.
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Jornada</th><th>Vendido</th><th>Efectivo esperado</th>
+                    <th>Efectivo contado</th><th>Diferencia</th><th>Cerró</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {anteriores.map((anterior) => {
+                    const diferencia = Number(anterior.diferencia);
+                    return (
+                      <tr key={anterior.id}>
+                        <td>
+                          {fecha(anterior.fecha)}
+                          <div className="hs">{anterior.sede_nombre}</div>
+                        </td>
+                        <td>{moneda(Number(anterior.total_vendido))}</td>
+                        <td>{moneda(Number(anterior.total_efectivo))}</td>
+                        <td>{moneda(Number(anterior.efectivo_contado))}</td>
+                        <td>
+                          {diferencia === 0 ? (
+                            <span className="estado activo">Cuadró</span>
+                          ) : (
+                            <>
+                              <span className="estado agotado">
+                                {diferencia < 0
+                                  ? `Faltan ${moneda(-diferencia)}`
+                                  : `Sobran ${moneda(diferencia)}`}
+                              </span>
+                              <div className="hs">
+                                {anterior.observacion || "Sin explicar"}
+                              </div>
+                            </>
+                          )}
+                        </td>
+                        <td>{anterior.usuario_nombre}</td>
+                        <td className="acciones-fila">
+                          <Link className="btn btn-out btn-pequeno"
+                                to={`/ventas/cierre?jornada=${anterior.fecha}`}>
+                            Ver
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </>
       )}

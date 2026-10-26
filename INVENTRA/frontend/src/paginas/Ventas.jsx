@@ -41,7 +41,7 @@ import {
 } from "../api/ventas";
 
 import { useAviso } from "../aviso";
-import { fechaHora, moneda } from "../formato";
+import { fecha, fechaHora, moneda } from "../formato";
 import { motivoParaNoRegistrar } from "../sesion/permisos";
 import { useSesion } from "../sesion/ContextoSesion";
 import { plural } from "../texto";
@@ -182,7 +182,21 @@ export default function Ventas() {
       <h1>Historial de ventas</h1>
       <p className="hs">
         Lo vendido, con sus filtros. Las ventas anuladas no desaparecen: se
-        muestran marcadas y con su motivo.
+        muestran marcadas, con su motivo y con quién las anuló.
+      </p>
+      {/*
+        La tabla puede enseñar tres ventas del mismo día y ofrecer «Anular»
+        solo en una, porque la jornada no es el día del calendario. Sin esta
+        frase, dos filas idénticas se comportan distinto y parece un capricho;
+        con ella, y con la jornada escrita en cada fila, se entiende de un
+        vistazo.
+      */}
+      <p className="hs">
+        «Anular» aparece solo en las ventas de la jornada en curso y solo para
+        quien administra: una venta de una jornada anterior ya pudo entrar en
+        un cierre de caja cuadrado. La jornada va de las 06:00 de un día a las
+        06:00 del siguiente, de modo que lo vendido de madrugada pertenece a la
+        noche anterior.
       </p>
 
       {aviso && <div className={`aviso ${aviso.tipo}`} role="status">{aviso.texto}</div>}
@@ -282,7 +296,10 @@ export default function Ventas() {
                     #{venta.consecutivo}
                     {venta.observacion && <div className="hs">{venta.observacion}</div>}
                   </td>
-                  <td>{fechaHora(venta.fecha)}</td>
+                  <td>
+                    {fechaHora(venta.fecha)}
+                    <div className="hs">Jornada del {fecha(venta.jornada)}</div>
+                  </td>
                   <td>{venta.vendedor}</td>
                   <td>{venta.medio_pago_nombre}</td>
                   <td>{moneda(Number(venta.total))}</td>

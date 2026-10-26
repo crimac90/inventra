@@ -15,11 +15,13 @@ Toda suscripción que carga lleva fecha de fin, porque el estado se deriva de
 ella: una suscripción sin fecha es una que nunca vence, y el juego de datos
 enseñaría lo contrario de lo que el sistema hace.
 
-Con las cuentas viene el inventario de cada negocio: el catálogo, las compras
-que lo surtieron y las diferencias de conteo que se le aplicaron. Vive en
-`inventario/datos_demo.py` y entra por las mismas operaciones que usa la
-pantalla, de modo que los lotes y el kardex quedan cuadrados porque los calculó
-el sistema.
+Con las cuentas viene el inventario de cada negocio —el catálogo, las compras
+que lo surtieron y las diferencias de conteo que se le aplicaron— y, en el
+negocio principal, las ventas de la última semana con su anulación y sus cajas
+cerradas. Viven en `inventario/datos_demo.py` y en `ventas/datos_demo.py`, y
+entran por las mismas operaciones que usan las pantallas, de modo que los
+lotes, el kardex y los consecutivos quedan cuadrados porque los calculó el
+sistema.
 
 USO
     py manage.py cargar_datos_demo
@@ -37,6 +39,7 @@ from seguridad.models import Rol, Usuario
 
 from inventario import datos_demo
 from inventario.models import Categoria
+from ventas import datos_demo as datos_demo_ventas
 from sedes.models import Sede
 from suscripciones.puesta_en_marcha import preparar_licorera_nueva
 from suscripciones.models import Licorera, Plan, Suscripcion
@@ -64,6 +67,11 @@ NEGOCIOS = [
         "catalogo": datos_demo.CATALOGO_PRINCIPAL,
         "ajustes": datos_demo.AJUSTES,
         "descontinuados": datos_demo.DESCONTINUADOS,
+        # Solo el negocio principal vende. El segundo existe para comprobar el
+        # aislamiento entre licoreras, y un historial vacío lo enseña mejor:
+        # con las dos vendiendo habría que mirar dos veces para saber si una
+        # cifra es de quien se está mirando.
+        "ventas": True,
         "usuarios": [
             ("Ana Gómez Restrepo", f"admin{DOMINIO}", Rol.ADMINISTRADOR_LICORERA, "3001112233"),
             ("Carlos Ruiz Mejía", f"vendedor{DOMINIO}", Rol.VENDEDOR, "3004445566"),
@@ -172,6 +180,22 @@ class Command(BaseCommand):
             else:
                 self.anunciar("catálogo", licorera.nombre, False)
 
+            if datos.get("ventas"):
+                # Quien vende es el vendedor y quien anula es quien administra,
+                # igual que en el sistema: poner al administrador a cobrar
+                # dejaría un historial que no se parece a los de verdad.
+                vendedor = Usuario.objects.filter(
+                    licorera=licorera, rol__nombre=Rol.VENDEDOR).first()
+                ventas, cerradas = datos_demo_ventas.sembrar(
+                    licorera, vendedor or responsable, responsable)
+                if ventas:
+                    self.anunciar(
+                        "ventas",
+                        f"{licorera.nombre} → {plural(ventas, 'venta')}, "
+                        f"{plural(cerradas, 'caja cerrada', 'cajas cerradas')}", True)
+                else:
+                    self.anunciar("ventas", licorera.nombre, False)
+
         # El operador de la plataforma no pertenece a ninguna licorera.
         nombre, correo = SUPERADMINISTRADOR
         self.crear_usuario(nombre, correo, Rol.ADMINISTRADOR_INVENTRA, None, None)
@@ -210,10 +234,13 @@ class Command(BaseCommand):
         así que la base se niega a borrar una licorera con filas colgando. Hay
         que ir de las hojas a la raíz.
         """
-        # El inventario va primero de todo. Sus lotes apuntan a la sede, sus
-        # productos a la categoría y sus entradas y movimientos al usuario que
-        # los registró, las tres con PROTECT: mientras exista una sola fila de
-        # inventario, no se puede retirar nada de lo demás.
+        # Las ventas van antes que el inventario, y el inventario antes que
+        # todo lo demás. El detalle de una venta apunta al producto con
+        # PROTECT, así que mientras quede una venta no se puede borrar el
+        # catálogo; y los lotes apuntan a la sede, los productos a la categoría
+        # y las entradas y los movimientos al usuario que los registró, las
+        # tres también con PROTECT.
+        cierres, ventas = datos_demo_ventas.retirar(DOMINIO)
         movimientos, lotes, entradas, productos = datos_demo.retirar(DOMINIO)
         usuarios = Usuario.objects.filter(correo__endswith=DOMINIO).delete()[0]
         suscripciones = Suscripcion.objects.filter(
@@ -233,7 +260,9 @@ class Command(BaseCommand):
             self.style.WARNING(
                 # Se escribe el plural, no «(s)»: la misma regla que se aplica a
                 # los mensajes de la aplicación vale para lo que sale por consola.
-                f"Retirado: {plural(movimientos, 'movimiento')}, "
+                f"Retirado: {plural(cierres, 'cierre de caja', 'cierres de caja')}, "
+                f"{plural(ventas, 'venta')}, "
+                f"{plural(movimientos, 'movimiento')}, "
                 f"{plural(lotes, 'lote')}, "
                 f"{plural(entradas, 'entrada')}, "
                 f"{plural(productos, 'producto')}, "

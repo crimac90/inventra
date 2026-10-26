@@ -48,6 +48,11 @@ export default function Comprobante({ venta, onCerrar, enVentana = false }) {
       <h2>Comprobante</h2>
       <div className="comprobante">
         <div className="centro">
+          <b>{venta.licorera_nombre}</b>
+          {venta.licorera_nit && <div>NIT {venta.licorera_nit}</div>}
+        </div>
+        <hr />
+        <div className="centro">
           <b>Venta #{venta.consecutivo}</b>
           <div>{new Date(venta.fecha).toLocaleString("es-CO")}</div>
           <div>Atendió: {venta.vendedor}</div>

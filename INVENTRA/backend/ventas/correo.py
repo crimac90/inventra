@@ -18,13 +18,43 @@ detectarla y el historial solo la enseña a quien va a buscarla. El correo es
 el único sitio donde una anulación sale a buscar a quien debe juzgarla.
 """
 
+import logging
+
 from django.conf import settings
 from django.core.mail import send_mail
 
 from suscripciones.correo import administradores
 
+registro = logging.getLogger(__name__)
+
 ASUNTO = "Diferencia en el cierre de caja"
 ASUNTO_ANULACION = "Se anuló una venta"
+
+
+def _enviar(asunto, cuerpo, destinatarios):
+    """
+    Manda el aviso sin que un fallo del correo tumbe la operación.
+
+    Un aviso es la consecuencia de algo que ya ocurrió, no parte de ello. Si el
+    servidor de correo no responde, la venta sigue anulada y la caja sigue
+    cerrada: hacer fracasar la operación por el aviso deja al negocio sin poder
+    deshacer una venta porque el proveedor de correo está caído, y además
+    esconde el fallo real detrás de un error del servidor que no explica nada.
+
+    Lo que no se hace es callarlo: queda en el registro del servidor, que es
+    donde se mira cuando alguien dice que no le llegó el correo.
+    """
+    try:
+        send_mail(
+            subject=asunto,
+            message=cuerpo,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=destinatarios,
+            fail_silently=False,
+        )
+    except Exception:
+        registro.exception("No se pudo enviar el aviso «%s» a %s",
+                           asunto, ", ".join(destinatarios))
 
 
 def enviar_aviso_de_diferencia(cierre):
@@ -57,13 +87,7 @@ def enviar_aviso_de_diferencia(cierre):
           "INVENTRA\n"
     )
 
-    send_mail(
-        subject=ASUNTO,
-        message=cuerpo,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=destinatarios,
-        fail_silently=False,
-    )
+    _enviar(ASUNTO, cuerpo, destinatarios)
 
 
 def enviar_aviso_de_anulacion(venta):
@@ -94,10 +118,4 @@ def enviar_aviso_de_anulacion(venta):
         "INVENTRA\n"
     )
 
-    send_mail(
-        subject=ASUNTO_ANULACION,
-        message=cuerpo,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=destinatarios,
-        fail_silently=False,
-    )
+    _enviar(ASUNTO_ANULACION, cuerpo, destinatarios)

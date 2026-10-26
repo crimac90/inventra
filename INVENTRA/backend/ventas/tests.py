@@ -14,28 +14,32 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 
 # El helper de INV en vez de uno propio: una licorera lista para trabajar se
 # arma igual en los dos módulos, y VEN depende de INV de todas formas.
+from io import StringIO
+
 from django.core import mail
+from django.core.management import call_command
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 
 from inventario.existencias import existencias_de
 from inventario.models import MovimientoInventario
 from inventario.operaciones import registrar_entrada
-from inventario.models import Categoria, Producto
+from inventario.models import Categoria, LoteInventario, Producto
 from inventario.tests import CLAVE, crear_negocio, crear_usuario
 from sedes.models import Sede
 from seguridad.models import Rol
 
-from .caja import (cerrar_jornada, explicar_diferencia, jornadas_sin_explicar,
+from .caja import (cerrar_jornada, explicar_diferencia, jornadas_sin_cerrar,
+                   jornadas_sin_explicar, ultimos_cierres,
                    resumen_de)
-from .consultas import filtrar, resumen, utilidad_del_mes
+from .consultas import de_la_jornada, filtrar, resumen, utilidad_del_mes
 from .jornada import INICIO_DE_JORNADA, jornada_actual, jornada_de, limites_de
 from .rotacion import DIAS_POR_OMISION, dias_validos, sin_rotacion
 from .models import CierreCaja, DetalleVenta, MedioPago, Venta
@@ -297,6 +301,22 @@ class RegistrarVentaTests(TestCase):
         with self.assertRaises(ValidationError):
             self.vender(1)
 
+    def test_no_se_vende_una_referencia_sin_precio(self):
+        """
+        El precio se fija al recibir la primera mercancía. Entre la creación de
+        la ficha y esa entrada, la referencia existe pero no se cobra: venderla
+        sacaría unidades del inventario sin que entrara nada en la caja.
+        """
+        self.comprar(5, "30000")
+        self.ron.precio_venta = Decimal("0")
+        self.ron.save(update_fields=["precio_venta"])
+
+        with self.assertRaises(ValidationError):
+            self.vender(1)
+
+        self.assertEqual(Venta.objects.count(), 0)
+        self.assertEqual(existencias_de(self.ron, self.sede), 5)
+
     def test_no_se_vende_el_producto_de_otra_licorera(self):
         ajeno = crear_producto(crear_negocio("Bello"), "Ajeno", precio="1000")
 
@@ -489,9 +509,25 @@ class CajaBase(TestCase):
         return venta
 
     def cerrar(self, contado, observacion=None):
-        return cerrar_jornada(
-            licorera=self.licorera, usuario=self.cajero,
-            efectivo_contado=Decimal(contado), observacion=observacion)
+        """
+        Cierra la caja y deja salir el aviso.
+
+        Los correos del módulo se mandan cuando la transacción confirma, para
+        que un servidor de correo caído no deshaga la operación. Una prueba
+        envuelve todo en una transacción que nunca confirma, así que sin esto
+        la bandeja quedaría vacía y la prueba diría que el aviso no se manda
+        cuando sí lo hace.
+        """
+        with self.captureOnCommitCallbacks(execute=True):
+            return cerrar_jornada(
+                licorera=self.licorera, usuario=self.cajero,
+                efectivo_contado=Decimal(contado), observacion=observacion)
+
+    def anular(self, venta, motivo="Devuelta", usuario=None):
+        """Anula y deja salir el aviso, por lo mismo que `cerrar`."""
+        with self.captureOnCommitCallbacks(execute=True):
+            return anular_venta(venta=venta, usuario=usuario or self.duena,
+                                motivo=motivo)
 
 
 class ResumenDeLaJornadaTests(CajaBase):
@@ -596,6 +632,110 @@ class CerrarJornadaTests(CajaBase):
                            efectivo_contado=None)
 
 
+class CerrarTardeTests(CajaBase):
+    """
+    Una jornada que nadie cerró se puede cerrar después, y el sistema no finge
+    que es lo mismo.
+    """
+
+    def ayer(self):
+        return jornada_actual() - timedelta(days=1)
+
+    def vender_ayer(self, cantidad=2):
+        inicio, _ = limites_de(self.ayer())
+        return self.vender(cantidad, cuando=inicio + timedelta(hours=14))
+
+    def test_sin_explicacion_no_se_cierra_tarde(self):
+        """
+        El cajón de esa noche ya se vació: la cifra que se escriba no es un
+        conteo sino una decisión, y tiene que quedar dicho con qué criterio.
+        """
+        self.vender_ayer()
+
+        with self.assertRaises(ValidationError):
+            cerrar_jornada(licorera=self.licorera, usuario=self.duena,
+                           efectivo_contado=Decimal("100000"), jornada=self.ayer())
+
+    def test_con_explicacion_si_y_queda_a_nombre_de_quien_lo_hizo(self):
+        self.vender_ayer()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            cierre, creado = cerrar_jornada(
+                licorera=self.licorera, usuario=self.duena,
+                efectivo_contado=Decimal("100000"), jornada=self.ayer(),
+                observacion="El vendedor no cerró; se asume lo que dice el sistema")
+
+        self.assertTrue(creado)
+        self.assertEqual(cierre.fecha, self.ayer())
+        self.assertEqual(cierre.usuario, self.duena)
+
+    def test_rehacer_la_jornada_en_curso_no_pide_explicacion(self):
+        """Ahí el cajón sigue delante: contar otra vez es contar, no decidir."""
+        self.vender(2)
+
+        cierre, _ = self.cerrar("100000")
+
+        self.assertIsNone(cierre.observacion)
+
+    def test_no_se_cierra_una_jornada_que_no_ha_ocurrido(self):
+        with self.assertRaises(ValidationError):
+            cerrar_jornada(licorera=self.licorera, usuario=self.duena,
+                           efectivo_contado=Decimal("1"),
+                           jornada=jornada_actual() + timedelta(days=1),
+                           observacion="Mañana")
+
+
+class JornadasSinCerrarTests(CajaBase):
+    """RF-VEN-06: una noche que nadie contó no deja fila que mirar."""
+
+    def ayer(self):
+        return jornada_actual() - timedelta(days=1)
+
+    def vender_ayer(self, cantidad=2):
+        inicio, _ = limites_de(self.ayer())
+        return self.vender(cantidad, cuando=inicio + timedelta(hours=14))
+
+    def test_una_jornada_con_ventas_y_sin_cierre_sale_en_la_lista(self):
+        self.vender_ayer()
+
+        pendientes = jornadas_sin_cerrar(self.licorera, self.sede)
+
+        self.assertEqual(len(pendientes), 1)
+        self.assertEqual(pendientes[0]["fecha"], self.ayer())
+        self.assertEqual(pendientes[0]["transacciones"], 1)
+        self.assertEqual(pendientes[0]["total"], Decimal("100000"))
+
+    def test_la_jornada_en_curso_no_sale(self):
+        """Todavía está a tiempo: avisar sería avisar de algo que no ha pasado."""
+        self.vender(1)
+
+        self.assertEqual(jornadas_sin_cerrar(self.licorera, self.sede), [])
+
+    def test_una_jornada_ya_cerrada_no_sale(self):
+        self.vender_ayer()
+        cerrar_jornada(licorera=self.licorera, usuario=self.duena,
+                       efectivo_contado=Decimal("100000"), jornada=self.ayer(),
+                       observacion="Cerrada tarde")
+
+        self.assertEqual(jornadas_sin_cerrar(self.licorera, self.sede), [])
+
+    def test_una_jornada_sin_ventas_no_sale(self):
+        """El negocio no abrió: no hay caja que contar."""
+        self.assertEqual(jornadas_sin_cerrar(self.licorera, self.sede), [])
+
+    def test_los_ultimos_cierres_salen_del_mas_reciente_al_mas_antiguo(self):
+        self.vender_ayer()
+        cerrar_jornada(licorera=self.licorera, usuario=self.duena,
+                       efectivo_contado=Decimal("100000"), jornada=self.ayer(),
+                       observacion="Cerrada tarde")
+        self.vender(1)
+        self.cerrar("50000")
+
+        fechas = [c.fecha for c in ultimos_cierres(self.licorera)]
+
+        self.assertEqual(fechas, [jornada_actual(), self.ayer()])
+
+
 class AvisoDeDiferenciaTests(CajaBase):
     def test_un_faltante_avisa_por_correo_al_administrador(self):
         self.vender(2)
@@ -648,7 +788,7 @@ class AvisoDeAnulacionTests(CajaBase):
         """
         venta = self.vender(2)
 
-        anular_venta(venta=venta, usuario=self.duena, motivo="El cliente devolvió todo")
+        self.anular(venta, "El cliente devolvió todo")
 
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.duena.correo])
@@ -686,7 +826,7 @@ class AvisoDeAnulacionTests(CajaBase):
 
     def test_el_correo_dice_quien_registro_la_venta_y_quien_la_anulo(self):
         """Son dos personas distintas y el correo existe para poder juzgarlo."""
-        anular_venta(venta=self.vender(1), usuario=self.duena, motivo="Devuelta")
+        self.anular(self.vender(1))
 
         cuerpo = mail.outbox[0].body
         self.assertIn("La registró: %s" % self.cajero.nombre_completo, cuerpo)
@@ -700,11 +840,11 @@ class AvisoDeAnulacionTests(CajaBase):
     def test_un_rechazo_no_manda_correo(self):
         """Si la anulación no ocurrió, no hay nada de qué avisar."""
         venta = self.vender(1)
-        anular_venta(venta=venta, usuario=self.duena, motivo="Devuelta")
+        self.anular(venta)
         mail.outbox = []
 
         with self.assertRaises(ValidationError):
-            anular_venta(venta=venta, usuario=self.duena, motivo="Otra vez")
+            self.anular(venta, "Otra vez")
 
         self.assertEqual(mail.outbox, [])
 
@@ -1062,6 +1202,25 @@ class ApiDeAnulacionTests(ApiBase):
         self.assertEqual(respuesta.json()["estado"], "anulada")
         self.assertEqual(existencias_de(self.ron, self.sede), 50)
 
+    def test_un_correo_caido_no_deshace_la_anulacion(self):
+        """
+        Con el aviso dentro de la transacción, un correo caído deshacía la
+        anulación entera y la mercancía no volvía al inventario.
+        """
+        venta = self.cobrar(2).json()
+
+        with override_settings(
+                EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+                EMAIL_HOST="127.0.0.1", EMAIL_PORT=1):
+            with self.assertLogs("ventas.correo", level="ERROR") as registrado:
+                with self.captureOnCommitCallbacks(execute=True):
+                    respuesta = self.anular(venta["id"], self.duena.correo)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(respuesta.json()["estado"], "anulada")
+        self.assertEqual(existencias_de(self.ron, self.sede), 50)
+        self.assertIn("No se pudo enviar el aviso", registrado.output[0])
+
     def test_el_vendedor_no_anula_su_propio_cobro(self):
         venta = self.cobrar(2).json()
 
@@ -1156,6 +1315,62 @@ class ApiDelHistorialTests(ApiBase):
         self.assertTrue(self.listar().json()["results"][0]["se_puede_anular"])
 
 
+    def test_el_comprobante_dice_de_que_negocio_es(self):
+        """Es el papel con el que el cliente reclama: tiene que decir ante quién."""
+        venta = self.cobrar(1).json()
+
+        self.assertEqual(venta["licorera_nombre"], self.licorera.nombre)
+
+    def test_la_fila_del_historial_dice_a_que_jornada_pertenece(self):
+        """
+        Es lo que explica que dos ventas del mismo día del calendario no
+        ofrezcan lo mismo: la de madrugada es de la noche anterior.
+        """
+        self.cobrar(1)
+
+        fila = self.client.get(reverse("venta-list"), **self.entrar()).json()["results"][0]
+
+        self.assertEqual(fila["jornada"], jornada_actual().isoformat())
+
+
+class ApiDelCierreTardioTests(ApiBase):
+    def cerrar(self, correo=None, **cuerpo):
+        datos = {"efectivo_contado": "92000"}
+        datos.update(cuerpo)
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(reverse("cierre-de-caja"), datos,
+                                    content_type="application/json",
+                                    **self.entrar(correo))
+
+    def test_el_vendedor_no_cierra_una_jornada_anterior(self):
+        """
+        Cerrar su turno sí; decidir la cifra de una noche que ya nadie puede
+        contar, no.
+        """
+        ayer = (jornada_actual() - timedelta(days=1)).isoformat()
+
+        respuesta = self.cerrar(jornada=ayer, observacion="Quedó sin cerrar")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_el_administrador_si(self):
+        self.cobrar(2)
+        ayer = (jornada_actual() - timedelta(days=1)).isoformat()
+
+        respuesta = self.cerrar(self.duena.correo, jornada=ayer,
+                                observacion="El vendedor no cerró")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(respuesta.json()["fecha"], ayer)
+
+    def test_el_vendedor_sigue_cerrando_su_turno(self):
+        self.cobrar(2)
+
+        respuesta = self.cerrar()
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+
+
 class ApiDelResumenTests(ApiBase):
     def resumen(self, correo=None):
         return self.client.get(reverse("resumen-de-ventas"), **self.entrar(correo))
@@ -1232,13 +1447,43 @@ class ApiDelCierreTests(ApiBase):
     def test_cerrar_con_faltante_avisa_por_correo(self):
         self.cobrar(2)
 
-        respuesta = self.client.post(
-            reverse("cierre-de-caja"), {"efectivo_contado": "92000"},
-            content_type="application/json", **self.entrar())
+        # El aviso sale al confirmar la transacción, que es lo que impide que
+        # un correo caído deje la caja sin cerrar.
+        with self.captureOnCommitCallbacks(execute=True):
+            respuesta = self.client.post(
+                reverse("cierre-de-caja"), {"efectivo_contado": "92000"},
+                content_type="application/json", **self.entrar())
 
         self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Decimal(respuesta.json()["diferencia"]), Decimal("-8000"))
         self.assertEqual(mail.outbox[0].to, [self.duena.correo])
+
+    def test_un_correo_caido_no_impide_cerrar_la_caja(self):
+        """
+        El fallo que lo motivó: con un servidor de correo que no responde, la
+        operación entera se deshacía y la pantalla recibía un error del
+        servidor que no explicaba nada. Un aviso es la consecuencia de algo
+        que ya ocurrió, no parte de ello.
+        """
+        self.cobrar(2)
+
+        with override_settings(
+                EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+                EMAIL_HOST="127.0.0.1", EMAIL_PORT=1):
+            # `assertLogs` hace dos cosas a la vez: comprueba que el fallo
+            # quedó registrado, que es la otra mitad de la promesa —no se
+            # tumba la operación, pero tampoco se calla—, y se queda con el
+            # rastro en vez de dejar que lo escupa por consola en cada
+            # ejecución de la batería.
+            with self.assertLogs("ventas.correo", level="ERROR") as registrado:
+                with self.captureOnCommitCallbacks(execute=True):
+                    respuesta = self.client.post(
+                        reverse("cierre-de-caja"), {"efectivo_contado": "92000"},
+                        content_type="application/json", **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(CierreCaja.objects.filter(licorera=self.licorera).exists())
+        self.assertIn("No se pudo enviar el aviso", registrado.output[0])
 
     def test_volver_a_cerrar_actualiza_el_mismo_cierre(self):
         self.cobrar(2)
@@ -1285,3 +1530,220 @@ class ApiDelCierreTests(ApiBase):
 
         self.assertEqual([m["nombre"] for m in respuesta.json()],
                          list(MedioPago.POR_DEFECTO))
+
+
+class DatosDemoDeVentasTests(TestCase):
+    """
+    La carga de ventas de demostración (bloque de cierre de VEN).
+
+    No se comprueba venta por venta: eso sería escribir dos veces la misma
+    lista. Se comprueba lo que tiene que ser cierto el día de la demostración
+    —que el inventario siga cuadrado después de vender, que estén los casos
+    que las pantallas necesitan enseñar y que repetir la orden no duplique
+    nada—, que es lo mismo que se le pidió al catálogo.
+    """
+
+    def cargar(self):
+        # El modo de depuración está apagado durante las pruebas, así que la
+        # orden pide que se le insista.
+        call_command("cargar_datos_demo", "--si-estoy-seguro", stdout=StringIO())
+
+    def licorera_principal(self):
+        from suscripciones.models import Licorera
+        return Licorera.objects.get(correo__startswith="contacto@")
+
+    def test_quedan_ventas_repartidas_en_varias_jornadas(self):
+        """Un historial de un solo día no tiene nada que filtrar."""
+        self.cargar()
+
+        ventas = Venta.objects.filter(licorera=self.licorera_principal())
+        jornadas = {jornada_de(v.fecha) for v in ventas}
+
+        self.assertGreater(ventas.count(), 20)
+        self.assertGreaterEqual(len(jornadas), 7)
+
+    def test_ninguna_existencia_queda_en_negativo(self):
+        """
+        Lo que de verdad importa: las ventas consumieron lotes de verdad, y si
+        el juego de datos pidiera más unidades de las que compró, el inventario
+        quedaría diciendo una imposibilidad.
+        """
+        self.cargar()
+
+        negativos = LoteInventario.objects.filter(
+            producto__licorera=self.licorera_principal(),
+            cantidad_disponible__lt=0)
+
+        self.assertFalse(negativos.exists())
+
+    def test_cada_existencia_cuadra_con_el_ultimo_saldo_del_kardex(self):
+        """
+        Las existencias se derivan de los lotes y el saldo es una foto que el
+        kardex guardó al escribir cada movimiento. Si después de veinticinco
+        ventas las dos cifras siguen coincidiendo en todas las referencias, es
+        que nada entró por un atajo.
+        """
+        self.cargar()
+        licorera = self.licorera_principal()
+        sede = Sede.principal_de(licorera)
+
+        for producto in Producto.objects.filter(licorera=licorera):
+            ultimo = (MovimientoInventario.objects
+                      .filter(producto=producto).order_by("id").last())
+            if ultimo is None:
+                continue
+            self.assertEqual(
+                existencias_de(producto, sede), ultimo.saldo_resultante,
+                "«%s» no cuadra con su kardex" % producto.nombre)
+
+    def test_hay_una_venta_anulada_con_su_autor(self):
+        """El historial necesita enseñar el estado anulado, no solo el activo."""
+        self.cargar()
+
+        anulada = Venta.objects.filter(
+            licorera=self.licorera_principal(), estado=Venta.Estado.ANULADA).first()
+
+        self.assertIsNotNone(anulada)
+        self.assertTrue(anulada.motivo_anulacion)
+        self.assertIsNotNone(anulada.anulada_por)
+        self.assertIsNotNone(anulada.fecha_anulacion)
+
+    def test_hay_ventas_de_madrugada_en_la_jornada_de_la_noche_anterior(self):
+        """
+        Sin una venta pasada la medianoche, la definición de día del módulo
+        está construida y no se ve en ninguna pantalla.
+        """
+        self.cargar()
+
+        de_madrugada = [
+            v for v in Venta.objects.filter(licorera=self.licorera_principal())
+            if timezone.localtime(v.fecha).hour < INICIO_DE_JORNADA.hour
+        ]
+
+        self.assertTrue(de_madrugada)
+        for venta in de_madrugada:
+            self.assertEqual(jornada_de(venta.fecha),
+                             timezone.localtime(venta.fecha).date() - timedelta(days=1))
+
+    def test_una_caja_quedo_cerrada_con_diferencia_sin_explicar(self):
+        """Es lo que mantiene vivo el aviso del panel: sin ella no se ve."""
+        self.cargar()
+        licorera = self.licorera_principal()
+
+        sin_explicar = list(jornadas_sin_explicar(licorera))
+
+        self.assertEqual(len(sin_explicar), 1)
+        self.assertLess(sin_explicar[0].diferencia, 0)
+
+    def test_hay_otra_caja_con_su_diferencia_ya_explicada(self):
+        """Los dos estados, para poder comparar el resuelto con el pendiente."""
+        self.cargar()
+
+        explicados = CierreCaja.objects.filter(
+            licorera=self.licorera_principal()).exclude(observacion=None)
+
+        self.assertEqual(explicados.count(), 1)
+
+    def test_la_jornada_en_curso_queda_abierta(self):
+        """
+        Quien recorra el sistema tiene que tener una caja que cerrar. Una ya
+        cerrada obligaría a rehacerla para ver la pantalla funcionar.
+        """
+        self.cargar()
+        licorera = self.licorera_principal()
+
+        cerrada_hoy = CierreCaja.objects.filter(
+            licorera=licorera, fecha=jornada_actual()).exists()
+
+        self.assertFalse(cerrada_hoy)
+        self.assertTrue(
+            de_la_jornada(licorera, Sede.principal_de(licorera), jornada_actual()).exists(),
+            "la jornada en curso quedó sin ninguna venta")
+
+    def test_hay_ventas_con_nota_de_mesa(self):
+        """La nota con la que un lico-bar reconoce una venta de mesa."""
+        self.cargar()
+
+        con_nota = Venta.objects.filter(
+            licorera=self.licorera_principal()).exclude(observacion=None)
+
+        self.assertTrue(con_nota.exists())
+
+    def test_el_segundo_negocio_no_vende(self):
+        """
+        Un historial vacío enseña el aislamiento mejor que dos llenos: con los
+        dos vendiendo habría que mirar dos veces para saber de quién es cada
+        cifra.
+        """
+        self.cargar()
+        from suscripciones.models import Licorera
+        vecino = Licorera.objects.get(correo__startswith="contacto.vecino@")
+
+        self.assertFalse(Venta.objects.filter(licorera=vecino).exists())
+
+    def test_cargar_dos_veces_no_duplica_las_ventas(self):
+        self.cargar()
+        cuantas = Venta.objects.count()
+
+        self.cargar()
+
+        self.assertEqual(Venta.objects.count(), cuantas)
+
+    def test_la_carga_no_manda_correos(self):
+        """
+        Una anulación avisa y un cierre descuadrado también. Cargar datos de
+        demostración no es un día de trabajo: con un servidor de correo de
+        verdad configurado, la carga escribiría a los administradores por
+        ventas inventadas.
+        """
+        mail.outbox = []
+
+        self.cargar()
+
+        self.assertEqual(mail.outbox, [])
+
+    def test_limpiar_retira_las_ventas_y_los_cierres(self):
+        self.cargar()
+
+        call_command("cargar_datos_demo", "--limpiar", "--si-estoy-seguro",
+                     stdout=StringIO())
+
+        self.assertFalse(Venta.objects.exists())
+        self.assertFalse(CierreCaja.objects.exists())
+
+
+class AnularFueraDeUnaTransaccionDePruebaTests(TransactionTestCase):
+    """
+    La anulación, con la base trabajando como trabaja de verdad.
+
+    Las demás pruebas heredan de `TestCase`, que envuelve cada una en una
+    transacción y la deshace al terminar. Eso las hace rápidas y esconde una
+    clase de fallo entera: dentro de esa transacción prestada, un bloqueo de
+    filas funciona aunque la operación haya perdido la suya, de modo que una
+    función que en producción se cae con «select_for_update cannot be used
+    outside of a transaction» pasa las pruebas en verde.
+
+    Esta hereda de `TransactionTestCase`, que no envuelve nada. Es más lenta y
+    por eso hay una sola: la de la operación que lo sufrió.
+    """
+
+    def test_anular_funciona_sin_una_transaccion_prestada(self):
+        licorera = crear_negocio("Sabaneta")
+        duena = crear_usuario(licorera, "duena@sinenvoltura.com",
+                              Rol.ADMINISTRADOR_LICORERA)
+        cajero = crear_usuario(licorera, "cajero@sinenvoltura.com", Rol.VENDEDOR)
+        ron = crear_producto(licorera, "Ron sin envoltura", precio="50000")
+        registrar_entrada(
+            licorera=licorera, usuario=cajero,
+            lineas=[{"producto": ron, "cantidad": 20,
+                     "costo_unitario": Decimal("30000")}])
+        venta = registrar_venta(
+            licorera=licorera, usuario=cajero,
+            medio_pago=MedioPago.objects.get(nombre=MedioPago.EFECTIVO),
+            lineas=[{"producto": ron, "cantidad": 3}])
+
+        anular_venta(venta=venta, usuario=duena, motivo="Devuelta")
+
+        venta.refresh_from_db()
+        self.assertEqual(venta.estado, Venta.Estado.ANULADA)
+        self.assertEqual(existencias_de(ron, Sede.principal_de(licorera)), 20)

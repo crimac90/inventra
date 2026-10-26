@@ -99,6 +99,14 @@ def _revisar(linea, licorera):
     if not producto.activo:
         raise ValidationError(
             "«%s» está descontinuado y no se puede vender." % producto.nombre)
+    if not producto.tiene_precio:
+        # Una referencia recién registrada todavía no sabe a cuánto se vende:
+        # el precio se fija cuando se conoce el costo, al recibir el primer
+        # lote. Cobrarla sería cobrar cero, y el inventario saldría del negocio
+        # sin que entrara nada a la caja.
+        raise ValidationError(
+            "«%s» todavía no tiene precio de venta: se fija al registrar la "
+            "entrada de mercancía." % producto.nombre)
     if cantidad <= 0:
         raise ValidationError("La cantidad de cada línea debe ser mayor que cero.")
 
@@ -147,7 +155,6 @@ def _siguiente_consecutivo(licorera):
     return (ultimo or 0) + 1
 
 
-@transaction.atomic
 def se_puede_anular(venta):
     """
     Si una venta admite anulación ahora mismo.
@@ -161,9 +168,15 @@ def se_puede_anular(venta):
             and jornada_de(venta.fecha) == jornada_actual())
 
 
+@transaction.atomic
 def anular_venta(*, venta, usuario, motivo):
     """
     Deshace una venta devolviendo la mercancía a sus lotes (RF-VEN-04).
+
+    Va entera en una transacción, por lo mismo que la venta: devolver la
+    mercancía de tres referencias de cuatro dejaría el inventario diciendo una
+    cosa y el historial otra. Los lotes se bloquean al devolverles unidades, y
+    un bloqueo de filas solo existe dentro de una transacción.
 
     La venta no se borra: se marca, conserva su número y su detalle, y queda
     con el motivo y con quien la anuló. Un hueco en la numeración es lo único
@@ -227,5 +240,11 @@ def anular_venta(*, venta, usuario, motivo):
     # El aviso sale al administrador por lo mismo que el de la caja
     # descuadrada: una anulación no deja rastro en el cierre —lo anulado no
     # cuenta como dinero— y el historial solo la enseña a quien va a buscarla.
-    enviar_aviso_de_anulacion(venta)
+    #
+    # Se manda cuando la transacción ya confirmó, no dentro de ella. Avisar
+    # desde dentro ata el aviso a la operación en las dos direcciones: si el
+    # correo falla, la anulación entera se deshace y la mercancía no vuelve al
+    # inventario; y si la operación falla después de avisar, se habría avisado
+    # de algo que no ocurrió.
+    transaction.on_commit(lambda: enviar_aviso_de_anulacion(venta))
     return venta

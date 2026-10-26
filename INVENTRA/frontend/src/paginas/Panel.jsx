@@ -120,6 +120,7 @@ export default function Panel() {
 
   const porReponer = inventario ? inventario.existencias_bajas : [];
   const sinExplicar = ventas ? ventas.jornadas_sin_explicar : [];
+  const sinCerrar = ventas ? ventas.jornadas_sin_cerrar || [] : [];
 
   return (
     <Disposicion titulo="Panel principal">
@@ -141,15 +142,22 @@ export default function Panel() {
           </div>
         </div>
 
-        <div className="kpi">
-          <div className="k">Utilidad del mes</div>
-          <div className="v">{ventas ? moneda(Number(ventas.utilidad_del_mes)) : "—"}</div>
-          <div className="d">
-            {ventas
-              ? `sobre ${moneda(Number(ventas.vendido_en_el_mes))} vendidos`
-              : "consultando…"}
+        {/*
+          La utilidad es del administrador y no de quien está en la caja. Lo
+          vendido sí lo ve el vendedor —es el resultado de su turno—, pero
+          cuánto gana el negocio con cada botella no es dato de mostrador.
+        */}
+        {esAdministrador && (
+          <div className="kpi">
+            <div className="k">Utilidad del mes</div>
+            <div className="v">{ventas ? moneda(Number(ventas.utilidad_del_mes)) : "—"}</div>
+            <div className="d">
+              {ventas
+                ? `sobre ${moneda(Number(ventas.vendido_en_el_mes))} vendidos`
+                : "consultando…"}
+            </div>
           </div>
-        </div>
+        )}
 
         {esAdministrador && (
           <div className="kpi">
@@ -210,8 +218,37 @@ export default function Panel() {
         )}
       </div>
 
+      {sinCerrar.length > 0 && (
+        <div className="tarjeta atencion">
+          <h2>Jornadas sin cerrar</h2>
+          <div className="hs">
+            Noches con ventas en las que nadie contó la caja. El sistema no
+            puede saber si faltó dinero: lo único que puede decir es que no se
+            contó.
+          </div>
+
+          <dl className="datos">
+            {sinCerrar.map((jornada) => (
+              <div key={jornada.fecha} style={{ display: "contents" }}>
+                <dt>
+                  {fecha(jornada.fecha)}
+                  <div className="hs">{jornada.sede_nombre}</div>
+                </dt>
+                <dd>
+                  {plural(jornada.transacciones, "venta")} por{" "}
+                  {moneda(Number(jornada.total))}{" "}
+                  <Link className="link" to={`/ventas/cierre?jornada=${jornada.fecha}`}>
+                    Cerrarla
+                  </Link>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
       {sinExplicar.length > 0 && (
-        <div className="tarjeta">
+        <div className="tarjeta atencion">
           <h2>Cajas con diferencia sin explicar</h2>
           <div className="hs">
             Jornadas que cerraron descuadradas y en las que nadie ha escrito el
@@ -314,8 +351,8 @@ export default function Panel() {
       <div className="tarjeta">
         <h2>Módulos en construcción</h2>
         <div className="hs">
-          Los indicadores de ventas del día y utilidad del mes aparecerán aquí cuando
-          su módulo esté terminado.
+          Lo que el sistema todavía no hace. Aparecerá aquí cuando cada módulo
+          esté terminado.
         </div>
 
         <dl className="datos">

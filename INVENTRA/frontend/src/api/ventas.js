@@ -59,10 +59,16 @@ export function consultarResumenDeVentas() {
   return api.get("/ventas/resumen/");
 }
 
-export function cerrarJornada({ efectivoContado, observacion }) {
+/*
+  Cierra la caja. Sin `jornada` cierra la que esta en curso, que es el caso de
+  todas las noches; con fecha cierra tarde una que quedo sin cerrar, y eso el
+  servidor solo se lo admite a quien administra y con explicacion.
+*/
+export function cerrarJornada({ efectivoContado, observacion, jornada }) {
   return api.post("/ventas/cierre/", {
     efectivo_contado: efectivoContado,
     observacion: observacion,
+    jornada: jornada,
   });
 }
 

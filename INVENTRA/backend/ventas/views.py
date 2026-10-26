@@ -21,8 +21,8 @@ from rest_framework.views import APIView
 from seguridad.permissions import EsAdministradorDeLicorera
 from suscripciones.permissions import PuedeRegistrarOperaciones
 
-from .caja import (cerrar_jornada, explicar_diferencia, jornadas_sin_explicar,
-                   resumen_de)
+from .caja import (cerrar_jornada, explicar_diferencia, jornadas_sin_cerrar,
+                   jornadas_sin_explicar, resumen_de, ultimos_cierres)
 from .consultas import de_la_jornada, filtrar, resumen, utilidad_del_mes
 from .jornada import jornada_actual
 from .models import CierreCaja, MedioPago
@@ -164,6 +164,11 @@ class CierreDeCajaView(APIView):
         permisos = list(self.permission_classes)
         if self.request.method == "POST":
             permisos += [PuedeRegistrarOperaciones]
+            # Cerrar la caja del turno es de quien lo termina; cerrar tarde
+            # una jornada que quedó sin cerrar es decidir una cifra que ya
+            # nadie puede contar, y eso se reserva a quien administra.
+            if self.request.data.get("jornada"):
+                permisos += [EsAdministradorDeLicorera]
         return [permiso() for permiso in permisos]
 
     def get(self, request):
@@ -187,6 +192,10 @@ class CierreDeCajaView(APIView):
             "total_transferencia": resumen["transferencia"],
             "total_tarjeta": resumen["tarjeta"],
             "cierre": CierreSerializer(cierre).data if cierre else None,
+            # La historia del módulo, que RF-VEN-06 pide dejar registrada: un
+            # registro al que no se puede llegar no es un registro.
+            "anteriores": CierreSerializer(
+                ultimos_cierres(licorera), many=True).data,
         })
 
     def post(self, request):
@@ -197,6 +206,7 @@ class CierreDeCajaView(APIView):
             cierre, creado = cerrar_jornada(
                 licorera=request.user.licorera, usuario=request.user,
                 efectivo_contado=serializador.validated_data["efectivo_contado"],
+                jornada=serializador.validated_data.get("jornada"),
                 observacion=serializador.validated_data.get("observacion"),
             )
         except ErrorDeValidacion as error:
@@ -261,12 +271,17 @@ class ResumenDeVentasView(APIView):
         mes = utilidad_del_mes(licorera, jornada)
 
         sin_explicar = []
+        sin_cerrar = []
         if request.user.rol.nombre == Rol.ADMINISTRADOR_LICORERA:
             sin_explicar = [
                 {"id": c.id, "fecha": c.fecha, "sede_nombre": c.sede.nombre,
                  "diferencia": c.diferencia}
                 for c in jornadas_sin_explicar(licorera)
             ]
+            # Una noche que nadie contó no deja fila en el cierre, de modo que
+            # el aviso anterior no la ve. Esta es la única forma que tiene el
+            # sistema de decir que no se contó.
+            sin_cerrar = jornadas_sin_cerrar(licorera, sede)
 
         return Response({
             "jornada": jornada,
@@ -275,4 +290,5 @@ class ResumenDeVentasView(APIView):
             "utilidad_del_mes": mes["utilidad"],
             "vendido_en_el_mes": mes["vendido"],
             "jornadas_sin_explicar": sin_explicar,
+            "jornadas_sin_cerrar": sin_cerrar,
         })

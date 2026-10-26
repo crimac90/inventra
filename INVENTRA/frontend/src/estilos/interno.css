@@ -623,6 +623,39 @@ td.acciones-fila a.btn {
   margin: 0;
 }
 
+/*
+  El precio con el que estrena una referencia que no lo tenia. Ocupa la linea
+  entera por debajo de las casillas: no es una columna mas, es una pregunta que
+  solo aparece en algunas lineas, y como columna dejaria un hueco en todas las
+  demas.
+*/
+.precio-nuevo {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--e3);
+  padding: 10px 14px;
+  font-size: 14px;
+  background: var(--chip);
+  border-radius: var(--radio);
+}
+
+.precio-nuevo .explicacion {
+  flex: 1 1 260px;
+  color: var(--muted);
+  padding-bottom: 8px;
+}
+
+.precio-nuevo .btn {
+  margin-bottom: 8px;
+}
+
+.precio-nuevo .aviso {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .subtotal {
   display: flex;
   flex-direction: column;
@@ -868,6 +901,26 @@ td.acciones-fila a.btn {
 .comprobante .centro { text-align: center; }
 .comprobante .fila { display: flex; justify-content: space-between; padding: 2px 0; }
 .comprobante hr { border: 0; border-top: 1px dashed var(--border); margin: 9px 0; }
+
+/*
+  La tarjeta que pide atencion.
+
+  El panel apila tarjetas blancas iguales, y entre ellas las que avisan de algo
+  por resolver —una noche sin contar, una caja descuadrada sin explicar— pasan
+  desapercibidas: son lo unico de la pantalla que exige una accion y se leen
+  como un bloque mas de informacion.
+
+  Lleva el mismo tono de advertencia que los avisos del punto 6.4, de modo que
+  lo que pide atencion se ve igual en toda la aplicacion, y se apoya en el
+  borde izquierdo en vez de tenir el fondo entero: dentro va una lista que
+  tiene que seguir leyendose.
+*/
+.tarjeta.atencion {
+  border-left: 4px solid var(--warn-fuerte);
+  background: var(--warn-suave);
+}
+
+.tarjeta.atencion h2 { color: var(--warn-fuerte); }
 
 /* --- Apartados de un modulo (punto 8.8) --------------------------------- */
 
