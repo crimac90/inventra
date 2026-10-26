@@ -157,8 +157,28 @@ class RegistroDeProductoTests(CatalogoBase):
         self.assertNotIn("precio_compra", columnas)
         self.assertNotIn("existencias", columnas)
 
-    def test_el_precio_de_venta_tiene_que_ser_positivo(self):
-        self.assertEqual(self.crear(precio_venta="0").status_code,
+    def test_la_referencia_nace_sin_precio(self):
+        """
+        El precio no se pide al registrar: en ese momento nadie sabe cuánto
+        costó la mercancía, y un precio inventado es lo que lleva a vender por
+        debajo del costo. Se fija al recibir el primer lote.
+        """
+        cuerpo = {
+            "nombre": "Aguardiente Antioqueño 750 ml",
+            "categoria": self.categoria.id,
+            "presentacion": Producto.Presentacion.BOTELLA,
+            "stock_minimo": 5,
+        }
+        respuesta = self.client.post(reverse("producto-list"), cuerpo,
+                                     content_type="application/json", **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        producto = Producto.objects.get(id=respuesta.json()["id"])
+        self.assertEqual(producto.precio_venta, Decimal("0"))
+        self.assertFalse(producto.tiene_precio)
+
+    def test_el_precio_de_venta_no_puede_ser_negativo(self):
+        self.assertEqual(self.crear(precio_venta="-1").status_code,
                          status.HTTP_400_BAD_REQUEST)
 
     def test_la_presentacion_es_una_lista_cerrada(self):
@@ -637,6 +657,90 @@ class EntradaDeMercanciaTests(CatalogoBase):
         respuesta = self.registrar(lineas=[{"producto": self.ron.id, "cantidad": 1,
                                             "costo_unitario": "-5.00"}])
         self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # -- El precio que se fija al recibir ---------------------------------
+
+    def sin_precio(self):
+        """Una referencia recién registrada, como la deja el formulario."""
+        return Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria,
+            nombre="Aguardiente Antioqueño 750 ml",
+            presentacion=Producto.Presentacion.BOTELLA, stock_minimo=6)
+
+    def test_la_entrada_le_pone_precio_a_la_referencia_que_no_lo_tenia(self):
+        producto = self.sin_precio()
+
+        respuesta = self.registrar(lineas=[{
+            "producto": producto.id, "cantidad": 24,
+            "costo_unitario": "32000.00", "precio_venta": "41600.00",
+        }])
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        producto.refresh_from_db()
+        self.assertEqual(producto.precio_venta, Decimal("41600.00"))
+        self.assertTrue(producto.tiene_precio)
+
+    def test_una_referencia_sin_precio_no_entra_sin_que_se_lo_pongan(self):
+        producto = self.sin_precio()
+
+        respuesta = self.registrar(lineas=[{"producto": producto.id, "cantidad": 24,
+                                            "costo_unitario": "32000.00"}])
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(LoteInventario.objects.filter(producto=producto).count(), 0)
+
+    def test_el_precio_en_cero_no_vale_como_respuesta(self):
+        producto = self.sin_precio()
+
+        respuesta = self.registrar(lineas=[{
+            "producto": producto.id, "cantidad": 24,
+            "costo_unitario": "32000.00", "precio_venta": "0",
+        }])
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_una_referencia_con_precio_no_lo_pide_otra_vez(self):
+        """
+        La segunda compra no vuelve a preguntar: el precio ya está puesto y
+        cambiarlo es del formulario del producto, no de cada factura que llega.
+        """
+        respuesta = self.registrar(lineas=[{"producto": self.ron.id, "cantidad": 6,
+                                            "costo_unitario": "40000.00"}])
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        self.ron.refresh_from_db()
+        self.assertEqual(self.ron.precio_venta, Decimal("48500.00"))
+
+    def test_una_entrada_puede_corregir_el_precio_de_una_referencia_que_ya_lo_tiene(self):
+        """
+        Si la línea trae precio, manda: la compra llegó más cara y el precio se
+        ajusta en el mismo momento en que se sabe.
+        """
+        self.registrar(lineas=[{"producto": self.ron.id, "cantidad": 6,
+                                "costo_unitario": "44000.00",
+                                "precio_venta": "57200.00"}])
+
+        self.ron.refresh_from_db()
+        self.assertEqual(self.ron.precio_venta, Decimal("57200.00"))
+
+    def test_si_la_entrada_falla_el_precio_tampoco_se_queda(self):
+        """
+        El precio se escribe dentro de la misma transacción que los lotes: una
+        entrada rechazada no puede dejar la referencia con un precio que nunca
+        llegó a tener mercancía detrás.
+        """
+        producto = self.sin_precio()
+
+        with self.assertRaises(ValidationError):
+            registrar_entrada(
+                licorera=self.licorera, usuario=self.administrador,
+                lineas=[
+                    {"producto": producto, "cantidad": 10,
+                     "costo_unitario": 32000, "precio_venta": 41600},
+                    {"producto": self.cerveza, "cantidad": 5, "costo_unitario": -1},
+                ])
+
+        producto.refresh_from_db()
+        self.assertEqual(producto.precio_venta, Decimal("0"))
 
     def test_una_entrada_no_se_edita_ni_se_borra(self):
         """

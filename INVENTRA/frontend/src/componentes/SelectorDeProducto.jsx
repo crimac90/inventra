@@ -11,6 +11,12 @@
   coincidencias. Busca por nombre, categoria y codigo de barras: la misma
   busqueda de la lista de productos. Se maneja entero con el teclado: flechas
   para recorrer, Enter para elegir y Escape para descartar.
+
+  Ofrece todas las referencias activas, tambien las que ahora mismo no se
+  pueden vender —sin existencias o sin precio—. Quien usa el buscador pregunta
+  si la referencia EXISTE; que se pueda vender es otra pregunta, y la contesta
+  la pantalla que la recibe, con su aviso y diciendo que le falta. Apagar aqui
+  unas y no otras daria dos comportamientos para el mismo caso.
 */
 
 import { useEffect, useRef, useState } from "react";

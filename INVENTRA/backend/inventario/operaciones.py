@@ -27,6 +27,12 @@ def registrar_entrada(*, licorera, usuario, lineas, proveedor=None, observacion=
     `costo_unitario`. Cada línea crea **un lote con su costo congelado** y su
     movimiento en el kardex.
 
+    Una línea puede traer además `precio_venta`, y entonces la referencia pasa
+    a venderse a ese precio. Es el único sitio del sistema donde el precio se
+    fija fuera del formulario del producto, y la razón es la que da nombre a
+    esta pantalla: aquí se conoce lo que costó la mercancía, que es sobre lo
+    que se calcula lo que se cobra por ella.
+
     Va entera en una transacción: una entrada que creara dos lotes de tres, o
     los lotes sin su movimiento, dejaría el inventario diciendo una cosa y el
     kardex otra, que es el único desacuerdo que este módulo no puede permitirse.
@@ -64,6 +70,17 @@ def registrar_entrada(*, licorera, usuario, lineas, proveedor=None, observacion=
             raise ValidationError("La cantidad de cada línea debe ser mayor que cero.")
         if costo is None or costo < 0:
             raise ValidationError("El costo unitario no puede ser negativo.")
+
+        precio = linea.get("precio_venta")
+        if precio is not None:
+            if precio < 0:
+                raise ValidationError("El precio de venta no puede ser negativo.")
+            # Se guarda solo esa columna: la ficha del producto pudo cambiar
+            # entre que el formulario la leyó y esta entrada se registra, y un
+            # `save()` entero devolvería al disco los demás campos tal como
+            # estaban entonces.
+            producto.precio_venta = precio
+            producto.save(update_fields=["precio_venta"])
 
         lote = LoteInventario.objects.create(
             producto=producto, sede=sede,

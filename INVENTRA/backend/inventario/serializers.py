@@ -99,7 +99,7 @@ class ProductoSerializer(serializers.ModelSerializer):
         fields = (
             "id", "nombre", "categoria", "categoria_nombre",
             "presentacion", "presentacion_nombre", "codigo_barras",
-            "precio_venta", "stock_minimo", "existencias",
+            "precio_venta", "tiene_precio", "stock_minimo", "existencias",
             "costo_promedio", "costo_ultima_compra", "costo_minimo", "costo_maximo",
             "lotes_en_existencia", "precio_sugerido", "activo", "fecha_creacion",
         )
@@ -187,6 +187,12 @@ class ProductoGuardarSerializer(serializers.ModelSerializer):
         model = Producto
         fields = ("nombre", "categoria", "presentacion", "codigo_barras",
                   "precio_venta", "stock_minimo")
+        # El precio no se pide al registrar la referencia: en ese momento nadie
+        # sabe todavía cuánto costó la mercancía, y un precio inventado es lo
+        # que lleva a vender por debajo del costo. Se fija al recibir el primer
+        # lote. El campo sigue aquí porque editarlo después sí es del
+        # administrador (RF-INV-03).
+        extra_kwargs = {"precio_venta": {"required": False}}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -199,8 +205,16 @@ class ProductoGuardarSerializer(serializers.ModelSerializer):
                 licorera=licorera, activo=True)
 
     def validate_precio_venta(self, valor):
-        if valor <= 0:
-            raise serializers.ValidationError("El precio de venta debe ser mayor que cero.")
+        """
+        El cero se admite y significa «todavía sin precio»; lo negativo, no.
+
+        Antes el cero se rechazaba, porque el formulario de creación pedía el
+        precio y dejarlo en cero solo podía ser un descuido. Ahora el precio
+        llega con la primera entrada de mercancía, de modo que entre la
+        creación y esa entrada la referencia vive en cero a propósito.
+        """
+        if valor is not None and valor < 0:
+            raise serializers.ValidationError("El precio de venta no puede ser negativo.")
         return valor
 
     def validate_codigo_barras(self, valor):
@@ -235,6 +249,12 @@ class LineaDeEntradaSerializer(serializers.Serializer):
     cantidad = serializers.IntegerField(min_value=1)
     costo_unitario = serializers.DecimalField(max_digits=12, decimal_places=2,
                                               min_value=0)
+    # El precio de venta de la referencia, que esta pantalla fija cuando la
+    # referencia todavía no lo tiene. No es un dato del lote: el lote congela
+    # su costo, y el precio es del producto. Viaja en la línea porque es aquí
+    # donde se conoce el costo sobre el que se calcula.
+    precio_venta = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=0, required=False)
 
     def validate_producto(self, valor):
         """
@@ -257,6 +277,27 @@ class LineaDeEntradaSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "«%s» está inactivo: reactívalo antes de recibir mercancía." % valor.nombre)
         return valor
+
+    def validate(self, datos):
+        """
+        Una referencia sin precio no sale de esta pantalla sin uno.
+
+        Es el momento en que el precio se puede calcular: ya se sabe lo que
+        costó. Dejarlo para después significa mercancía en bodega que el punto
+        de venta no puede ofrecer, y nadie se entera hasta que un cliente la
+        pide. Un precio en cero no vale como respuesta.
+        """
+        producto = datos.get("producto")
+        precio = datos.get("precio_venta")
+
+        if producto is not None and not producto.tiene_precio:
+            if precio is None or precio <= 0:
+                raise serializers.ValidationError({
+                    "precio_venta":
+                        "«%s» todavía no tiene precio de venta: ponlo aquí para "
+                        "que se pueda vender." % producto.nombre,
+                })
+        return datos
 
 
 class EntradaCrearSerializer(serializers.Serializer):

@@ -25,6 +25,7 @@ import Disposicion from "../componentes/Disposicion";
 import MargenesPorCategoria from "../componentes/MargenesPorCategoria";
 import Modal from "../componentes/Modal";
 import Paginacion from "../componentes/Paginacion";
+import { pierdeDinero } from "../precios";
 import { ErrorApi, mensajeDeError } from "../api/cliente";
 import {
   actualizarProducto,
@@ -470,7 +471,26 @@ export default function Inventario() {
                     )}
                   </td>
                   <td><span className="tag">{fila.categoria_nombre}</span></td>
-                  <td>{moneda(fila.precio_venta)}</td>
+                  <td>
+                    {/*
+                      Se marca aquí y no solo al editar: una referencia que
+                      pierde dinero —o que no se puede vender todavía— hay que
+                      poder encontrarla recorriendo la lista, sin abrir una por
+                      una. Un «$ 0» en esta columna se leería como un precio.
+                    */}
+                    {fila.tiene_precio === false ? (
+                      <span className="estado bajo">Sin precio</span>
+                    ) : (
+                      <>
+                        {moneda(fila.precio_venta)}
+                        {pierdeDinero(fila) && (
+                          <div className="hs">
+                            <span className="estado bajo">Bajo el costo</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </td>
                   <td>{fila.existencias}</td>
                   <td>
                     <EtiquetaDeEstado producto={fila} />
@@ -578,7 +598,10 @@ function Formulario({ inicial, categorias, ocupado, onGuardar, onCancelar }) {
     ...inicial,
     categoria: inicial.categoria || "",
     codigo_barras: inicial.codigo_barras || "",
-    precio_venta: inicial.precio_venta || "",
+    // Un cero guardado significa «todavía sin precio», y el campo tiene que
+    // salir vacío: un «0» escrito en una casilla de precio se lee como un
+    // precio puesto a cero.
+    precio_venta: Number(inicial.precio_venta) > 0 ? inicial.precio_venta : "",
     stock_minimo: inicial.stock_minimo ?? "",
   });
   const [errores, setErrores] = useState({});
@@ -635,7 +658,15 @@ function Formulario({ inicial, categorias, ocupado, onGuardar, onCancelar }) {
 
   async function enviar(evento) {
     evento.preventDefault();
-    setErrores(await onGuardar(datos));
+    /*
+      El precio vacío no se manda. Vacío aquí significa «sin precio», y el
+      servidor lo guarda como cero por omisión; mandarlo como cadena vacía
+      sería mandar algo que no es un número y el formulario volvería con un
+      rechazo que nadie entiende.
+    */
+    const { precio_venta: precio, ...resto } = datos;
+    const cuerpo = String(precio).trim() === "" ? resto : datos;
+    setErrores(await onGuardar(cuerpo));
   }
 
   return (
@@ -686,16 +717,27 @@ function Formulario({ inicial, categorias, ocupado, onGuardar, onCancelar }) {
           error={errores.presentacion}
         />
 
-        <Campo
-          id="precio_venta"
-          etiqueta="Precio de venta"
-          tipo="number"
-          marcador="0"
-          minimo="0"
-          valor={String(datos.precio_venta)}
-          onChange={(v) => cambiar("precio_venta", v)}
-          error={errores.precio_venta}
-        />
+        {/*
+          El precio no se pide al registrar la referencia. Al crearla nadie
+          sabe todavía cuánto costó la mercancía, y lo que se escribiera aquí
+          sería una suposición: justo la que lleva a vender por debajo del
+          costo. Se pide al recibir el primer lote, donde el costo ya se
+          conoce. Editando sí aparece, porque corregir el precio de una
+          referencia que ya se vende es del administrador (RF-INV-03).
+        */}
+        {editando && (
+          <Campo
+            id="precio_venta"
+            etiqueta="Precio de venta"
+            tipo="number"
+            marcador="0"
+            minimo="0"
+            requerido={false}
+            valor={String(datos.precio_venta)}
+            onChange={(v) => cambiar("precio_venta", v)}
+            error={errores.precio_venta}
+          />
+        )}
 
         <Campo
           id="stock_minimo"
@@ -761,6 +803,11 @@ function Formulario({ inicial, categorias, ocupado, onGuardar, onCancelar }) {
       <div className="hs" style={{ marginTop: -8 }}>
         Las existencias y el costo no se capturan aquí: entran con cada lote de
         mercancía, y cada lote conserva el suyo.
+        {!editando && (
+          <> El precio de venta tampoco: se pone al registrar la primera entrada,
+          cuando ya se sabe cuánto costó. Hasta entonces la referencia queda
+          marcada y el punto de venta no la ofrece.</>
+        )}
       </div>
 
       <Campo

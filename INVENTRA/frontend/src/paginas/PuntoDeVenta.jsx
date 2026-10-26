@@ -33,6 +33,7 @@ import { ErrorApi, mensajeDeError } from "../api/cliente";
 import { cobrar, consultarMediosDePago } from "../api/ventas";
 import { consultarMiSuscripcion } from "../api/suscripciones";
 import { moneda } from "../formato";
+import { pierdeDinero } from "../precios";
 import { plural } from "../texto";
 import { motivoParaNoRegistrar } from "../sesion/permisos";
 import { useSesion } from "../sesion/ContextoSesion";
@@ -99,6 +100,21 @@ export default function PuntoDeVenta() {
     limpiar();
     setComprobante(null);
 
+    /*
+      Las dos razones por las que una referencia no se puede vender ahora mismo
+      se responden igual: se deja elegir, no se agrega y la pantalla dice por
+      que. Son el mismo caso para quien atiende —«esto no se puede vender»— y
+      darles dos comportamientos obligaria a aprenderse cual es cual.
+    */
+    if (producto.tiene_precio === false || !(Number(producto.precio_venta) > 0)) {
+      setAviso({
+        tipo: "err",
+        texto: `«${producto.nombre}» todavía no tiene precio de venta: `
+             + "se le pone al registrar la entrada de mercancía.",
+      });
+      return;
+    }
+
     const hay = Number(producto.existencias) || 0;
     if (hay <= 0) {
       setAviso({ tipo: "err",
@@ -121,6 +137,10 @@ export default function PuntoDeVenta() {
         precio: Number(producto.precio_venta),
         hay,
         cantidad: 1,
+        // Se resuelve al agregar, con lo que el catálogo acaba de traer, y
+        // no al pintar: la línea guardada en el navegador sobrevive a salir
+        // de la pantalla y allí ya no hay producto del que preguntarlo.
+        bajoElCosto: pierdeDinero(producto),
       }];
     });
   }, [limpiar, setAviso]);
@@ -245,6 +265,16 @@ export default function PuntoDeVenta() {
                     {linea.cantidad >= linea.hay && (
                       <div className="tope">
                         Es todo lo que hay: {plural(linea.hay, "unidad", "unidades")}.
+                      </div>
+                    )}
+                    {/*
+                      Avisa y no impide cobrar: una liquidación o un favor a
+                      un cliente son decisiones del negocio. Lo que no puede
+                      pasar es que se tomen sin saberlo.
+                    */}
+                    {linea.bajoElCosto && (
+                      <div className="tope">
+                        Se está vendiendo por debajo de lo que costó.
                       </div>
                     )}
                   </div>

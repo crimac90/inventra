@@ -122,10 +122,13 @@ class Producto(models.Model):
         help_text="Código de barras; único dentro de la licorera si se registra.",
     )
     precio_venta = models.DecimalField(
-        max_digits=12, decimal_places=2,
+        max_digits=12, decimal_places=2, default=0,
         help_text=(
             "Precio de venta vigente. Vive separado del costo (RF-INV-11) y solo "
-            "lo cambia el administrador; las ventas ya hechas conservan el suyo."
+            "lo cambia el administrador; las ventas ya hechas conservan el suyo. "
+            "Cero significa que todavía no tiene precio: una referencia recién "
+            "creada no lo tiene hasta que se recibe la primera mercancía y se "
+            "sabe cuánto costó. Sin precio no se puede vender."
         ),
     )
     stock_minimo = models.PositiveIntegerField(
@@ -164,6 +167,19 @@ class Producto(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @property
+    def tiene_precio(self):
+        """
+        Si la referencia ya se puede vender.
+
+        El precio se fija cuando se conoce el costo, no al crear la ficha: al
+        registrar un producto todavía no se ha comprado nada y cualquier cifra
+        que se escriba ahí es una suposición. Un cero no es un precio de
+        regalo, es la ausencia de precio, y el punto de venta no ofrece la
+        referencia hasta que alguien le ponga uno.
+        """
+        return self.precio_venta is not None and self.precio_venta > 0
 
 
 class EntradaMercancia(models.Model):
