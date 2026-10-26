@@ -262,6 +262,8 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
        <tr><td>Ron Medellín Añejo 750ml</td><td><span class="tag">Ron</span></td><td>$48.500</td><td>15</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Cerveza Águila 330ml</td><td><span class="tag">Cerveza</span></td><td>$3.500</td><td>4</td><td><span class="stock st-low">Existencias bajas</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Whisky Buchanan's 750ml</td><td><span class="tag">Whisky</span></td><td>$185.000</td><td>9</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Cigarrillos Marlboro x20</td><td><span class="tag">Otros</span></td><td>$14.000<div style="margin-top:4px"><span class="stock st-low">Sin margen</span></div></td><td>30</td><td><span class="stock st-ok">Disponible</span></td><td><a class="link">Editar</a></td></tr>
+       <tr><td>Tequila José Cuervo 750ml</td><td><span class="tag">Otros</span></td><td><span class="stock st-out">Sin precio</span></td><td>0</td><td><span class="stock st-out">Agotado</span></td><td><a class="link">Editar</a></td></tr>
        <tr><td>Ron Viejo de Caldas 750ml</td><td><span class="tag">Ron</span></td><td>$46.000</td><td>0</td><td><span class="stock st-out">Agotado</span></td><td><a class="link">Editar</a></td></tr>
      </tbody></table>
      <div class="paginas"><span>1 a 25 de 44 referencias</span><span style="display:flex;align-items:center;gap:12px"><span class="btn btn-out btn-pequeno">Anterior</span>Página 1 de 2<span class="btn btn-out btn-pequeno">Siguiente</span></span></div></div>
@@ -272,17 +274,21 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
 <!-- 6 FORM PRODUCTO -->
 <div class="lbl">6 · Inventario — nuevo / editar producto</div>
 <div class="card" style="padding:26px 28px;max-width:640px">
- <h3 style="font-size:19px;font-weight:700;margin-bottom:4px">Nuevo producto</h3>
+ <h3 style="font-size:19px;font-weight:700;margin-bottom:4px">Editar producto</h3>
  <div style="color:var(--muted);font-size:14px;margin-bottom:20px">Completa la información del producto.</div>
- <div class="field"><label>Nombre del producto</label><input placeholder="Aguardiente Antioqueño 750ml"></div>
+ <div class="field"><label>Nombre del producto</label><input value="Ron Medellín Añejo 750ml"></div>
  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-   <div class="field"><label>Categoría</label><select><option>Aguardiente</option><option>Ron</option><option>Cerveza</option><option>Whisky</option><option>Vino</option><option>Otros</option></select></div>
+   <div class="field"><label>Categoría</label><select><option>Aguardiente</option><option selected>Ron</option><option>Cerveza</option><option>Whisky</option><option>Vino</option><option>Otros</option></select></div>
    <div class="field"><label>Presentación</label><select><option>Media</option><option selected>Botella</option><option>Litro</option><option>Garrafa</option><option>Unidad</option></select></div>
-   <div class="field"><label>Precio de venta</label><input placeholder="$0"></div>
+   <div class="field"><label>Precio de venta</label><input value="$48.500"></div>
    <div class="field"><label>Existencias mínimas (alerta)</label><input placeholder="5"></div>
  </div>
- <div class="hs" style="font-size:13px;margin:-6px 0 14px">Las existencias y el costo no se capturan aquí: entran con cada lote de mercancía.</div>
- <div class="field"><label>Código de barras</label><input placeholder="7701234567890"></div>
+ <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:-6px 0 14px;padding:10px 14px;background:var(--chip);border-radius:10px;font-size:14px">
+   <span>15 unidades en existencia, a <b>$37.300</b> cada una en promedio (lotes entre $34.500 y $42.000) · margen de Ron: <b>30 %</b> · precio sugerido <b>$48.500</b></span>
+   <span class="btn btn-out btn-pequeno">Usar el sugerido</span>
+ </div>
+ <div class="hs" style="font-size:13px;margin:-6px 0 14px">Las existencias y el costo no se capturan aquí: entran con cada lote de mercancía. Al registrar una referencia nueva tampoco se pide el precio: se pone al recibir la primera mercancía, cuando ya se sabe cuánto costó.</div>
+ <div class="field"><label>Código de barras</label><input value="7701234567890"></div>
  <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px"><button class="btn btn-out">Cancelar</button><button class="btn btn-cta">Guardar producto</button></div>
 </div>
 
@@ -306,11 +312,15 @@ td{padding:11px 8px;border-bottom:1px solid var(--border)}
        </div>
        <table style="margin-top:6px"><thead><tr><th>Producto</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th><th></th></tr></thead><tbody>
          <tr><td>Aguardiente Antioqueño 750ml</td><td>24</td><td>$38.000</td><td>$912.000</td><td><a class="link">Quitar</a></td></tr>
-         <tr><td>Ron Medellín Añejo 750ml</td><td>12</td><td>$34.500</td><td>$414.000</td><td><a class="link">Quitar</a></td></tr>
+         <tr><td>Ron Medellín Añejo 750ml</td><td>12</td><td>$44.000</td><td>$528.000</td><td><a class="link">Quitar</a></td></tr>
+         <tr><td colspan="5" style="background:var(--chip)"><div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:13px">
+           <span>Precio actual <b>$48.500</b>. Con esta compra, cada unidad pasa a costar <b>$42.000</b> en promedio · margen de Ron: <b>30 %</b> · precio sugerido <b>$54.600</b></span>
+           <span class="btn btn-out btn-pequeno">Usar el sugerido</span></div>
+           <div class="toast warn" style="margin:10px 0 2px"><span>A $48.500 el margen queda en 16 %, y el de Ron es del 30 %. No se pierde dinero: se gana menos, porque la mercancía subió y el precio no.</span></div></td></tr>
        </tbody></table>
        <div style="margin-top:12px"><span class="btn btn-out" style="padding:8px 13px">+ Agregar otra línea</span></div>
        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:14px;color:var(--muted)">
-         <span>2 líneas completas · 36 unidades</span><b style="color:var(--text);font-size:16px">Total de la compra: $1.326.000</b></div>
+         <span>2 líneas completas · 36 unidades</span><b style="color:var(--text);font-size:16px">Total de la compra: $1.440.000</b></div>
        <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-cta">Registrar entrada</button></div>
      </div>
      <h4 style="margin:22px 0 12px">Entradas registradas</h4>

@@ -341,17 +341,25 @@ td.acciones-fila a.btn {
 }
 
 .estado.inactivo,
-.estado.agotado {
+.estado.agotado,
+.estado.perdida,
+.estado.sin-precio {
   background: var(--err-suave);
   color: var(--err-fuerte);
 }
 
 /*
-  Existencias bajas lleva el naranja de advertencia y no el rojo, siguiendo el
-  punto 6.4: todavia se puede vender, hay que reponer. El rojo queda para lo que
-  ya no se puede hacer, que es vender una referencia agotada.
+  El reparto de los dos colores, siguiendo el punto 6.4. En rojo lo que ya no
+  se puede hacer —vender lo agotado, vender lo que no tiene precio— y lo que
+  cuesta dinero cada vez que ocurre: vender por debajo de lo que costo. En
+  naranja lo que todavia funciona pero hay que atender: reponer antes de que se
+  acabe, y subir un precio que dejo de dar el margen de su categoria. Un
+  faltante de margen no es una perdida, es ganar menos de lo decidido, y
+  pintarlo del mismo rojo que una perdida real haria que el rojo dejara de
+  significar algo.
 */
-.estado.bajo {
+.estado.bajo,
+.estado.sin-margen {
   background: var(--warn-suave);
   color: var(--warn-fuerte);
 }

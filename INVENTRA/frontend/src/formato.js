@@ -20,6 +20,26 @@ export function moneda(valor) {
 }
 
 /*
+  Un porcentaje, sin los ceros que no dicen nada.
+
+  Los margenes se guardan con dos decimales porque la columna los admite, y un
+  margen del treinta por ciento llega como «30.00». Escrito asi en una frase
+  —«margen de Ron: 30.00%»— parece una cifra calculada con una precision que
+  nadie pidio. Se escriben los decimales que de verdad tenga: 30 % o 32,5 %.
+
+  El espacio antes del signo es el que manda la ortografia, y es duro para que
+  el numero y el simbolo no se separen al final de una linea.
+*/
+const PORCENTAJE = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 2 });
+
+export function porcentaje(valor) {
+  if (valor == null || valor === "") return "—";
+  const numero = Number(valor);
+  if (Number.isNaN(numero)) return String(valor);
+  return `${PORCENTAJE.format(numero)}\u00A0%`;
+}
+
+/*
   Una fecha del servidor (AAAA-MM-DD) escrita como se lee en Colombia.
 
   No se usa `new Date(texto)` a proposito: con una fecha sin hora el navegador

@@ -102,3 +102,23 @@ export function margenDe(costo, precio) {
   if (base === null || base <= 0 || venta === null || venta <= 0) return null;
   return ((venta - base) / base) * 100;
 }
+
+/*
+  Si una referencia ya no deja el margen que su categoria pide.
+
+  No es lo mismo que perder dinero: el precio cubre el costo, pero la
+  mercancia subio y el porcentaje que el negocio decidio se quedo por el
+  camino. Se compara contra `precio_sugerido`, que el servidor calcula sobre el
+  costo promedio de las existencias con el margen de la categoria; aqui no se
+  recalcula nada, para que el catalogo y el formulario no puedan discrepar.
+
+  Si ademas pierde dinero, esta funcion dice que no: lo mas grave manda, y dos
+  etiquetas sobre la misma fila se leen como dos problemas distintos.
+*/
+export function sinMargen(producto) {
+  if (!producto || pierdeDinero(producto)) return false;
+  const sugerido = numero(producto.precio_sugerido);
+  const precio = numero(producto.precio_venta);
+  if (sugerido === null || precio === null || precio <= 0) return false;
+  return precio < sugerido;
+}

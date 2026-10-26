@@ -39,7 +39,7 @@ import SelectorDeProducto from "../componentes/SelectorDeProducto";
 import { ErrorApi, mensajeDeError } from "../api/cliente";
 import { consultarCategorias, listarEntradas, registrarEntrada } from "../api/inventario";
 import { consultarMiSuscripcion } from "../api/suscripciones";
-import { fechaHora, moneda } from "../formato";
+import { fechaHora, moneda, porcentaje } from "../formato";
 import { costoPromedioCon, margenDe, sugerirPrecio } from "../precios";
 import { plural } from "../texto";
 import { motivoParaNoRegistrar } from "../sesion/permisos";
@@ -503,7 +503,7 @@ function PrecioDeLaReferencia({ linea, categorias, onCambiar }) {
         {sugerido !== null && categoria && (
           <>
             {" "}Margen de {categoria.nombre}:{" "}
-            <strong>{categoria.margen_sugerido}%</strong> · precio sugerido{" "}
+            <strong>{porcentaje(categoria.margen_sugerido)}</strong> · precio sugerido{" "}
             <strong>{moneda(sugerido)}</strong>.
           </>
         )}
@@ -531,7 +531,7 @@ function PrecioDeLaReferencia({ linea, categorias, onCambiar }) {
       {sinMargen && margen !== null && categoria && (
         <div className="aviso advertencia" role="status">
           A {moneda(precio)} el margen queda en <strong>{Math.round(margen)}%</strong>,
-          y el de {categoria.nombre} es del {categoria.margen_sugerido}%. No se pierde
+          y el de {categoria.nombre} es del {porcentaje(categoria.margen_sugerido)}. No se pierde
           dinero: se gana menos, porque la mercancía subió y el precio no.
         </div>
       )}

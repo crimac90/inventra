@@ -18,8 +18,13 @@ import { ErrorApi, mensajeDeError } from "../api/cliente";
 import { guardarMargenes } from "../api/inventario";
 
 export default function MargenesPorCategoria({ categorias, onGuardado, onCerrar }) {
+  /*
+    La casilla arranca con el numero y no con lo que la columna guarda: un
+    margen del treinta por ciento llega como «30.00», y una casilla que dice
+    eso invita a borrarla entera antes de escribir el valor nuevo.
+  */
   const [valores, setValores] = useState(() =>
-    Object.fromEntries(categorias.map((c) => [c.id, String(c.margen_sugerido)])));
+    Object.fromEntries(categorias.map((c) => [c.id, String(Number(c.margen_sugerido))])));
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState(null);
 

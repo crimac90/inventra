@@ -25,7 +25,7 @@ import Disposicion from "../componentes/Disposicion";
 import MargenesPorCategoria from "../componentes/MargenesPorCategoria";
 import Modal from "../componentes/Modal";
 import Paginacion from "../componentes/Paginacion";
-import { pierdeDinero } from "../precios";
+import { pierdeDinero, sinMargen } from "../precios";
 import { ErrorApi, mensajeDeError } from "../api/cliente";
 import {
   actualizarProducto,
@@ -37,7 +37,7 @@ import {
 } from "../api/inventario";
 import { consultarMiSuscripcion } from "../api/suscripciones";
 import { useEspera } from "../espera";
-import { moneda } from "../formato";
+import { moneda, porcentaje } from "../formato";
 import { plural } from "../texto";
 import { motivoParaNoRegistrar } from "../sesion/permisos";
 import { useSesion } from "../sesion/ContextoSesion";
@@ -473,19 +473,29 @@ export default function Inventario() {
                   <td><span className="tag">{fila.categoria_nombre}</span></td>
                   <td>
                     {/*
-                      Se marca aquí y no solo al editar: una referencia que
-                      pierde dinero —o que no se puede vender todavía— hay que
-                      poder encontrarla recorriendo la lista, sin abrir una por
-                      una. Un «$ 0» en esta columna se leería como un precio.
+                      Las tres cosas que se pueden decir de un precio se dicen
+                      aquí y no solo al editar: hay que poder encontrarlas
+                      recorriendo la lista, sin abrir una referencia por una.
+                      Un «$ 0» en esta columna se leería como un precio.
+
+                      Son excluyentes y en ese orden. Una referencia que pierde
+                      dinero tampoco da el margen, y enseñar las dos etiquetas
+                      juntas se leería como dos problemas distintos cuando es
+                      uno, el más grave de los dos.
                     */}
                     {fila.tiene_precio === false ? (
-                      <span className="estado bajo">Sin precio</span>
+                      <span className="estado sin-precio">Sin precio</span>
                     ) : (
                       <>
                         {moneda(fila.precio_venta)}
                         {pierdeDinero(fila) && (
                           <div className="hs">
-                            <span className="estado bajo">Bajo el costo</span>
+                            <span className="estado perdida">Bajo el costo</span>
+                          </div>
+                        )}
+                        {sinMargen(fila) && (
+                          <div className="hs">
+                            <span className="estado sin-margen">Sin margen</span>
                           </div>
                         )}
                       </>
@@ -766,7 +776,7 @@ function Formulario({ inicial, categorias, ocupado, onGuardar, onCancelar }) {
               <>Sin existencias; última compra a <strong>{moneda(ultimo)}</strong></>
             )}
             {" · "}margen de {suCategoria.nombre}:{" "}
-            <strong>{suCategoria.margen_sugerido}%</strong> · precio sugerido{" "}
+            <strong>{porcentaje(suCategoria.margen_sugerido)}</strong> · precio sugerido{" "}
             <strong>{moneda(sugerido)}</strong>
           </span>
           <button
