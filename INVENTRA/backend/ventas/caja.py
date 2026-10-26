@@ -181,7 +181,7 @@ def jornadas_sin_cerrar(licorera, sede=None, limite=5):
     return pendientes
 
 
-def ultimos_cierres(licorera, limite=10):
+def ultimos_cierres(licorera, limite=10, excepto=None):
     """
     Las últimas cajas cerradas, de la más reciente a la más antigua.
 
@@ -189,8 +189,16 @@ def ultimos_cierres(licorera, limite=10):
     se puede llegar no es un registro. No es un informe —eso es del módulo de
     reportes—: es la propia historia del módulo, cuánto se contó cada noche y
     si cuadró.
+
+    `excepto` deja fuera una jornada, que es la que la pantalla ya está
+    enseñando arriba. Sin eso, una jornada con cierre hecho aparece dos veces:
+    arriba con sus totales de ahora y abajo con los que tenía al cerrarse, que
+    no son los mismos si después se vendió más. Las dos cifras son correctas y
+    juntas parecen un error.
     """
-    return (CierreCaja.objects
-            .filter(licorera=licorera)
+    cierres = CierreCaja.objects.filter(licorera=licorera)
+    if excepto is not None:
+        cierres = cierres.exclude(fecha=excepto)
+    return (cierres
             .select_related("sede", "usuario")
             .order_by("-fecha")[:limite])

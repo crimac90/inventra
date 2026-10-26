@@ -735,6 +735,24 @@ class JornadasSinCerrarTests(CajaBase):
 
         self.assertEqual(fechas, [jornada_actual(), self.ayer()])
 
+    def test_la_jornada_que_se_esta_mirando_no_sale_entre_las_anteriores(self):
+        """
+        La pantalla la enseña arriba, con sus totales de ahora; abajo saldría
+        con los que tenía al cerrarse, que no son los mismos si después se
+        vendió más. Las dos cifras son correctas y juntas parecen un error.
+        """
+        self.vender_ayer()
+        cerrar_jornada(licorera=self.licorera, usuario=self.duena,
+                       efectivo_contado=Decimal("100000"), jornada=self.ayer(),
+                       observacion="Cerrada tarde")
+        self.vender(1)
+        self.cerrar("50000")
+
+        fechas = [c.fecha for c in ultimos_cierres(self.licorera,
+                                                   excepto=jornada_actual())]
+
+        self.assertEqual(fechas, [self.ayer()])
+
 
 class AvisoDeDiferenciaTests(CajaBase):
     def test_un_faltante_avisa_por_correo_al_administrador(self):
@@ -1422,6 +1440,16 @@ class ApiDelCierreTests(ApiBase):
 
         self.assertEqual(respuesta.json()["jornada"], anoche.isoformat())
         self.assertFalse(respuesta.json()["en_curso"])
+
+    def test_la_pantalla_no_repite_abajo_la_jornada_que_ensena_arriba(self):
+        self.cobrar()
+        self.client.post(reverse("cierre-de-caja"), {"efectivo_contado": "50000"},
+                         content_type="application/json", **self.entrar())
+
+        datos = self.client.get(reverse("cierre-de-caja"), **self.entrar()).json()
+
+        self.assertIsNotNone(datos["cierre"])
+        self.assertEqual([c["fecha"] for c in datos["anteriores"]], [])
 
     def test_sin_jornada_en_la_direccion_se_mira_la_de_hoy(self):
         respuesta = self.client.get(reverse("cierre-de-caja"), **self.entrar())

@@ -193,9 +193,10 @@ class CierreDeCajaView(APIView):
             "total_tarjeta": resumen["tarjeta"],
             "cierre": CierreSerializer(cierre).data if cierre else None,
             # La historia del módulo, que RF-VEN-06 pide dejar registrada: un
-            # registro al que no se puede llegar no es un registro.
+            # registro al que no se puede llegar no es un registro. Sin la
+            # jornada que se está mirando, que ya está arriba.
             "anteriores": CierreSerializer(
-                ultimos_cierres(licorera), many=True).data,
+                ultimos_cierres(licorera, excepto=jornada), many=True).data,
         })
 
     def post(self, request):
