@@ -138,3 +138,43 @@ def enviar_correo_verificacion(usuario):
         fail_silently=False,
     )
     return enlace
+
+
+ASUNTO_CAMBIO_DE_CORREO = "Se cambió el correo de tu cuenta en INVENTRA"
+
+
+def enviar_aviso_de_cambio_de_correo(usuario, correo_anterior):
+    """
+    Avisa a la dirección ANTERIOR de que la cuenta cambió de correo.
+
+    Es la mitad que protege al dueño. Cambiar el correo deja la cuenta sin
+    confirmar y manda el enlace a la dirección nueva, de modo que quien lo
+    haga sin permiso se queda con una cuenta que no puede registrar nada; pero
+    si nadie se lo dice al dueño, puede tardar días en notar que su correo ya
+    no abre esa puerta. Este mensaje va al único sitio al que el intruso no
+    tiene acceso: la bandeja de siempre.
+
+    No lleva enlace a ninguna parte. Un aviso de seguridad con un botón es
+    indistinguible de la estafa contra la que avisa; quien reciba esto y no lo
+    reconozca tiene que entrar por donde entra siempre.
+    """
+    cuerpo = (
+        f"Hola, {usuario.nombre_completo}:\n\n"
+        f"El correo de acceso de tu cuenta en INVENTRA cambió de\n"
+        f"{correo_anterior} a {usuario.correo}.\n\n"
+        "Desde ahora se entra con la dirección nueva, y la cuenta queda pendiente\n"
+        "de confirmar hasta que alguien abra el enlace que se envió allí.\n\n"
+        "Si fuiste tú, no tienes que hacer nada.\n\n"
+        "Si no fuiste tú, alguien con acceso a tu sesión pudo haberlo cambiado:\n"
+        "entra a INVENTRA como lo haces siempre, cambia tu contraseña y avisa a\n"
+        "quien administra la licorera.\n\n"
+        "INVENTRA\n"
+    )
+
+    send_mail(
+        subject=ASUNTO_CAMBIO_DE_CORREO,
+        message=cuerpo,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[correo_anterior],
+        fail_silently=False,
+    )

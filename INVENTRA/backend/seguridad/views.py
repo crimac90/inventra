@@ -16,7 +16,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from suscripciones.permissions import PuedeRegistrarOperaciones
 
-from .correo import enviar_correo_recuperacion, enviar_correo_verificacion
+from .correo import (enviar_aviso_de_cambio_de_correo,
+                     enviar_correo_recuperacion, enviar_correo_verificacion)
 from .models import Rol, Usuario
 from .permissions import EsAdministradorDeLicorera
 from .reglas import SIN_ADMINISTRADOR, es_el_unico_administrador
@@ -207,8 +208,22 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         enviar no es tarea suya.
         """
         usuario = serializador.save()
-        if getattr(serializador, "cambio_de_correo", False):
+        if not getattr(serializador, "cambio_de_correo", False):
+            return
+
+        anterior = getattr(serializador, "correo_anterior", None)
+        # Ninguno de los dos envíos puede tumbar el cambio: la cuenta ya está
+        # guardada, y un servidor de correo caído no debe convertir una
+        # operación hecha en un error del servidor que nadie puede resolver.
+        try:
             enviar_correo_verificacion(usuario)
+        except Exception:
+            registro.exception("No se pudo enviar la verificación a %s", usuario.correo)
+        if anterior:
+            try:
+                enviar_aviso_de_cambio_de_correo(usuario, anterior)
+            except Exception:
+                registro.exception("No se pudo avisar del cambio de correo a %s", anterior)
 
     def create(self, request, *args, **kwargs):
         """Antes de crear, comprueba que el plan contratado admita un usuario más."""

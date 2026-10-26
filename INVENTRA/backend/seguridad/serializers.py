@@ -284,6 +284,9 @@ class UsuarioActualizarSerializer(serializers.ModelSerializer):
         """
         nuevo = validated_data.get("correo")
         self.cambio_de_correo = bool(nuevo) and nuevo != instance.correo
+        # Se guarda cuál era: el aviso va a la dirección vieja, y después de
+        # guardar ya no hay de dónde sacarla.
+        self.correo_anterior = instance.correo if self.cambio_de_correo else None
         if self.cambio_de_correo:
             instance.correo_verificado = False
         return super().update(instance, validated_data)

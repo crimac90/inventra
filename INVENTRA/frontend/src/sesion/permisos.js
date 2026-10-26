@@ -28,13 +28,22 @@
   ventas»— porque es lo unico que cambia de una a otra; el resto de la frase y la
   eleccion del motivo se deciden en este archivo y no en seis.
 
-  NO TODOS LOS MOTIVOS SE ANUNCIAN, y `avisar` lo decide aqui. Se avisa de lo
-  que la persona puede resolver: confirmar el correo, renovar el plan. Son
-  estados pasajeros, tienen adonde ir y por eso llevan enlace. El rol no es un
-  estado: es el reparto del trabajo, no cambia y no lleva a ninguna parte.
-  Anunciarlo en cada visita seria avisar de algo que no ha ocurrido, porque los
-  botones que explicaria tampoco estan. Esconderlos basta, igual que el menu
-  lateral esconde «Usuarios» sin explicar nada.
+  NO TODOS LOS MOTIVOS SE ANUNCIAN, y `avisar` lo decide aqui.
+
+  El rol no se anuncia: no es un estado sino el reparto del trabajo, no cambia
+  y no lleva a ninguna parte. Anunciarlo en cada visita seria avisar de algo
+  que no ha ocurrido, porque los botones que explicaria tampoco estan.
+  Esconderlos basta, igual que el menu lateral esconde «Usuarios».
+
+  El correo sin confirmar tampoco, y no porque no importe: lo anuncia ya la
+  franja que `Disposicion` pone encima de TODAS las pantallas, con el mismo
+  texto y con su enlace para reenviarlo. Avisarlo otra vez aqui dejaba dos
+  franjas naranjas seguidas diciendo lo mismo con distintas palabras, que es
+  lo que hacia el punto de venta.
+
+  La suscripcion si se anuncia. Su franja solo esta en el panel, de modo que
+  quien entra directo a una pantalla de registro no tendria de donde saber por
+  que no puede guardar nada.
 */
 
 import { ROL_ADMINISTRADOR_LICORERA } from "./roles";
@@ -66,7 +75,7 @@ export function motivoParaNoRegistrar(usuario, suscripcion, accion,
   if (usuario && !usuario.correo_verificado) {
     return {
       clave: "correo",
-      avisar: true,
+      avisar: false,
       texto: `Mientras no confirmes tu correo puedes consultar, pero no ${accion}.`,
       enlace: { a: DESTINO_DEL_CORREO, etiqueta: "Revisar mi correo" },
     };

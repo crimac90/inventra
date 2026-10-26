@@ -249,6 +249,22 @@ function CambioDeContrasena({ salir, navegar }) {
         </div>
       )}
 
+      {/*
+        El valor correcto es «current-password» y se deja asi aunque no evite
+        que el navegador ofrezca la guardada.
+
+        Ningun valor lo evita: el gestor de contrasenas del navegador propone
+        sus credenciales sobre cualquier campo de tipo «password», y lo hace
+        a proposito, porque esa decision es del usuario y de su navegador y no
+        de la pagina que visita. Se probo con «new-password» y sigue
+        ofreciendolas; lo unico que se consigue mintiendo sobre el tipo de
+        campo es que el gestor guarde mal la contrasena nueva.
+
+        Lo que de verdad protege la cuenta es que el cambio exija la
+        contrasena actual y que el servidor la verifique. Un equipo
+        desatendido y desbloqueado con el gestor del navegador abierto es un
+        problema del equipo, no de esta pantalla.
+      */}
       <Campo
         id="contrasena_actual"
         etiqueta="Contraseña actual"

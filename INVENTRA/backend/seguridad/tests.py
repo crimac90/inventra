@@ -12,7 +12,7 @@ Se ejecutan con `py manage.py test seguridad`.
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.encoding import force_bytes
@@ -958,8 +958,13 @@ class CorreoSinConfirmarTests(TestCase):
         vendedor.refresh_from_db()
         self.assertEqual(vendedor.correo, "vendedor.nuevo@prueba.com")
         self.assertFalse(vendedor.correo_verificado)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ["vendedor.nuevo@prueba.com"])
+        # Salen dos correos y cada uno va a una dirección distinta: la
+        # verificación a la nueva, y el aviso de que el cambio ocurrió a la
+        # anterior, que es la única que todavía puede leer quien ya no tiene
+        # la cuenta. Ese segundo correo se añadió después de esta prueba.
+        destinatarios = sorted(sum((mensaje.to for mensaje in mail.outbox), []))
+        self.assertEqual(destinatarios,
+                         ["vendedor.nuevo@prueba.com", "vendedor@prueba.com"])
 
     def test_cambiar_otro_dato_no_toca_la_confirmacion(self):
         """
@@ -988,6 +993,104 @@ class CorreoSinConfirmarTests(TestCase):
         vendedor.refresh_from_db()
         self.assertTrue(vendedor.correo_verificado)
         self.assertEqual(len(mail.outbox), 0)
+
+
+class CambioDeCorreoTests(TestCase):
+    """
+    Cambiar el correo de una cuenta ya confirmada.
+
+    Es la puerta por la que alguien que encuentra una sesión abierta podría
+    quedarse con la cuenta. El sistema no lo impide —cambiar de correo es un
+    trámite normal— pero lo deja sin efecto útil y se lo cuenta al dueño.
+    """
+
+    CLAVE = "Licorera2026"
+
+    def setUp(self):
+        cache.clear()
+        self.licorera = crear_licorera("Aurora", plan_nombre="Pro")
+        self.administrador = Usuario.objects.create_user(
+            correo="admin@aurora.com", nombre_completo="Administradora Aurora",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
+            correo_verificado=True)
+        self.vendedor = Usuario.objects.create_user(
+            correo="vendedor@aurora.com", nombre_completo="Vendedor Aurora",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.VENDEDOR), correo_verificado=True)
+        mail.outbox = []
+
+    def autenticar(self):
+        respuesta = self.client.post(
+            reverse("ingresar"),
+            {"correo": self.administrador.correo, "password": self.CLAVE},
+            content_type="application/json")
+        return {"Authorization": f"Bearer {respuesta.json()['acceso']}"}
+
+    def cambiar_a(self, correo):
+        return self.client.patch(
+            reverse("usuario-detail", args=[self.vendedor.id]),
+            {"correo": correo}, content_type="application/json",
+            headers=self.autenticar())
+
+    def test_la_cuenta_vuelve_a_quedar_sin_confirmar(self):
+        """
+        La marca significa «alguien demostró leer ESTE correo». Movida a otra
+        dirección, dejaría de significarlo.
+        """
+        self.cambiar_a("otro@aurora.com")
+
+        self.vendedor.refresh_from_db()
+        self.assertEqual(self.vendedor.correo, "otro@aurora.com")
+        self.assertFalse(self.vendedor.correo_verificado)
+
+    def test_la_direccion_anterior_recibe_el_aviso(self):
+        """
+        Es el único sitio al que quien hizo el cambio sin permiso no tiene
+        acceso: la bandeja de siempre.
+        """
+        self.cambiar_a("otro@aurora.com")
+
+        destinos = [correo.to for correo in mail.outbox]
+        self.assertIn(["vendedor@aurora.com"], destinos)
+
+    def test_el_aviso_nombra_las_dos_direcciones(self):
+        """Sin las dos, quien lo recibe no sabe qué pasó ni adónde se fue."""
+        self.cambiar_a("otro@aurora.com")
+
+        aviso = next(c for c in mail.outbox if c.to == ["vendedor@aurora.com"])
+        self.assertIn("vendedor@aurora.com", aviso.body)
+        self.assertIn("otro@aurora.com", aviso.body)
+
+    def test_la_direccion_nueva_recibe_el_enlace_de_confirmacion(self):
+        self.cambiar_a("otro@aurora.com")
+
+        destinos = [correo.to for correo in mail.outbox]
+        self.assertIn(["otro@aurora.com"], destinos)
+
+    def test_cambiar_otra_cosa_no_manda_ningun_aviso(self):
+        """Un correo que llega por cambiar un teléfono deja de leerse."""
+        self.client.patch(
+            reverse("usuario-detail", args=[self.vendedor.id]),
+            {"telefono": "3001234567"}, content_type="application/json",
+            headers=self.autenticar())
+
+        self.assertEqual(mail.outbox, [])
+
+    def test_un_correo_caido_no_impide_el_cambio(self):
+        """
+        El cambio ya está guardado cuando se avisa: un servidor de correo que
+        no responde no puede convertirlo en un error del servidor.
+        """
+        with override_settings(
+                EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+                EMAIL_HOST="127.0.0.1", EMAIL_PORT=1):
+            with self.assertLogs("seguridad.views", level="ERROR"):
+                respuesta = self.cambiar_a("otro@aurora.com")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.vendedor.refresh_from_db()
+        self.assertEqual(self.vendedor.correo, "otro@aurora.com")
 
 
 class UltimoAdministradorTests(TestCase):
