@@ -182,7 +182,13 @@ class Licorera(models.Model):
         entre esta consulta y el modelo.
         """
         actual = self.suscripcion_actual()
-        return actual if actual is not None and actual.esta_vigente() else None
+        if actual is None:
+            return None
+        # Se deja escrito el estado alcanzado al mirarlo: es lo que convierte
+        # el suelo en algo que de verdad existe aunque la orden diaria no haya
+        # corrido nunca en este equipo.
+        alcanzado = actual.fijar_estado_alcanzado()
+        return actual if alcanzado in Suscripcion.ESTADOS_OPERATIVOS else None
 
     def plan_vigente(self):
         suscripcion = self.suscripcion_vigente()
@@ -229,6 +235,15 @@ class Suscripcion(models.Model):
     # dejan consultar, pero no escribir. Lo consultarán INV, VEN y los módulos que
     # vengan, así que vive aquí y no repartido por cada vista.
     ESTADOS_OPERATIVOS = ("en_prueba", "activa", "en_mora")
+
+    # De más a menos permisivo. El estado guardado es un suelo: el cálculo por
+    # fecha puede empeorarlo, nunca mejorarlo. Sin esto, atrasar el reloj del
+    # equipo devuelve días de prueba y una cuenta suspendida vuelve a operar,
+    # que es la forma más barata de no pagar nunca. Volver a dejarla operar es
+    # una decisión comercial y entra por donde entran esas decisiones: una
+    # renovación registrada desde el panel, que escribe fecha y estado nuevos.
+    ORDEN_DE_PERMISIVIDAD = ("en_prueba", "activa", "en_mora", "suspendida",
+                             "cancelada")
 
     # Duración de la prueba gratuita (RF-SUS-01). Vive aquí, y no en la vista que
     # registra, porque también la van a necesitar el panel de plataforma y la
@@ -314,7 +329,10 @@ class Suscripcion(models.Model):
         hoy = hoy or timezone.localdate()
         vencida_hace = (hoy - self.fecha_fin).days
         if vencida_hace <= 0:
-            return self.estado
+            # Todavía dentro del plazo según la fecha. Aun así no se devuelve
+            # el estado a secas: si quedó escrito que estaba suspendida, es
+            # que el plazo ya pasó alguna vez y el reloj retrocedió.
+            return self._no_mejor_que_el_guardado(self.estado)
 
         # La prueba no tiene días de gracia: lo dice RF-SUS-03 y tiene sentido,
         # porque quien no ha pagado nunca no está en mora de nada.
@@ -322,12 +340,40 @@ class Suscripcion(models.Model):
             return self.Estado.SUSPENDIDA
 
         if vencida_hace <= self.DIAS_DE_GRACIA:
-            return self.Estado.EN_MORA
-        return self.Estado.SUSPENDIDA
+            return self._no_mejor_que_el_guardado(self.Estado.EN_MORA)
+        return self._no_mejor_que_el_guardado(self.Estado.SUSPENDIDA)
+
+    def _no_mejor_que_el_guardado(self, calculado):
+        """
+        El peor de los dos: el que dice la fecha y el que quedó escrito.
+
+        El reloj del equipo lo controla quien usa el sistema, así que una
+        fecha puede retroceder; lo que quedó escrito, no. Comparar contra él
+        hace que el tiempo solo corra en una dirección.
+        """
+        orden = self.ORDEN_DE_PERMISIVIDAD
+        if self.estado not in orden or calculado not in orden:
+            return calculado
+        return max(calculado, self.estado, key=orden.index)
 
     def esta_vigente(self, hoy=None):
         """Si esta suscripción permite hoy registrar operaciones nuevas."""
         return self.estado_por_fecha(hoy) in self.ESTADOS_OPERATIVOS
+
+    def fijar_estado_alcanzado(self, hoy=None):
+        """
+        Deja escrito el estado si el plazo lo empeoró, y lo devuelve.
+
+        El suelo contra el que se compara solo sirve si alguien lo escribe. La
+        orden diaria lo hace, pero puede no haber corrido nunca en un equipo
+        encendido a ratos, así que también se escribe al pasar por aquí. Solo
+        cuando empeora: el camino de vuelta es una renovación, no un reloj.
+        """
+        calculado = self.estado_por_fecha(hoy)
+        if calculado != self.estado:
+            self.estado = calculado
+            self.save(update_fields=["estado"])
+        return calculado
 
     def dias_para_suspension(self, hoy=None):
         """

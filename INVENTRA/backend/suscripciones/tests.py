@@ -513,6 +513,77 @@ class SuscripcionVigenteTests(TestCase):
         self.assertIsNone(self.licorera.plan_vigente())
 
 
+class RelojHaciaAtrasTests(TestCase):
+    """
+    El tiempo solo corre en una dirección.
+
+    En un despliegue local el reloj lo controla quien usa el sistema, así que
+    atrasarlo devolvería días de prueba y haría operar a una cuenta ya
+    suspendida. El estado guardado es un suelo: el cálculo por fecha puede
+    empeorarlo, nunca mejorarlo.
+    """
+
+    def setUp(self):
+        self.licorera = Licorera.objects.create(
+            nombre="La del reloj", correo="contacto@reloj.com")
+        self.hoy = timezone.localdate()
+        self.suscripcion = Suscripcion.objects.create(
+            licorera=self.licorera,
+            plan=Plan.objects.get(nombre="Pro"),
+            estado=Suscripcion.Estado.EN_PRUEBA,
+            fecha_inicio=self.hoy - timedelta(days=20),
+            fecha_fin=self.hoy - timedelta(days=5),
+            precio_pactado=Plan.objects.get(nombre="Pro").precio_mensual,
+        )
+
+    def test_una_prueba_vencida_queda_suspendida_y_se_escribe(self):
+        """Sin dejarlo escrito no hay suelo contra el que comparar después."""
+        self.assertIsNone(self.licorera.suscripcion_vigente())
+
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.estado, Suscripcion.Estado.SUSPENDIDA)
+
+    def test_atrasar_el_reloj_no_devuelve_los_dias(self):
+        self.licorera.suscripcion_vigente()          # queda escrita como suspendida
+        antes_de_vencer = self.fecha_fin_menos(2)
+
+        self.suscripcion.refresh_from_db()
+        self.assertEqual(self.suscripcion.estado_por_fecha(antes_de_vencer),
+                         Suscripcion.Estado.SUSPENDIDA)
+
+    def test_sin_haber_vencido_nunca_el_reloj_manda(self):
+        """
+        El suelo solo existe cuando el plazo pasó de verdad alguna vez. Una
+        suscripción que nunca venció sigue decidiéndose por su fecha.
+        """
+        vigente = Suscripcion.objects.create(
+            licorera=Licorera.objects.create(nombre="Otra", correo="otra@reloj.com"),
+            plan=Plan.objects.get(nombre="Básico"),
+            estado=Suscripcion.Estado.ACTIVA,
+            fecha_inicio=self.hoy, fecha_fin=self.hoy + timedelta(days=10),
+            precio_pactado=Plan.objects.get(nombre="Básico").precio_mensual,
+        )
+
+        self.assertEqual(vigente.estado_por_fecha(), Suscripcion.Estado.ACTIVA)
+
+    def test_una_renovacion_si_la_devuelve_a_operar(self):
+        """
+        El camino de vuelta existe y no es el reloj: es una decisión comercial
+        que alguien registra.
+        """
+        self.licorera.suscripcion_vigente()
+        self.suscripcion.refresh_from_db()
+
+        self.suscripcion.estado = Suscripcion.Estado.ACTIVA
+        self.suscripcion.fecha_fin = self.hoy + timedelta(days=30)
+        self.suscripcion.save(update_fields=["estado", "fecha_fin"])
+
+        self.assertIsNotNone(self.licorera.suscripcion_vigente())
+
+    def fecha_fin_menos(self, dias):
+        return self.suscripcion.fecha_fin - timedelta(days=dias)
+
+
 class PeriodoDePruebaTests(TestCase):
     """
     Comprueba la prueba gratuita de quince días (RF-SUS-01 y RF-SUS-03).
