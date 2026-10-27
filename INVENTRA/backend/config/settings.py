@@ -58,14 +58,37 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # Los dos siguientes entran con el despliegue, cuando este servidor pasa a
+    # entregar también la página de la interfaz y no solo JSON.
+    #
+    # El de clickjacking impide que esa página se dibuje dentro de un marco en
+    # otro sitio, que es como se engaña a alguien para que pulse un botón que
+    # no está viendo.
+    #
+    # El de CSRF no cambia nada para la API: las vistas de REST framework
+    # nacen exentas y la sesión viaja en el encabezado de autorización, no en
+    # una galleta que el navegador mande sola. Se pone porque la comprobación
+    # de despliegue de Django lo exige y porque el día que algo de aquí use
+    # una galleta, la protección ya está puesta.
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
 
+# Carpeta donde Vite deja la interfaz compilada. El servidor publicado sirve la
+# API y la interfaz desde la MISMA dirección: así no hay dos dominios que
+# coordinar, no hace falta CORS y lo que se entrega es una URL y no dos.
+INTERFAZ_COMPILADA = BASE_DIR.parent / "frontend" / "dist"
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        # El `index.html` que genera Vite se busca aquí. En desarrollo esa
+        # carpeta no existe —la interfaz la sirve Vite en su propio puerto— y
+        # no pasa nada: solo se consulta al pedir una dirección que no es de
+        # la API.
+        "DIRS": [INTERFAZ_COMPILADA],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -199,6 +222,17 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Los archivos que Vite compila entran al mismo almacen de estaticos que los de
+# Django, bajo el prefijo «assets» que la propia compilacion usa. Asi el
+# servidor publicado necesita UNA sola regla —/static/ a la carpeta
+# recolectada— en vez de dos, y `collectstatic` se los lleva con todo lo demas.
+#
+# La carpeta se incluye solo si existe: en un equipo donde nunca se ha
+# compilado la interfaz, Django avisaria de un directorio inexistente en cada
+# orden que se ejecute, incluidas las pruebas.
+_ASSETS = INTERFAZ_COMPILADA / "assets"
+STATICFILES_DIRS = [("assets", _ASSETS)] if _ASSETS.is_dir() else []
+
 
 # ---------------------------------------------------------------------------
 # API REST
@@ -248,3 +282,48 @@ SIMPLE_JWT = {
 # ---------------------------------------------------------------------------
 
 CORS_ALLOWED_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGENES", "").split(",") if o.strip()]
+
+# En el servidor publicado esta lista queda vacía a propósito: la interfaz se
+# sirve desde la misma dirección que la API, de modo que el navegador no hace
+# ninguna petición entre orígenes y no hay nada que autorizar.
+
+
+# ---------------------------------------------------------------------------
+# Lo que cambia cuando el sistema está publicado
+# ---------------------------------------------------------------------------
+#
+# Estas protecciones cuelgan de DEBUG y no de una variable propia porque solo
+# tienen sentido detrás de HTTPS: con la redirección puesta, el servidor de
+# desarrollo mandaría el navegador a `https://127.0.0.1:8000`, donde no hay
+# nada escuchando. Una variable aparte sería una cosa más que acordarse de
+# poner el día del despliegue, y el día del despliegue se olvidan cosas.
+
+if not DEBUG:
+    # El alojamiento termina el TLS en su propio servidor y reenvía la petición
+    # por HTTP con esta cabecera. Sin la línea, Django cree que la conexión es
+    # insegura, redirige a HTTPS, el proxy vuelve a entregarla por HTTP y el
+    # navegador acaba en un bucle de redirecciones.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+
+    # Un año. La cabecera le dice al navegador que no vuelva a intentar HTTP
+    # con este dominio ni aunque el usuario escriba la dirección a mano.
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    # `preload` es solo una declaración: no hace nada hasta que alguien
+    # inscribe el dominio en la lista que mantienen los navegadores.
+    SECURE_HSTS_PRELOAD = True
+
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # La sesión viaja en el encabezado de autorización y no en una galleta, de
+    # modo que esto protege poco; se pone igual, porque el día que algo use una
+    # galleta nadie va a volver a este archivo.
+    X_FRAME_OPTIONS = "DENY"
+
+    # Direcciones desde las que se aceptan formularios. La API no usa
+    # formularios —todo va por JSON con su token—, pero la comprobación de
+    # despliegue de Django la exige y cuesta una línea.
+    CSRF_TRUSTED_ORIGINS = [
+        "https://%s" % h for h in ALLOWED_HOSTS if not h.startswith(".")
+    ]
