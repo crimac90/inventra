@@ -14,6 +14,14 @@ para guardarlo sería la tercera fuera del modelo entregado, y lo que resolverí
 Lo que sí hace falta es un valor por omisión, porque el panel enseña la cifra
 sin preguntar.
 
+UN PLAZO MAYOR SIEMPRE DEVUELVE MENOS O LO MISMO QUE UNO MENOR, nunca más. Lo que
+se pregunta es «no se ha vendido en los últimos N días», de modo que lo que lleva
+noventa días quieto lleva también sesenta y treinta: las tres listas se contienen
+unas a otras. Que los tres plazos devuelvan exactamente las mismas referencias no
+es un defecto del filtro; significa que ninguna referencia tiene su última venta
+entre los treinta y los noventa días, y las que salen no es que lleven cuarenta
+días paradas, es que no se han vendido nunca.
+
 LAS ANULADAS NO CUENTAN COMO VENTA. Una referencia que solo aparece en una
 venta deshecha no se ha vendido, y decir lo contrario escondería justo la
 referencia estancada que se quiere encontrar.

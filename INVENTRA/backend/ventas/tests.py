@@ -1094,6 +1094,24 @@ class RotacionTests(CajaBase):
         self.assertIn(self.ron, sin_rotacion(self.catalogo(), self.licorera, 30))
         self.assertNotIn(self.ron, sin_rotacion(self.catalogo(), self.licorera, 60))
 
+    def test_un_plazo_mayor_nunca_devuelve_mas_que_uno_menor(self):
+        """
+        Las tres listas se contienen unas a otras: lo que lleva noventa días
+        quieto lleva también sesenta y treinta. Por eso los tres plazos pueden
+        devolver exactamente lo mismo sin que el filtro falle —significa que
+        ninguna referencia tiene su ultima venta entre esos dos puntos—.
+        """
+        self.vender(1, cuando=timezone.now() - timedelta(days=45))
+        crear_producto(self.licorera, "Whisky que nadie pide", precio="200000")
+
+        a_30 = set(sin_rotacion(self.catalogo(), self.licorera, 30))
+        a_60 = set(sin_rotacion(self.catalogo(), self.licorera, 60))
+        a_90 = set(sin_rotacion(self.catalogo(), self.licorera, 90))
+
+        self.assertTrue(a_90 <= a_60 <= a_30)
+        self.assertIn(self.ron, a_30)
+        self.assertNotIn(self.ron, a_60)
+
     def test_un_plazo_imposible_no_rompe_la_consulta(self):
         """La pantalla se abre igual y enseña la pregunta que sí sabe contestar."""
         self.assertEqual(dias_validos("45"), DIAS_POR_OMISION)
@@ -1280,6 +1298,39 @@ class ApiDelHistorialTests(ApiBase):
                                     **self.entrar())
 
         self.assertEqual(len(respuesta.json()["lineas"]), 1)
+
+    def test_el_filtro_de_fechas_funciona_desde_la_direccion(self):
+        """
+        Las fechas llegan como texto y la consulta las espera como jornadas.
+        Sin traducirlas la pantalla no filtra: se rompe.
+        """
+        self.cobrar(1)
+        hoy = jornada_actual()
+
+        respuesta = self.listar(desde=hoy.isoformat(), hasta=hoy.isoformat())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(respuesta.json()["count"], 1)
+
+    def test_el_filtro_de_fechas_deja_fuera_lo_de_otra_jornada(self):
+        """Filtrar y no filtrar no pueden dar lo mismo."""
+        self.cobrar(1)
+        manana = (jornada_actual() + timedelta(days=1)).isoformat()
+
+        self.assertEqual(self.listar(desde=manana).json()["count"], 0)
+
+    def test_una_fecha_ilegible_se_avisa_y_no_devuelve_todo(self):
+        """
+        Devolver el historial entero con los filtros puestos en la pantalla
+        haría creer a quien mira que está viendo un período.
+        """
+        self.cobrar(1)
+
+        for valor in ("ayer", "2026-02-31"):
+            respuesta = self.listar(desde=valor)
+
+            self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertIn("aaaa-mm-dd", respuesta.json()["detalle"])
 
     def test_no_se_ven_las_ventas_de_otra_licorera(self):
         self.cobrar(1)

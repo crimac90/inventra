@@ -53,6 +53,20 @@ class MediosDePagoView(ListAPIView):
         return MedioPago.objects.filter(activo=True)
 
 
+def jornada_pedida(valor):
+    """
+    La jornada que viene en la dirección, o None si no viene o no se puede leer.
+
+    `parse_date` devuelve None cuando el texto no tiene forma de fecha, pero
+    levanta un error cuando la tiene y el día no existe —un 31 de febrero—. Para
+    quien consulta las dos cosas son la misma: una fecha que no se puede usar.
+    """
+    try:
+        return parse_date(valor or "")
+    except ValueError:
+        return None
+
+
 class VentaViewSet(mixins.ListModelMixin,
                    mixins.RetrieveModelMixin,
                    viewsets.GenericViewSet):
@@ -74,8 +88,9 @@ class VentaViewSet(mixins.ListModelMixin,
         parametros = self.request.query_params
 
         def fecha(nombre):
-            valor = parametros.get(nombre)
-            return valor or None
+            # Las fechas llegan como texto y `filtrar` las espera como
+            # jornadas: sin traducirlas, el filtro no consulta, se rompe.
+            return jornada_pedida(parametros.get(nombre))
 
         consulta = filtrar(
             self.request.user.licorera,
@@ -96,6 +111,17 @@ class VentaViewSet(mixins.ListModelMixin,
         y los indicadores llegaran de dos momentos distintos y dijeran cosas
         que no concuerdan.
         """
+        ilegibles = [nombre for nombre in ("desde", "hasta")
+                     if request.query_params.get(nombre)
+                     and jornada_pedida(request.query_params[nombre]) is None]
+        if ilegibles:
+            # Ignorarlas devolvería el historial entero con los filtros puestos
+            # en la pantalla: quien mira creería estar viendo un período.
+            return Response(
+                {"detalle": "No se entiende la fecha de «%s». Se escribe como "
+                            "aaaa-mm-dd." % "» y «".join(ilegibles)},
+                status=status.HTTP_400_BAD_REQUEST)
+
         consulta = self.filter_queryset(self.get_queryset())
         pagina = self.paginate_queryset(consulta)
         datos = self.get_serializer(
@@ -176,7 +202,7 @@ class CierreDeCajaView(APIView):
         sede = Sede.principal_de(licorera)
 
         jornada = jornada_actual()
-        pedida = parse_date(request.query_params.get("jornada") or "")
+        pedida = jornada_pedida(request.query_params.get("jornada"))
         # Una fecha ilegible no es motivo para no abrir la pantalla: se enseña
         # la jornada en curso, que es lo que se pedía sin parámetro.
         if pedida is not None:
