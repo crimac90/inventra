@@ -646,6 +646,19 @@ class CerrarJornadaTests(CajaBase):
         self.assertEqual(cierre.total_transferencia, Decimal("150000"))
         self.assertEqual(cierre.diferencia, Decimal("0"))
 
+    def test_una_jornada_sin_ventas_se_cierra_en_cero(self):
+        """
+        Una noche sin una sola venta es una noche de trabajo igual. El cierre
+        en cero deja constancia de que alguien miró el cajón y no había nada,
+        que es distinto de no haber cerrado.
+        """
+        cierre, _ = self.cerrar("0")
+
+        self.assertEqual(cierre.total_efectivo, Decimal("0"))
+        self.assertEqual(cierre.efectivo_contado, Decimal("0"))
+        self.assertEqual(cierre.diferencia, Decimal("0"))
+        self.assertFalse(cierre.hay_que_explicar)
+
     def test_rehacer_no_crea_otro_cierre_y_recalcula_entero(self):
         """
         Quien cierra antes de tiempo no se queda sin salida: se vuelve a cerrar
@@ -747,6 +760,21 @@ class JornadasSinCerrarTests(CajaBase):
         self.assertEqual(pendientes[0]["fecha"], self.ayer())
         self.assertEqual(pendientes[0]["transacciones"], 1)
         self.assertEqual(pendientes[0]["total"], Decimal("100000"))
+
+    def test_una_jornada_sin_ventas_no_queda_pendiente(self):
+        """
+        El aviso se arma recorriendo las ventas, de modo que un día sin
+        ninguna no produce jornada que reclamar. Es lo correcto: no hay cajón
+        que cuadrar donde no entró dinero, y avisar de cada domingo cerrado
+        convertiría el aviso en ruido que se aprende a ignorar.
+        """
+        anteayer = jornada_actual() - timedelta(days=2)
+        self.vender(1, cuando=limites_de(anteayer)[0] + timedelta(hours=14))
+
+        pendientes = [p["fecha"] for p in jornadas_sin_cerrar(self.licorera)]
+
+        self.assertIn(anteayer, pendientes)
+        self.assertNotIn(jornada_actual() - timedelta(days=1), pendientes)
 
     def test_la_jornada_en_curso_no_sale(self):
         """Todavía está a tiempo: avisar sería avisar de algo que no ha pasado."""
