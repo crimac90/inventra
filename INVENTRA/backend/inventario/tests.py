@@ -88,6 +88,61 @@ class CatalogoBase(TestCase):
                                 content_type="application/json", **self.entrar())
 
 
+class IntrusionEnInventarioTests(CatalogoBase):
+    """
+    Lo que intentaria alguien de otro negocio que conoce un identificador.
+
+    Editar y ajustar lo ajeno ya se comprueba en otras clases; lo que faltaba
+    era pedir la ficha y la entrada por su numero, que son consultas distintas
+    de la lista y podrian no llevar el mismo filtro.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.producto = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria,
+            nombre="Ron de la casa", presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=50000, stock_minimo=5)
+        self.entrada = registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.producto, "cantidad": 10,
+                     "costo_unitario": 30000}])
+        self.ajena = crear_negocio("Girardota")
+        self.intrusa = crear_usuario(self.ajena, "intrusa@inv.com",
+                                     Rol.ADMINISTRADOR_LICORERA)
+
+    def test_no_se_abre_la_ficha_de_un_producto_de_otra_licorera(self):
+        respuesta = self.client.get(
+            reverse("producto-detail", args=[self.producto.id]),
+            **self.entrar(self.intrusa.correo))
+
+        self.assertEqual(respuesta.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_no_se_abre_una_entrada_de_mercancia_de_otra_licorera(self):
+        """Una entrada ensena costos de compra: es de lo mas sensible que hay."""
+        respuesta = self.client.get(
+            reverse("entrada-detail", args=[self.entrada.id]),
+            **self.entrar(self.intrusa.correo))
+
+        self.assertEqual(respuesta.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_un_texto_de_inyeccion_en_el_buscador_no_rompe_ni_filtra(self):
+        respuesta = self.client.get(
+            reverse("producto-list"), {"buscar": "' OR 1=1 --"},
+            **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(respuesta.json()["count"], 0)
+        self.assertTrue(Producto.objects.filter(pk=self.producto.pk).exists())
+
+    def test_sin_credencial_no_se_entra_al_catalogo(self):
+        for nombre in ("producto-list", "entrada-list", "categorias",
+                       "resumen-inventario"):
+            respuesta = self.client.get(reverse(nombre))
+            self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED,
+                             "%s respondio %s" % (nombre, respuesta.status_code))
+
+
 class CategoriasSembradasTests(CatalogoBase):
     """Las categorías nacen con la licorera y no se gestionan (RF-INV-01)."""
 

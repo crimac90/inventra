@@ -1093,6 +1093,94 @@ class CambioDeCorreoTests(TestCase):
         self.assertEqual(self.vendedor.correo, "otro@aurora.com")
 
 
+class CredencialesYSesionTests(TestCase):
+    """
+    Lo que una credencial valida deja de poder hacer cuando cambia el estado de
+    quien la obtuvo.
+
+    Un token firmado no se puede retirar: viaja por su cuenta y vale hasta que
+    caduca. Lo que se comprueba aqui es que el servidor lo rechace igual cuando
+    la cuenta detras ya no deberia entrar.
+    """
+
+    CLAVE = "Licorera2026"
+
+    def setUp(self):
+        cache.clear()
+        self.licorera = crear_licorera("Sabaneta", plan_nombre="Pro")
+        self.usuario = Usuario.objects.create_user(
+            correo="persona@prueba.com", nombre_completo="Persona de Prueba",
+            password=self.CLAVE, licorera=self.licorera,
+            rol=Rol.objects.get(nombre=Rol.ADMINISTRADOR_LICORERA),
+            correo_verificado=True,
+        )
+
+    def ingresar(self):
+        return self.client.post(
+            reverse("ingresar"),
+            {"correo": self.usuario.correo, "password": self.CLAVE},
+            content_type="application/json").json()
+
+    def test_la_credencial_de_una_cuenta_inactivada_deja_de_valer(self):
+        """
+        Inactivar a alguien que esta trabajando no le cierra la pantalla sola:
+        su token sigue siendo valido y firmado. Tiene que ser el servidor quien
+        lo rechace.
+        """
+        cabecera = {"HTTP_AUTHORIZATION": "Bearer %s" % self.ingresar()["acceso"]}
+        self.assertEqual(
+            self.client.get(reverse("perfil"), **cabecera).status_code,
+            status.HTTP_200_OK)
+
+        self.usuario.activo = False
+        self.usuario.save(update_fields=["activo"])
+
+        self.assertEqual(
+            self.client.get(reverse("perfil"), **cabecera).status_code,
+            status.HTTP_401_UNAUTHORIZED)
+
+    def test_al_cerrar_sesion_el_token_de_refresco_ya_no_renueva(self):
+        """Lo que se puede retirar de verdad es el refresco, y se retira."""
+        credenciales = self.ingresar()
+        cabecera = {"HTTP_AUTHORIZATION": "Bearer %s" % credenciales["acceso"]}
+
+        self.client.post(reverse("salir"), {"refresco": credenciales["refresco"]},
+                         content_type="application/json", **cabecera)
+
+        respuesta = self.client.post(
+            reverse("renovar"), {"refresco": credenciales["refresco"]},
+            content_type="application/json")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_el_limite_de_intentos_corta_la_fuerza_bruta(self):
+        """Veinte por hora: probar contrasenas en serie deja de ser gratis."""
+        ultimo = None
+        for _ in range(25):
+            ultimo = self.client.post(
+                reverse("ingresar"),
+                {"correo": self.usuario.correo, "password": "equivocada"},
+                content_type="application/json")
+
+        self.assertEqual(ultimo.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_recuperar_no_dice_si_el_correo_existe(self):
+        """
+        Responder distinto a un correo registrado y a uno que no lo esta
+        convierte la pantalla en un listado de clientes.
+        """
+        conocido = self.client.post(
+            reverse("recuperar"), {"correo": self.usuario.correo},
+            content_type="application/json")
+        cache.clear()
+        desconocido = self.client.post(
+            reverse("recuperar"), {"correo": "nadie@prueba.com"},
+            content_type="application/json")
+
+        self.assertEqual(conocido.status_code, desconocido.status_code)
+        self.assertEqual(conocido.json(), desconocido.json())
+
+
 class UltimoAdministradorTests(TestCase):
     """
     Una licorera no puede quedarse sin ningún administrador activo (RF-SEG-05

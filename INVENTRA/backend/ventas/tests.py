@@ -1266,6 +1266,71 @@ class ApiDeVentaTests(ApiBase):
         self.assertEqual(Decimal(respuesta.json()["cambio"]), Decimal("10000"))
 
 
+class IntrusionEnVentasTests(ApiBase):
+    """
+    Lo que intentaria alguien de otro negocio que conoce un identificador.
+
+    El aislamiento por licorera ya se comprueba en las listas, y una lista que
+    no ensena lo ajeno puede convivir con un detalle que si lo entrega: son dos
+    consultas distintas. Aqui se piden por su numero las direcciones de una
+    sola fila.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.ajena = crear_negocio("Guarne")
+        self.intrusa = crear_usuario(self.ajena, "intrusa@api.com",
+                                     Rol.ADMINISTRADOR_LICORERA)
+
+    def test_no_se_abre_una_venta_de_otra_licorera_por_su_numero(self):
+        venta = self.cobrar(1).json()
+
+        respuesta = self.client.get(reverse("venta-detail", args=[venta["id"]]),
+                                    **self.entrar(self.intrusa.correo))
+
+        self.assertEqual(respuesta.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_no_se_anula_una_venta_de_otra_licorera(self):
+        """Lo grave no es ver la venta ajena, es poder deshacerla."""
+        venta = self.cobrar(1).json()
+
+        respuesta = self.client.post(
+            reverse("venta-anular", args=[venta["id"]]), {"motivo": "Devuelta"},
+            content_type="application/json", **self.entrar(self.intrusa.correo))
+
+        self.assertEqual(respuesta.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(Venta.objects.get(pk=venta["id"]).estado,
+                         Venta.Estado.ACTIVA)
+
+    def test_sin_credencial_no_se_entra_a_ninguna_direccion(self):
+        for nombre in ("venta-list", "cierre-de-caja", "medios-de-pago"):
+            respuesta = self.client.get(reverse(nombre))
+            self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED,
+                             "%s respondio %s" % (nombre, respuesta.status_code))
+
+    def test_una_credencial_inventada_no_vale(self):
+        respuesta = self.client.get(
+            reverse("venta-list"),
+            HTTP_AUTHORIZATION="Bearer esto.no.es.un.token")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_un_texto_de_inyeccion_en_el_buscador_no_rompe_ni_filtra(self):
+        """
+        El ORM parametriza y esto deberia tratarse como texto a buscar. La
+        prueba existe para que deje de ser una creencia.
+        """
+        self.cobrar(1)
+
+        respuesta = self.client.get(
+            reverse("venta-list"), {"buscar": "'; DROP TABLE venta; --"},
+            **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(respuesta.json()["count"], 0)
+        self.assertEqual(Venta.objects.count(), 1)
+
+
 class SuscripcionYOperacionesTests(ApiBase):
     """
     RF-SUS-03 visto desde el modulo que lo sufre: una cuenta suspendida deja
