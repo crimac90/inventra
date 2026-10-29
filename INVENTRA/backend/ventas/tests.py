@@ -491,6 +491,7 @@ class CajaBase(TestCase):
         self.cajero = crear_usuario(self.licorera, "cajero@caja.com", Rol.VENDEDOR)
         self.efectivo = MedioPago.objects.get(nombre=MedioPago.EFECTIVO)
         self.tarjeta = MedioPago.objects.get(nombre=MedioPago.TARJETA)
+        self.transferencia = MedioPago.objects.get(nombre=MedioPago.TRANSFERENCIA)
         self.ron = crear_producto(self.licorera, "Ron de caja", precio="50000")
         registrar_entrada(
             licorera=self.licorera, usuario=self.cajero,
@@ -602,6 +603,48 @@ class CerrarJornadaTests(CajaBase):
         self.vender(2)
 
         self.assertEqual(self.cerrar("105000")[0].diferencia, Decimal("5000"))
+
+    def test_lo_cobrado_por_tarjeta_no_entra_en_la_diferencia(self):
+        """
+        Solo se compara el efectivo: la tarjeta y la transferencia no pasan por
+        el cajón. Una jornada cobrada entera con tarjeta se cuenta con cero en
+        la caja y cuadra; restarla haría aparecer un faltante del tamaño de lo
+        vendido y mandaría al administrador a buscar un dinero que nunca estuvo
+        allí.
+        """
+        self.vender(2, medio=self.tarjeta)
+
+        cierre, _ = self.cerrar("0")
+
+        self.assertEqual(cierre.total_tarjeta, Decimal("100000"))
+        self.assertEqual(cierre.diferencia, Decimal("0"))
+        self.assertFalse(cierre.hay_que_explicar)
+
+    def test_lo_cobrado_por_transferencia_tampoco_entra_en_la_diferencia(self):
+        """
+        Los dos medios que no pasan por el cajón se comprueban por separado:
+        una prueba que solo mire la tarjeta deja la transferencia a oscuras.
+        """
+        self.vender(2, medio=self.transferencia)
+
+        cierre, _ = self.cerrar("0")
+
+        self.assertEqual(cierre.total_transferencia, Decimal("100000"))
+        self.assertEqual(cierre.diferencia, Decimal("0"))
+        self.assertFalse(cierre.hay_que_explicar)
+
+    def test_con_los_tres_medios_solo_se_cuenta_el_efectivo(self):
+        """El caso de verdad: una noche mezclada, donde la cuenta se puede errar."""
+        self.vender(1)
+        self.vender(2, medio=self.tarjeta)
+        self.vender(3, medio=self.transferencia)
+
+        cierre, _ = self.cerrar("50000")
+
+        self.assertEqual(cierre.total_efectivo, Decimal("50000"))
+        self.assertEqual(cierre.total_tarjeta, Decimal("100000"))
+        self.assertEqual(cierre.total_transferencia, Decimal("150000"))
+        self.assertEqual(cierre.diferencia, Decimal("0"))
 
     def test_rehacer_no_crea_otro_cierre_y_recalcula_entero(self):
         """
@@ -1221,6 +1264,61 @@ class ApiDeVentaTests(ApiBase):
         respuesta = self.cobrar(1, monto_recibido="60000")
 
         self.assertEqual(Decimal(respuesta.json()["cambio"]), Decimal("10000"))
+
+
+class SuscripcionYOperacionesTests(ApiBase):
+    """
+    RF-SUS-03 visto desde el modulo que lo sufre: una cuenta suspendida deja
+    consultar y no deja registrar.
+
+    La regla no vive en estas vistas sino en un permiso compartido, y por eso
+    mismo hace falta comprobarla aqui: lo que se verifica no es el permiso, que
+    ya tiene sus pruebas, sino que las direcciones de ventas lo lleven puesto.
+    Un permiso correcto que nadie engancha no protege nada.
+    """
+
+    def suspender(self):
+        from suscripciones.models import Suscripcion
+        (Suscripcion.objects
+         .filter(licorera=self.licorera)
+         .update(estado=Suscripcion.Estado.SUSPENDIDA))
+
+    def test_una_cuenta_suspendida_no_puede_cobrar(self):
+        self.suspender()
+
+        respuesta = self.cobrar(1)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_una_cuenta_suspendida_si_puede_consultar(self):
+        """Media frase del requisito es que consultar se pueda siempre."""
+        self.cobrar(1)
+        self.suspender()
+
+        respuesta = self.client.get(reverse("venta-list"), **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertEqual(respuesta.json()["count"], 1)
+
+    def test_una_cuenta_suspendida_no_puede_anular(self):
+        venta = self.cobrar(1).json()
+        self.suspender()
+
+        respuesta = self.client.post(
+            reverse("venta-anular", args=[venta["id"]]), {"motivo": "Devuelta"},
+            content_type="application/json", **self.entrar(self.duena.correo))
+
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_una_cuenta_suspendida_no_puede_cerrar_la_caja(self):
+        self.cobrar(1)
+        self.suspender()
+
+        respuesta = self.client.post(
+            reverse("cierre-de-caja"), {"efectivo_contado": "50000"},
+            content_type="application/json", **self.entrar())
+
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class ApiDeAnulacionTests(ApiBase):
