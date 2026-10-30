@@ -189,7 +189,18 @@ def anular_venta(*, venta, usuario, motivo):
     vendería después de lo que se compró más tarde, y su costo dejaría de
     corresponder a la compra por la que entró.
     """
-    if venta.estado != Venta.Estado.ACTIVA:
+    # La fila de la venta se bloquea y se vuelve a leer antes de mirar su
+    # estado. El objeto que llega lo cargó la vista fuera de la transacción:
+    # dos anulaciones simultáneas de la misma venta leerían las dos «activa»,
+    # pasarían las dos esta comprobación y devolverían las dos la mercancía,
+    # y el inventario ganaría unidades que nunca existieron. El bloqueo de los
+    # lotes, más abajo, no lo impide: ordena a las dos, no descarta a ninguna.
+    # Se bloquea la fila y se mira SU estado, no el del objeto recibido. No se
+    # reemplaza la variable a propósito: quien llama se queda con el objeto que
+    # pasó, y verlo cambiar o no cambiar según el camino sería una trampa.
+    bloqueada = Venta.objects.select_for_update().get(pk=venta.pk)
+
+    if bloqueada.estado != Venta.Estado.ACTIVA:
         raise ValidationError("Esa venta ya está anulada.")
     if not (motivo or "").strip():
         raise ValidationError("Escribe el motivo de la anulación.")

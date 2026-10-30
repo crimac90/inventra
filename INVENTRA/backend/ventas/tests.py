@@ -555,6 +555,27 @@ class ResumenDeLaJornadaTests(CajaBase):
         self.assertEqual(resumen["tarjeta"], Decimal("50000"))
         self.assertEqual(resumen["transacciones"], 2)
 
+    def test_no_se_anula_dos_veces_con_un_objeto_que_quedo_atrasado(self):
+        """
+        El caso que una prueba sí puede reproducir de la anulación doble.
+
+        Dos anulaciones simultáneas de la misma venta leen las dos «activa»
+        antes de que ninguna confirme. Eso no se puede provocar a solas, pero
+        sí se puede reproducir su consecuencia: un objeto en memoria que dice
+        «activa» cuando la base ya dice «anulada». Si la comprobación se hace
+        sobre el objeto recibido en vez de releer la fila bloqueada, la
+        mercancía vuelve al lote por segunda vez.
+        """
+        venta = self.vender(2)
+        atrasada = Venta.objects.get(pk=venta.pk)       # copia en memoria
+        self.anular(venta)                              # la base ya dice anulada
+        antes = existencias_de(self.ron, self.sede)
+
+        with self.assertRaises(ValidationError):
+            anular_venta(venta=atrasada, usuario=self.duena, motivo="Otra vez")
+
+        self.assertEqual(existencias_de(self.ron, self.sede), antes)
+
     def test_una_venta_anulada_no_es_dinero(self):
         self.vender(1)
         anular_venta(venta=self.vender(1), usuario=self.duena, motivo="Se devolvió")
