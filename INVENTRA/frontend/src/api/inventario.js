@@ -84,6 +84,10 @@ export function listarEntradas() {
   return api.get("/inventario/entradas/");
 }
 
+export function anularEntrada(id, motivo) {
+  return api.post(`/inventario/entradas/${id}/anular/`, { motivo });
+}
+
 export function ajustarExistencias(id, { cantidad, motivo }) {
   return api.post(`/inventario/productos/${id}/ajustar/`, { cantidad, motivo });
 }

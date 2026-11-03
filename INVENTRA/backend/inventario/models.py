@@ -222,6 +222,24 @@ class EntradaMercancia(models.Model):
         verbose_name_plural = "entradas de mercancía"
         ordering = ["-fecha"]
 
+    @property
+    def anulada(self):
+        """
+        Si la entrada se deshizo.
+
+        No es una columna: se deduce de su movimiento de anulación en el
+        kardex, que es el registro de lo que pasó. Una columna más sería una
+        segunda verdad que mantener al día.
+        """
+        return self.movimientos_de_anulacion().exists()
+
+    def movimientos_de_anulacion(self):
+        from .models import MovimientoInventario
+        return MovimientoInventario.objects.filter(
+            tipo=MovimientoInventario.Tipo.ANULACION_ENTRADA,
+            documento_tipo=MovimientoInventario.Documento.ENTRADA,
+            documento_id=self.id)
+
     def __str__(self):
         return f"Entrada {self.id} — {self.fecha:%d/%m/%Y}"
 
@@ -321,6 +339,7 @@ class MovimientoInventario(models.Model):
         ENTRADA = "entrada", "Entrada"
         VENTA = "venta", "Venta"
         ANULACION_VENTA = "anulacion_venta", "Anulación de venta"
+        ANULACION_ENTRADA = "anulacion_entrada", "Anulación de entrada"
         AJUSTE_POSITIVO = "ajuste_positivo", "Ajuste positivo"
         AJUSTE_NEGATIVO = "ajuste_negativo", "Ajuste negativo"
         TRASLADO_SALIDA = "traslado_salida", "Traslado (salida)"
@@ -351,7 +370,7 @@ class MovimientoInventario(models.Model):
         help_text="Lote afectado, si aplica.",
     )
     tipo = models.CharField(
-        max_length=16, choices=Tipo.choices, help_text="Naturaleza del movimiento.",
+        max_length=20, choices=Tipo.choices, help_text="Naturaleza del movimiento.",
     )
     cantidad = models.IntegerField(
         help_text="Positiva si suma a las existencias, negativa si resta.",

@@ -30,7 +30,7 @@ from . import datos_demo
 from .existencias import existencias_de, existencias_totales
 from .kardex import registrar_movimiento
 from .models import Categoria, EntradaMercancia, LoteInventario, MovimientoInventario, Producto
-from .operaciones import registrar_entrada
+from .operaciones import anular_entrada, registrar_entrada
 from .peps import consumir, costo_total
 
 CLAVE = "Licorera2026"
@@ -566,6 +566,202 @@ class QuienPuedeTocarElCatalogoTests(CatalogoBase):
 
         respuesta = self.client.get(reverse("producto-list"), **self.entrar())
         self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+
+class AnulacionDeEntradaTests(CatalogoBase):
+    """
+    Deshacer una entrada de mercancía entera (RF-INV-12).
+
+    Es la única salida cuando el costo de compra se digitó mal: el kardex no se
+    edita y un ajuste negativo descontaría por antigüedad, llevándose el lote
+    anterior en vez del equivocado.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.ron = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria,
+            nombre="Ron de prueba", presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=48500, stock_minimo=5)
+        self.sede = Sede.principal_de(self.licorera)
+
+    def entrada_de(self, cantidad=10, costo="38000.00"):
+        return registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            proveedor="Distribuidora del Valle",
+            lineas=[{"producto": self.ron, "cantidad": cantidad,
+                     "costo_unitario": Decimal(costo)}])
+
+    def test_una_entrada_intacta_se_deshace_entera(self):
+        entrada = self.entrada_de(10)
+        self.assertEqual(existencias_de(self.ron, self.sede), 10)
+
+        anular_entrada(entrada=entrada, usuario=self.administrador,
+                       motivo="El costo se digitó mal")
+
+        self.assertEqual(existencias_de(self.ron, self.sede), 0)
+        self.assertTrue(EntradaMercancia.objects.get(pk=entrada.pk).anulada)
+
+    def test_deshacer_deja_su_rastro_en_el_kardex(self):
+        """El inventario no cambia sin que el kardex lo cuente."""
+        entrada = self.entrada_de(10)
+
+        anular_entrada(entrada=entrada, usuario=self.administrador,
+                       motivo="Factura equivocada")
+
+        movimiento = (MovimientoInventario.objects
+                      .filter(tipo=MovimientoInventario.Tipo.ANULACION_ENTRADA)
+                      .get())
+        self.assertEqual(movimiento.cantidad, -10)
+        self.assertEqual(movimiento.saldo_resultante, 0)
+        self.assertEqual(movimiento.motivo, "Factura equivocada")
+
+    def test_no_se_deshace_si_ya_salio_mercancia(self):
+        """
+        En cuanto una unidad sale, deshacer obligaría a decidir de dónde salió
+        lo vendido, y cualquier respuesta falsea un costo ya cobrado.
+        """
+        entrada = self.entrada_de(10)
+        consumir(producto=self.ron, sede=self.sede, cantidad=1,
+                 tipo=MovimientoInventario.Tipo.VENTA, usuario=self.administrador,
+                 documento_tipo=MovimientoInventario.Documento.VENTA,
+                 documento_id=1)
+
+        with self.assertRaises(ValidationError):
+            anular_entrada(entrada=entrada, usuario=self.administrador,
+                           motivo="Tarde")
+
+        self.assertEqual(existencias_de(self.ron, self.sede), 9)
+
+    def test_no_se_deshace_dos_veces(self):
+        entrada = self.entrada_de(10)
+        anular_entrada(entrada=entrada, usuario=self.administrador, motivo="Una")
+
+        with self.assertRaises(ValidationError):
+            anular_entrada(entrada=entrada, usuario=self.administrador, motivo="Otra")
+
+        self.assertEqual(
+            MovimientoInventario.objects.filter(
+                tipo=MovimientoInventario.Tipo.ANULACION_ENTRADA).count(), 1)
+
+    def test_sin_motivo_no_se_deshace(self):
+        entrada = self.entrada_de(10)
+
+        with self.assertRaises(ValidationError):
+            anular_entrada(entrada=entrada, usuario=self.administrador, motivo="  ")
+
+        self.assertEqual(existencias_de(self.ron, self.sede), 10)
+
+    def test_el_precio_de_venta_no_vuelve_atras(self):
+        """
+        A cuánto vende el negocio es una decisión suya, no un efecto de la
+        compra, y ese precio pudo usarse ya para cobrar.
+        """
+        registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.ron, "cantidad": 5,
+                     "costo_unitario": Decimal("30000"),
+                     "precio_venta": Decimal("52000")}])
+        entrada = EntradaMercancia.objects.order_by("-id").first()
+
+        anular_entrada(entrada=entrada, usuario=self.administrador, motivo="Error")
+
+        self.ron.refresh_from_db()
+        self.assertEqual(self.ron.precio_venta, Decimal("52000"))
+
+    def test_una_entrada_de_varias_referencias_se_deshace_de_una_vez(self):
+        """El caso que justifica la operación: cien referencias mal, una orden."""
+        cerveza = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria,
+            nombre="Cerveza de prueba", presentacion=Producto.Presentacion.UNIDAD,
+            precio_venta=3500, stock_minimo=24)
+        entrada = registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.ron, "cantidad": 10,
+                     "costo_unitario": Decimal("38000")},
+                    {"producto": cerveza, "cantidad": 48,
+                     "costo_unitario": Decimal("2100")}])
+
+        anular_entrada(entrada=entrada, usuario=self.administrador, motivo="Factura")
+
+        self.assertEqual(existencias_de(self.ron, self.sede), 0)
+        self.assertEqual(existencias_de(cerveza, self.sede), 0)
+
+
+class ApiDeAnulacionDeEntradaTests(CatalogoBase):
+    """La dirección que deshace una entrada, recorrida como la recorre la pantalla."""
+
+    def setUp(self):
+        super().setUp()
+        self.vendedor = crear_usuario(self.licorera, "vendedor@anul.com", Rol.VENDEDOR)
+        self.ron = Producto.objects.create(
+            licorera=self.licorera, categoria=self.categoria,
+            nombre="Ron de api", presentacion=Producto.Presentacion.BOTELLA,
+            precio_venta=48500, stock_minimo=5)
+        self.sede = Sede.principal_de(self.licorera)
+        self.entrada = registrar_entrada(
+            licorera=self.licorera, usuario=self.administrador,
+            lineas=[{"producto": self.ron, "cantidad": 10,
+                     "costo_unitario": Decimal("38000")}])
+
+    def anular(self, correo=None, motivo="El costo se digitó mal", entrada=None):
+        return self.client.post(
+            reverse("entrada-anular", args=[(entrada or self.entrada).id]),
+            {"motivo": motivo}, content_type="application/json",
+            **self.entrar(correo))
+
+    def test_quien_administra_deshace_la_entrada(self):
+        respuesta = self.anular()
+
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+        self.assertTrue(respuesta.json()["anulada"])
+        self.assertEqual(existencias_de(self.ron, self.sede), 0)
+
+    def test_el_vendedor_no_deshace_una_entrada(self):
+        """Recibir mercancía es del administrador, y deshacerla también."""
+        respuesta = self.anular(correo=self.vendedor.correo)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(existencias_de(self.ron, self.sede), 10)
+
+    def test_no_se_deshace_la_entrada_de_otra_licorera(self):
+        ajena = crear_negocio("Barbosa")
+        intrusa = crear_usuario(ajena, "intrusa@anul.com", Rol.ADMINISTRADOR_LICORERA)
+
+        respuesta = self.anular(correo=intrusa.correo)
+
+        self.assertEqual(respuesta.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(existencias_de(self.ron, self.sede), 10)
+
+    def test_sin_motivo_la_direccion_lo_pide(self):
+        respuesta = self.anular(motivo="")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(existencias_de(self.ron, self.sede), 10)
+
+    def test_con_mercancia_vendida_responde_con_el_porque(self):
+        consumir(producto=self.ron, sede=self.sede, cantidad=1,
+                 tipo=MovimientoInventario.Tipo.VENTA, usuario=self.administrador,
+                 documento_tipo=MovimientoInventario.Documento.VENTA, documento_id=1)
+
+        respuesta = self.anular()
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ajuste", respuesta.json()["detalle"])
+
+    def test_la_lista_dice_si_cada_entrada_se_puede_deshacer(self):
+        """La pantalla enseña o esconde el botón con ese dato."""
+        fila = self.client.get(reverse("entrada-list"),
+                               **self.entrar()).json()["results"][0]
+
+        self.assertTrue(fila["se_puede_anular"])
+        self.assertFalse(fila["anulada"])
+
+        self.anular()
+        fila = self.client.get(reverse("entrada-list"),
+                               **self.entrar()).json()["results"][0]
+        self.assertTrue(fila["anulada"])
+        self.assertFalse(fila["se_puede_anular"])
 
 
 class EntradaDeMercanciaTests(CatalogoBase):

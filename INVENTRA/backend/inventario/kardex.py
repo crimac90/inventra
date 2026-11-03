@@ -25,6 +25,7 @@ SIGNO = {
     MovimientoInventario.Tipo.ENTRADA: +1,
     MovimientoInventario.Tipo.VENTA: -1,
     MovimientoInventario.Tipo.ANULACION_VENTA: +1,
+    MovimientoInventario.Tipo.ANULACION_ENTRADA: -1,
     MovimientoInventario.Tipo.AJUSTE_POSITIVO: +1,
     MovimientoInventario.Tipo.AJUSTE_NEGATIVO: -1,
     MovimientoInventario.Tipo.TRASLADO_SALIDA: -1,
@@ -36,6 +37,7 @@ SIGNO = {
 EXIGEN_MOTIVO = {
     MovimientoInventario.Tipo.AJUSTE_POSITIVO,
     MovimientoInventario.Tipo.AJUSTE_NEGATIVO,
+    MovimientoInventario.Tipo.ANULACION_ENTRADA,
 }
 
 

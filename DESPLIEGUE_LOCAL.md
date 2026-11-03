@@ -275,9 +275,9 @@ que se instala: con él, cualquier persona reproduce el mismo entorno.
 
 **No se regenera con `pip freeze > requirements.txt`**, aunque sea lo habitual, por dos
 razones que costaron una corrección. La primera es que `pip freeze` lista *todo* lo que haya
-en el entorno, y en el equipo de trabajo conviven con la aplicación las librerías que usan
-los generadores de documentos; dejarlas en el archivo obliga a quien despliegue a instalar
-cosas que el sistema no necesita para funcionar. La segunda es el `>` de PowerShell, que
+en el entorno, y en el equipo de trabajo conviven con la aplicación librerías de uso
+personal que nada tienen que ver con ella; dejarlas en el archivo obliga a quien despliegue
+a instalar cosas que el sistema no necesita para funcionar. La segunda es el `>` de PowerShell, que
 escribe en UTF-16: pip lo lee porque detecta la marca de orden de bytes, pero cualquier otra
 herramienta trata el archivo como binario. El archivo se edita a mano, en UTF-8, y lista
 solo lo que la aplicación necesita para correr.

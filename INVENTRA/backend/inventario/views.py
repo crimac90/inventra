@@ -24,9 +24,11 @@ from ventas.rotacion import DIAS_POR_OMISION, dias_validos, sin_rotacion
 from .existencias import con_existencias
 from .precios import con_costos
 from .models import Categoria, EntradaMercancia, MovimientoInventario, Producto
-from .operaciones import ajustar_existencias, registrar_entrada
+from .operaciones import (ajustar_existencias, anular_entrada,
+                          registrar_entrada)
 from .serializers import (
-    AjusteSerializer, AlertaDeExistenciasSerializer, CategoriaSerializer,
+    AjusteSerializer, AlertaDeExistenciasSerializer,
+    AnulacionDeEntradaSerializer, CategoriaSerializer,
     EntradaCrearSerializer,
     EntradaSerializer, MargenesSerializer, MovimientoSerializer,
     ProductoGuardarSerializer, ProductoSerializer)
@@ -288,9 +290,11 @@ class EntradaMercanciaViewSet(mixins.CreateModelMixin,
 
     No admite editar ni borrar. Una entrada ya registrada movió existencias y
     dejó su rastro en el kardex; cambiarla después haría que el saldo guardado
-    de los movimientos posteriores dejara de cuadrar. Lo que corrige una
-    entrada equivocada es un ajuste con su motivo (RF-INV-06), que además deja
-    ver qué pasó.
+    de los movimientos posteriores dejara de cuadrar.
+
+    Sí admite deshacerla entera mientras siga intacta (RF-INV-12), que es lo
+    único que corrige un costo de compra mal digitado. En cuanto una unidad
+    sale, lo que queda es un ajuste con su motivo (RF-INV-06).
     """
 
     serializer_class = EntradaSerializer
@@ -313,6 +317,22 @@ class EntradaMercanciaViewSet(mixins.CreateModelMixin,
         contexto = super().get_serializer_context()
         contexto["licorera"] = self.request.user.licorera
         return contexto
+
+    @action(detail=True, methods=["post"])
+    def anular(self, request, pk=None):
+        """Deshace una entrada de mercancía intacta (RF-INV-12)."""
+        serializador = AnulacionDeEntradaSerializer(data=request.data)
+        serializador.is_valid(raise_exception=True)
+
+        try:
+            entrada = anular_entrada(
+                entrada=self.get_object(), usuario=request.user,
+                motivo=serializador.validated_data["motivo"])
+        except ErrorDeValidacion as error:
+            return Response({"detalle": "; ".join(error.messages)},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(EntradaSerializer(entrada).data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         serializador = EntradaCrearSerializer(data=request.data,

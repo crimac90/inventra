@@ -173,3 +173,78 @@ def ajustar_existencias(*, producto, usuario, cantidad, motivo, sede=None):
         documento_id=producto.id,
         motivo=motivo,
     )
+
+
+@transaction.atomic
+def anular_entrada(*, entrada, usuario, motivo):
+    """
+    Deshace una entrada de mercancía completa, si todavía está intacta.
+
+    Existe porque un costo de compra mal digitado no tiene otra salida. El
+    kardex no se edita, de modo que el costo de un lote no se corrige; y un
+    ajuste negativo tampoco sirve, porque descuenta por antigüedad y se
+    llevaría por delante el lote anterior en vez del equivocado. Lo que queda
+    es deshacer la entrada entera y volver a registrarla bien: una vez, aunque
+    la entrada traiga cien referencias.
+
+    **Solo mientras no se haya vendido nada de ella.** En cuanto una unidad
+    sale, deshacer la entrada obligaría a decidir de dónde salió lo vendido, y
+    cualquier respuesta a esa pregunta falsea un costo ya cobrado. Con los
+    lotes intactos no hay nada que decidir: vuelven a cero y no tocan ninguna
+    venta.
+
+    El precio de venta que la entrada hubiera fijado se queda como está. Es una
+    decisión del negocio sobre a cuánto vende, no un efecto de la compra, y
+    devolverlo al anterior cambiaría un precio que quizá ya se usó para cobrar.
+    """
+    # Se bloquea la fila y se trabaja sobre lo que dice la base, no sobre el
+    # objeto que llega: dos anulaciones simultáneas de la misma entrada leerían
+    # las dos los lotes intactos y descontarían las dos.
+    entrada = (EntradaMercancia.objects
+               .select_for_update()
+               .select_related("sede")
+               .get(pk=entrada.pk))
+
+    if not (motivo or "").strip():
+        raise ValidationError("Escribe el motivo de la anulación.")
+
+    lotes = list(LoteInventario.objects
+                 .select_for_update()
+                 .filter(entrada=entrada)
+                 .select_related("producto")
+                 .order_by("id"))
+
+    # Anular no borra los lotes: los deja en cero. Lo que distingue una entrada
+    # ya anulada de una vendida entera es su movimiento de anulación, y hay que
+    # mirarlo ANTES, porque las dos dejan los lotes sin unidades disponibles.
+    if MovimientoInventario.objects.filter(
+            tipo=MovimientoInventario.Tipo.ANULACION_ENTRADA,
+            documento_tipo=MovimientoInventario.Documento.ENTRADA,
+            documento_id=entrada.id).exists():
+        raise ValidationError("Esa entrada ya está anulada.")
+
+    if not lotes:
+        raise ValidationError("Esa entrada no creó ningún lote.")
+
+    vendidos = [l for l in lotes if l.cantidad_disponible != l.cantidad_inicial]
+    if vendidos:
+        raise ValidationError(
+            "Ya salió mercancía de esta entrada, de modo que no se puede deshacer. "
+            "Corrige las existencias de «%s» con un ajuste y su motivo."
+            % vendidos[0].producto.nombre)
+
+    for lote in lotes:
+        unidades = lote.cantidad_inicial
+        lote.cantidad_disponible = 0
+        lote.save(update_fields=["cantidad_disponible"])
+        registrar_movimiento(
+            producto=lote.producto, sede=entrada.sede,
+            tipo=MovimientoInventario.Tipo.ANULACION_ENTRADA,
+            cantidad=unidades, usuario=usuario, lote=lote,
+            costo_unitario=lote.costo_unitario,
+            documento_tipo=MovimientoInventario.Documento.ENTRADA,
+            documento_id=entrada.id,
+            motivo=motivo.strip(),
+        )
+
+    return entrada

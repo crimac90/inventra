@@ -338,11 +338,33 @@ class LoteSerializer(serializers.ModelSerializer):
 class EntradaSerializer(serializers.ModelSerializer):
     lotes = LoteSerializer(many=True, read_only=True)
     usuario_nombre = serializers.CharField(source="usuario.nombre_completo", read_only=True)
+    anulada = serializers.BooleanField(read_only=True)
+    se_puede_anular = serializers.SerializerMethodField()
 
     class Meta:
         model = EntradaMercancia
         fields = ("id", "proveedor", "observacion", "fecha",
-                  "usuario", "usuario_nombre", "lotes")
+                  "usuario", "usuario_nombre", "lotes",
+                  "anulada", "se_puede_anular")
+
+    def get_se_puede_anular(self, entrada):
+        """
+        Si la entrada sigue intacta.
+
+        Lo decide la pantalla para enseñar o esconder el botón, pero quien lo
+        impide de verdad es la operación: una condición comprobada solo aquí
+        viajaría en la respuesta y se podría saltar llamando a la dirección.
+        """
+        if entrada.anulada:
+            return False
+        return all(lote.cantidad_disponible == lote.cantidad_inicial
+                   for lote in entrada.lotes.all())
+
+
+class AnulacionDeEntradaSerializer(serializers.Serializer):
+    """Un solo campo: por qué se deshace. Sin motivo no se deshace."""
+
+    motivo = serializers.CharField(max_length=255)
 
 
 class MovimientoSerializer(serializers.ModelSerializer):

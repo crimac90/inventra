@@ -35,9 +35,12 @@ import { Link } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import Disposicion from "../componentes/Disposicion";
+import Modal from "../componentes/Modal";
 import SelectorDeProducto from "../componentes/SelectorDeProducto";
 import { ErrorApi, mensajeDeError } from "../api/cliente";
-import { consultarCategorias, listarEntradas, registrarEntrada } from "../api/inventario";
+import {
+  anularEntrada, consultarCategorias, listarEntradas, registrarEntrada,
+} from "../api/inventario";
 import { consultarMiSuscripcion } from "../api/suscripciones";
 import { fechaHora, moneda, porcentaje } from "../formato";
 import { costoPromedioCon, margenDe, sugerirPrecio } from "../precios";
@@ -75,6 +78,10 @@ export default function EntradaMercancia() {
   const [observacion, setObservacion] = useState("");
 
   const [entradas, setEntradas] = useState([]);
+  // La entrada que se está deshaciendo y el porqué. Se piden en la misma
+  // ventana que la consecuencia: separarlos dejaría la pregunta sin su aviso.
+  const [porAnular, setPorAnular] = useState(null);
+  const [motivoDeAnulacion, setMotivoDeAnulacion] = useState("");
   // Los margenes por categoria (RF-INV-11), para proponer el precio de una
   // referencia que todavia no lo tiene. Llegan una vez: son seis y no cambian
   // mientras la pantalla esta abierta.
@@ -222,6 +229,23 @@ export default function EntradaMercancia() {
 
   const motivo = motivoParaNoRegistrar(yo, suscripcion, "registrar entradas de mercancía");
   const puedeRegistrar = motivo === null;
+
+
+  async function confirmarAnulacion() {
+    setOcupado(true);
+    try {
+      await anularEntrada(porAnular.id, motivoDeAnulacion);
+      setPorAnular(null);
+      setMotivoDeAnulacion("");
+      setAviso({ tipo: "ok", texto: "Entrada deshecha: la mercancía salió del inventario." });
+      const datos = await listarEntradas();
+      setEntradas(datos.results || []);
+    } catch (error) {
+      setAviso({ tipo: "err", texto: mensajeDeError(error) });
+    } finally {
+      setOcupado(false);
+    }
+  }
 
   return (
     <Disposicion titulo="Entrada de mercancía">
@@ -390,6 +414,7 @@ export default function EntradaMercancia() {
                 <th>Productos</th>
                 <th>Registró</th>
                 <th>Costo total</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -403,10 +428,17 @@ export default function EntradaMercancia() {
                     )}
                   </td>
                   <td>
+                    {/*
+                      El costo unitario va al lado de las unidades: es el dato
+                      con el que se comprueba una factura, y sin él hay que
+                      dividir el total entre la cantidad para saber a cuánto
+                      se compró cada botella.
+                    */}
                     {entrada.lotes.map((lote) => (
                       <div key={lote.id}>
                         {lote.producto_nombre}
                         <span className="hs"> × {lote.cantidad_inicial}</span>
+                        <span className="hs"> a {moneda(lote.costo_unitario)} c/u</span>
                       </div>
                     ))}
                   </td>
@@ -416,12 +448,47 @@ export default function EntradaMercancia() {
                       (suma, lote) => suma + lote.cantidad_inicial * Number(lote.costo_unitario),
                       0))}
                   </td>
+                  <td>
+                    {entrada.anulada ? (
+                      <span className="estado inactivo">Anulada</span>
+                    ) : entrada.se_puede_anular && puedeRegistrar ? (
+                      <button
+                        type="button"
+                        className="btn btn-out btn-pequeno"
+                        onClick={() => { setPorAnular(entrada); setMotivoDeAnulacion(""); }}
+                      >
+                        Deshacer
+                      </button>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+
+      {porAnular && (
+        <Modal
+          titulo="Deshacer esta entrada de mercancía"
+          mensaje={"Las unidades que trajo salen del inventario y la entrada queda marcada "
+                 + "como anulada, con su motivo y con quien la deshizo. Solo se puede "
+                 + "mientras no se haya vendido nada de ella. El precio de venta que haya "
+                 + "fijado no cambia."}
+          textoConfirmar="Deshacer entrada"
+          ocupado={ocupado}
+          onConfirmar={confirmarAnulacion}
+          onCancelar={() => setPorAnular(null)}
+        >
+          <Campo
+            id="motivo-anulacion"
+            etiqueta="Motivo"
+            valor={motivoDeAnulacion}
+            onChange={setMotivoDeAnulacion}
+            marcador="El costo de compra se digitó mal"
+          />
+        </Modal>
+      )}
     </Disposicion>
   );
 }
