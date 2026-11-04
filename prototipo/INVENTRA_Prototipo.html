@@ -25,6 +25,11 @@ h1.title{font-size:24px;font-weight:700;color:#1F3864;margin-bottom:4px}
 .btn-cta{background:var(--cta-accion);color:var(--cta-texto);padding:12px 18px}
 .btn-out{background:transparent;border:1px solid var(--navy2);color:var(--navy2);padding:11px 16px}
 .btn-navy{background:var(--navy);color:#fff;padding:12px 18px}
+/* El boton de una fila de tabla, con el mismo tamano que usa la aplicacion.
+   Sin esta regla hereda el relleno del boton grande y, al ir en linea, dos
+   botones de la misma celda se montan uno sobre otro. */
+.btn-pequeno{display:inline-block;padding:6px 12px;font-size:13px;line-height:1.3}
+td[style*='text-align:right']{white-space:nowrap}
 .full{width:100%}
 .field{margin-bottom:13px}
 .field label{display:block;font-size:13px;font-weight:600;color:var(--text);opacity:.85;margin-bottom:5px}

@@ -401,3 +401,38 @@ textarea:-webkit-autofill {
   transition: background-color 100000s ease-in-out 0s;
 }
 
+
+/*
+  El control de mostrar u ocultar la contrasena.
+
+  Va dentro del cuadro y no al lado, para no quitarle ancho al campo en una
+  pantalla estrecha. El relleno de la derecha del cuadro deja sitio al texto
+  del control, que de otro modo se montaria sobre la contrasena larga.
+*/
+.campo-con-ojo {
+  position: relative;
+}
+
+.campo-con-ojo input {
+  padding-right: 82px;
+}
+
+.campo-con-ojo .ojo {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--navy2, #2E5496);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.campo-con-ojo .ojo:hover {
+  background: rgba(127, 127, 127, .12);
+}

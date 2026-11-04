@@ -13,6 +13,8 @@
   rechaza un dato esta en el servidor.
 */
 
+import { useState } from "react";
+
 export default function Campo({
   id,
   etiqueta,
@@ -41,13 +43,25 @@ export default function Campo({
     if (tipo === "number") evento.currentTarget.blur();
   }
 
+  /*
+    Mostrar u ocultar la contrasena. Escribir a ciegas una clave larga en un
+    teclado de celular es la primera causa de que alguien no consiga entrar con
+    la contrasena correcta, y el error no se ve hasta que el sistema la
+    rechaza. Nace oculta, que es como tiene que estar mientras nadie pida lo
+    contrario.
+  */
+  const [visible, setVisible] = useState(false);
+  const esContrasena = tipo === "password";
+  const tipoReal = esContrasena && visible ? "text" : tipo;
+
   return (
     <div className="field">
       <label htmlFor={id}>{etiqueta}</label>
+      <div className={esContrasena ? "campo-con-ojo" : undefined}>
       <input
         id={id}
         name={id}
-        type={tipo}
+        type={tipoReal}
         value={valor}
         placeholder={marcador}
         min={minimo}
@@ -58,6 +72,19 @@ export default function Campo({
         aria-describedby={error ? `${id}-error` : ayuda ? `${id}-ayuda` : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
+      {esContrasena && (
+        <button
+          type="button"
+          className="ojo"
+          onClick={() => setVisible((v) => !v)}
+          aria-pressed={visible}
+          aria-label={visible ? "Ocultar la contraseña" : "Mostrar la contraseña"}
+          title={visible ? "Ocultar" : "Mostrar"}
+        >
+          {visible ? "Ocultar" : "Mostrar"}
+        </button>
+      )}
+      </div>
       {ayuda && !error && (
         <div className="ayuda" id={`${id}-ayuda`}>
           {ayuda}
