@@ -28,6 +28,7 @@ class SedePrincipalTests(TestCase):
         "nombre_completo": "Dueña de Prueba",
         "correo": "duena@prueba.com",
         "password": "Licorera2026",
+        "acepta_tratamiento_datos": True,
     }
 
     def setUp(self):

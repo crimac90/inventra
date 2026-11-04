@@ -740,6 +740,7 @@ class VerificacionCorreoTests(TestCase):
                 "nombre_completo": "Dueña del Centro",
                 "correo": "duena@licores.com",
                 "password": self.CONTRASENA,
+                "acepta_tratamiento_datos": True,
             },
             content_type="application/json",
         )

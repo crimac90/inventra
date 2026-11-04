@@ -53,6 +53,17 @@ class RegistroLicoreraSerializer(serializers.Serializer):
     nombre_completo = serializers.CharField(max_length=100)
     correo = serializers.EmailField(max_length=100)
     password = serializers.CharField(write_only=True)
+    # La aceptación del tratamiento de datos personales (Ley 1581 de 2012). Se
+    # comprueba también aquí y no solo en la pantalla: una casilla que solo
+    # vigila el navegador se salta llamando a la dirección.
+    acepta_tratamiento_datos = serializers.BooleanField(write_only=True)
+
+    def validate_acepta_tratamiento_datos(self, valor):
+        if not valor:
+            raise serializers.ValidationError(
+                "Para crear la cuenta hay que aceptar el tratamiento de los datos "
+                "personales.")
+        return valor
 
     def validate_correo(self, valor):
         """El correo identifica al usuario en toda la plataforma, así que es único."""

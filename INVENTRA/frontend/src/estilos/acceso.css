@@ -198,3 +198,45 @@
     padding: var(--e6) var(--e4);
   }
 }
+
+/*
+  La aceptacion del tratamiento de datos (Ley 1581 de 2012).
+
+  La casilla y su texto van en una sola linea de lectura, con el cuadro
+  alineado arriba para que un texto de dos renglones no lo descoloque. La
+  politica se despliega aqui mismo, debajo: quien se registra tiene que poder
+  leerla sin abandonar el formulario.
+*/
+.casilla {
+  display: flex;
+  gap: var(--e2);
+  align-items: flex-start;
+  margin-top: var(--e3);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.casilla input {
+  margin-top: 2px;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.politica {
+  margin-top: var(--e3);
+  padding: var(--e3);
+  background: rgba(127, 127, 127, .07);
+  border: 1px solid var(--border);
+  border-radius: var(--radio);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.politica p + p {
+  margin-top: var(--e2);
+}

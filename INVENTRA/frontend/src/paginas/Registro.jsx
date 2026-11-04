@@ -35,6 +35,8 @@ export default function Registro() {
   const navegar = useNavigate();
 
   const [datos, setDatos] = useState(INICIAL);
+  const [acepta, setAcepta] = useState(false);
+  const [verPolitica, setVerPolitica] = useState(false);
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -48,7 +50,7 @@ export default function Registro() {
     };
   }
 
-  const completo = Object.values(datos).every((v) => v.trim() !== "");
+  const completo = Object.values(datos).every((v) => v.trim() !== "") && acepta;
 
   async function enviar(evento) {
     evento.preventDefault();
@@ -62,6 +64,7 @@ export default function Registro() {
         nombre_negocio: datos.nombre_negocio.trim(),
         nombre_completo: datos.nombre_completo.trim(),
         correo: datos.correo.trim(),
+        acepta_tratamiento_datos: acepta,
       });
       setUsuario(usuario);
       navegar("/panel", { replace: true });
@@ -143,6 +146,52 @@ export default function Registro() {
             onChange={cambiar("password")}
             error={errores.password}
           />
+
+          {/*
+            La aceptacion del tratamiento de datos (Ley 1581 de 2012). El texto
+            se muestra aqui y no detras de un enlace a otra pagina: quien se
+            registra tiene que poder leerlo sin abandonar el formulario que
+            esta llenando.
+          */}
+          <label className="casilla">
+            <input
+              type="checkbox"
+              checked={acepta}
+              onChange={(e) => setAcepta(e.target.checked)}
+            />
+            <span>
+              Autorizo el tratamiento de mis datos personales conforme a la{" "}
+              <button
+                type="button"
+                className="link"
+                onClick={() => setVerPolitica((v) => !v)}
+              >
+                política de tratamiento de datos
+              </button>
+              .
+            </span>
+          </label>
+
+          {verPolitica && (
+            <div className="politica">
+              <p>
+                INVENTRA es responsable del tratamiento de los datos que registras
+                aquí: el nombre de tu negocio, tu nombre y tu correo electrónico.
+              </p>
+              <p>
+                Se usan únicamente para crear y mantener tu cuenta, darte acceso
+                al sistema y enviarte los avisos propios del servicio, como la
+                confirmación del correo o la recuperación de la contraseña. No se
+                ceden a terceros ni se usan con fines publicitarios.
+              </p>
+              <p>
+                Puedes conocer, actualizar, rectificar o suprimir tus datos, y
+                revocar esta autorización, escribiendo a la dirección de contacto
+                de INVENTRA. Al suprimirlos se cierra la cuenta, porque sin ellos
+                el servicio no se puede prestar.
+              </p>
+            </div>
+          )}
 
           <button
             className="btn btn-cta full"

@@ -40,6 +40,7 @@ class RegistroLicoreraTests(TestCase):
         "nombre_completo": "Cristian Macías",
         "correo": "duena@laesquina.com",
         "password": "Licorera2026",
+        "acepta_tratamiento_datos": True,
     }
 
     def setUp(self):
@@ -113,6 +114,53 @@ class RegistroLicoreraTests(TestCase):
         self.assertTrue(Usuario.objects.filter(correo="duena@laesquina.com").exists())
 
 
+class TratamientoDeDatosTests(TestCase):
+    """
+    El alta no se completa sin aceptar el tratamiento de los datos personales
+    (Ley 1581 de 2012).
+    """
+
+    DATOS = {
+        "nombre_negocio": "Licorera del Parque",
+        "nombre_completo": "Dueña del Parque",
+        "correo": "duena@parque.com",
+        "password": "Licorera2026",
+        "acepta_tratamiento_datos": True,
+    }
+
+    def setUp(self):
+        cache.clear()
+        self.url = reverse("registrar-licorera")
+
+    def test_sin_aceptar_no_se_crea_la_cuenta(self):
+        datos = dict(self.DATOS, acepta_tratamiento_datos=False)
+
+        respuesta = self.client.post(self.url, datos, content_type="application/json")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Licorera.objects.filter(nombre=datos["nombre_negocio"]).exists())
+
+    def test_si_no_llega_el_dato_tampoco(self):
+        """
+        La casilla la vigila la pantalla, pero quien lo impide es el servidor:
+        una condición que solo comprueba el navegador se salta llamando a la
+        dirección.
+        """
+        datos = dict(self.DATOS)
+        datos.pop("acepta_tratamiento_datos")
+
+        respuesta = self.client.post(self.url, datos, content_type="application/json")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Licorera.objects.filter(nombre=datos["nombre_negocio"]).exists())
+
+    def test_aceptando_se_crea(self):
+        respuesta = self.client.post(self.url, self.DATOS, content_type="application/json")
+
+        self.assertEqual(respuesta.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Licorera.objects.filter(nombre=self.DATOS["nombre_negocio"]).exists())
+
+
 class PlanesTests(TestCase):
 
     def test_catalogo_publico_muestra_los_dos_planes(self):
@@ -146,6 +194,7 @@ class LimiteDeRegistroTests(TestCase):
                 "nombre_completo": "Persona de Prueba",
                 "correo": f"negocio{numero}@ejemplo.com",
                 "password": "ClaveSegura2026",
+                "acepta_tratamiento_datos": True,
             },
             content_type="application/json",
         )
@@ -599,6 +648,7 @@ class PeriodoDePruebaTests(TestCase):
         "nombre_completo": "Dueña de Prueba",
         "correo": "duena@prueba.com",
         "password": "Licorera2026",
+        "acepta_tratamiento_datos": True,
     }
 
     def setUp(self):
@@ -963,6 +1013,7 @@ class PermisoDeEscrituraTests(TestCase):
         "nombre_completo": "Dueña de Prueba",
         "correo": "duena@prueba.com",
         "password": "Licorera2026",
+        "acepta_tratamiento_datos": True,
     }
 
     def setUp(self):
@@ -1177,6 +1228,7 @@ class ModulosSegunElPlanTests(TestCase):
         "nombre_completo": "Dueña de Prueba",
         "correo": "duena@prueba.com",
         "password": "Licorera2026",
+        "acepta_tratamiento_datos": True,
     }
 
     def setUp(self):
@@ -1293,6 +1345,7 @@ class CambioDePlanTests(TestCase):
         "nombre_completo": "Dueña de Prueba",
         "correo": "duena@prueba.com",
         "password": "Licorera2026",
+        "acepta_tratamiento_datos": True,
     }
 
     def setUp(self):
