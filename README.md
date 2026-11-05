@@ -23,7 +23,9 @@ Las dos primeras cuentas trabajan sobre la misma licorera, con el catálogo surt
 
 ## Estado del proyecto
 
-Construcción avanzada. El análisis y el diseño están terminados, y de los ocho módulos especificados están construidos y probados los cuatro que sostienen la operación diaria: seguridad y acceso (SEG), suscripciones (SUS), inventario con valoración PEPS (INV) y ventas con cierre de caja (VEN). Los módulos de reportes, multisede, facturación electrónica y auditoría quedan especificados, diseñados y modelados, y su construcción continúa después de la entrega.
+Sistema desplegado y en funcionamiento. El análisis y el diseño están terminados, y de los ocho módulos especificados están construidos, probados y publicados los cuatro que sostienen la operación diaria: seguridad y acceso (SEG), suscripciones (SUS), inventario con valoración PEPS (INV) y ventas con cierre de caja (VEN). Los módulos de reportes, multisede, facturación electrónica y auditoría quedan especificados, diseñados y modelados, y su construcción continúa después de la entrega.
+
+El sistema cuenta con **564 pruebas automatizadas** que se ejecutan contra una base de datos real, y con auditorías de seguridad, de carga y de disponibilidad sobre la versión publicada. Los resultados están en `docs/pruebas/`.
 
 ## Puesta en marcha
 
