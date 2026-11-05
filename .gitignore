@@ -30,3 +30,7 @@ build/
 # Carpeta de trabajo del autor: borradores, material de estudio, generadores de
 # los documentos y credenciales de prueba. No forma parte del sistema.
 _interno/
+
+# Copias de seguridad de la base de datos. Las produce la tarea programada del
+# servidor y contienen datos reales de los negocios: no se versionan.
+INVENTRA/backend/respaldos/
