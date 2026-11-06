@@ -7,7 +7,7 @@ Vuelca la base completa con `mysqldump`, la comprime y la deja fechada en la
 carpeta de respaldos. Comprueba que el volcado terminó entero, anota el
 resultado en una bitácora y retira los respaldos que sobran.
 
-POR QUE NO ES UNA ORDEN DE DJANGO
+Por que no es una orden de Django
 Un respaldo tiene que poder ejecutarse cuando la aplicación no arranca, que es
 justo cuando más falta hace. Este programa solo necesita Python, `mysqldump` y
 las credenciales del archivo `.env`; no importa Django ni abre la aplicación.
@@ -18,7 +18,7 @@ No implementa RF-AUD-03 ni RF-AUD-04, que piden generar y restaurar copias
 módulo queda especificado y sin construir. Esto es la operación del servicio:
 lo que corre en el servidor sin que nadie lo pida.
 
-COMO SABE QUE EL VOLCADO ESTA ENTERO
+Como sabe que el volcado esta entero
 `mysqldump` escribe al final la línea «-- Dump completed». Un volcado cortado
 —por falta de espacio, por un corte de red o porque el proceso murió— no la
 lleva. Un archivo que pesa y no sirve es peor que un archivo que falta, porque

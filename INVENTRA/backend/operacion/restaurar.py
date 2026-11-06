@@ -8,13 +8,13 @@ Antes de escribir nada comprueba que el archivo esté entero, y al terminar
 cuenta las filas de las tablas que sostienen la operación, que es la única
 forma de saber que la restauración sirvió.
 
-POR QUE EXIGE CONFIRMACION
+Por que exige confirmacion
 Restaurar reemplaza lo que haya en la base de destino. La orden no corre sin
 `--si-estoy-seguro`, por la misma razón por la que la carga de datos de
 demostración tampoco lo hace: una tecla de más no puede costar la operación de
 un negocio.
 
-POR QUE RESTAURAR EN OTRA BASE ES LO NORMAL, Y NO LA EXCEPCION
+Por que restaurar en otra base es lo normal, y no la excepcion
 La prueba de que un respaldo sirve es restaurarlo. Hacerlo sobre la base viva
 para comprobarlo sería destruir lo bueno para averiguar si lo guardado valía,
 de modo que `--base` apunta a una base de ensayo y la restauración real sobre
@@ -119,7 +119,7 @@ def comprobar_el_archivo(ruta):
 def descomprimir(origen):
     """Deja el volcado sin comprimir en un archivo temporal y devuelve su ruta.
 
-    POR QUE UN ARCHIVO Y NO EL FLUJO DIRECTO
+    Por que un archivo y no el flujo directo
     Pasarle a `mysql` el objeto que devuelve `gzip.open` parece lo natural y es
     una trampa: ese objeto tiene `fileno()`, y lo que devuelve es el descriptor
     del archivo COMPRIMIDO. El proceso hijo no ve la descompresión de Python;
