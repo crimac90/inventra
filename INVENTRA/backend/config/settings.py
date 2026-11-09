@@ -239,6 +239,10 @@ STATICFILES_DIRS = [("assets", _ASSETS)] if _ASSETS.is_dir() else []
 # ---------------------------------------------------------------------------
 
 REST_FRAMEWORK = {
+    # Quien reescribe el 404 que Django redacta en inglés y con el nombre de
+    # la clase del modelo dentro.
+    "EXCEPTION_HANDLER": "config.excepciones.manejador",
+
     # Por defecto, toda vista exige un token válido
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",

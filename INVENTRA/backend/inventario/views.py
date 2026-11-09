@@ -245,7 +245,11 @@ class ProductoViewSet(viewsets.ModelViewSet):
             return Response({"detalle": "; ".join(error.messages)},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        producto.refresh_from_db()
+        # Las existencias no son una columna: las calcula `con_existencias`
+        # dentro de la consulta. `refresh_from_db` recarga los campos de la
+        # tabla y deja intacta la anotacion, de modo que la respuesta devolvia
+        # la cifra de antes del ajuste y la pantalla la pintaba sin dudar.
+        producto = self.get_queryset().get(pk=producto.pk)
         return Response(ProductoSerializer(producto).data, status=status.HTTP_200_OK)
 
     def destroy(self, request, *args, **kwargs):

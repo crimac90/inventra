@@ -121,6 +121,14 @@ export default function CierreDeCaja() {
       ? "Escribe también a qué se debe la diferencia."
       : undefined;
 
+  /*
+    La casilla y el boton que la guarda aparecen juntos. Separados, una jornada
+    que cuadra dejaba el boton en pantalla sin nada escrito encima: al pulsarlo
+    se mandaba una explicacion vacia, el servidor la rechazaba con razon y el
+    rechazo llegaba a una pantalla que no tenia donde pintarlo.
+  */
+  const pideExplicacion = cerrandoTarde || hayDiferencia || observacion.trim() !== "";
+
   const guardar = useCallback(async () => {
     setOcupado(true);
     setAviso(null);
@@ -140,6 +148,10 @@ export default function CierreDeCaja() {
   }, [contado, observacion, traer, setAviso]);
 
   const guardarExplicacion = useCallback(async () => {
+    if (observacion.trim() === "") {
+      setAviso({ tipo: "err", texto: "Escribe la explicación antes de guardarla." });
+      return;
+    }
     setOcupado(true);
     setAviso(null);
     try {
@@ -238,7 +250,7 @@ export default function CierreDeCaja() {
                 nada que pedir y la casilla no aparece: pedir la explicacion de
                 algo que no ocurrio hace dudar de que la caja cuadre.
               */}
-              {(cerrandoTarde || hayDiferencia || observacion.trim() !== "") && (
+              {pideExplicacion && (
                 <Campo
                   id="observacion"
                   etiqueta={cerrandoTarde
@@ -255,7 +267,7 @@ export default function CierreDeCaja() {
               )}
 
               <div className="acciones">
-                {cerrado && esAdministrador && (
+                {cerrado && esAdministrador && pideExplicacion && (
                   <button className="btn btn-out" type="button" disabled={ocupado}
                           onClick={guardarExplicacion}>
                     Guardar la explicación
