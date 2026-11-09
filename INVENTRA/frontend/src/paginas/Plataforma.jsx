@@ -75,6 +75,19 @@ export default function Plataforma() {
 
   useEffect(cargar, [cargar]);
 
+  /*
+    Cerrar el formulario retira tambien el aviso. Los avisos de error no se van
+    solos a proposito —hay algo que leer y casi siempre algo que corregir—,
+    pero el que deja un guardado fallido describe un formulario que ya no esta
+    en pantalla: si no se retira al cancelar, el panel se queda con un rojo que
+    no corresponde a nada de lo que se ve.
+  */
+  function cerrarFormulario() {
+    setAlta(false);
+    setGestionando(null);
+    setAviso(null);
+  }
+
   async function ejecutar(accion, exito) {
     setOcupado(true);
     try {
@@ -157,7 +170,7 @@ export default function Plataforma() {
               `«${cuerpo.nombre_negocio}» quedó registrada. Se le envió a su administrador el enlace para definir su contraseña.`,
             )
           }
-          onCancelar={() => setAlta(false)}
+          onCancelar={cerrarFormulario}
         />
       )}
 
@@ -178,7 +191,7 @@ export default function Plataforma() {
                   `Fecha corregida para «${gestionando.licorera.nombre}».`,
                 )
           }
-          onCancelar={() => setGestionando(null)}
+          onCancelar={cerrarFormulario}
         />
       )}
 
