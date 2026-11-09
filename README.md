@@ -2,7 +2,7 @@
 
 Aplicación web para la gestión de inventarios y ventas en licoreras de Medellín.
 
-INVENTRA es una solución de software, en modalidad SaaS, dirigida a licoreras y pequeños comercios del sector. Permite administrar el inventario por lotes con valoración PEPS, registrar ventas en un punto de venta, controlar múltiples sedes y usuarios, generar reportes y emitir facturación electrónica.
+INVENTRA es una solución de software, en modalidad SaaS, dirigida a licoreras y pequeños comercios del sector. Su alcance cubre la administración del inventario por lotes con valoración PEPS, el registro de ventas en un punto de venta, el control de varias sedes y de los usuarios de cada una, los reportes y la facturación electrónica.
 
 Este repositorio reúne la documentación y el código fuente del proyecto, desarrollado como trabajo de grado del programa Análisis y Desarrollo de Software del SENA.
 
@@ -25,7 +25,7 @@ Las dos primeras cuentas trabajan sobre la misma licorera, con el catálogo surt
 
 Sistema desplegado y en funcionamiento. El análisis y el diseño están terminados, y de los ocho módulos especificados están construidos, probados y publicados los cuatro que sostienen la operación diaria: seguridad y acceso (SEG), suscripciones (SUS), inventario con valoración PEPS (INV) y ventas con cierre de caja (VEN). Los módulos de reportes, multisede, facturación electrónica y auditoría quedan especificados, diseñados y modelados, y su construcción continúa después de la entrega.
 
-El sistema cuenta con **564 pruebas automatizadas** que se ejecutan contra una base de datos real, y con auditorías de seguridad, de carga y de disponibilidad sobre la versión publicada. Los resultados están en `docs/pruebas/`.
+El sistema cuenta con **567 pruebas automatizadas** que se ejecutan contra una base de datos real, y con auditorías de seguridad, de carga y de disponibilidad sobre la versión publicada. Los resultados están en `docs/pruebas/`.
 
 ## Puesta en marcha
 
@@ -65,6 +65,8 @@ Los archivos se nombran sin espacios, con las palabras separadas por guiones baj
 - `docs/proyecto-de-grado`: documento del proyecto de grado (norma ICONTEC).
 - `docs/gestion`: propuesta técnica y económica del proyecto.
 - `docs/manuales`: manuales dirigidos al usuario final.
+- `docs/pruebas`: informe de resultados de las pruebas del sistema.
+- `docs/tecnico`: documentación del producto terminado: manual técnico, cierre técnico y los planes de mantenimiento, soporte, migración y respaldo.
 - `INVENTRA`: código fuente del sistema (`backend`, `frontend`) y scripts de creación de la base de datos (`scripts_bd`).
 - `DESPLIEGUE_LOCAL.md`: instalación y puesta en marcha del sistema en un equipo local.
 - `Diagramas`: diagramas en formato editable (SVG) y de imagen (PNG).

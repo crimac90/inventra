@@ -19,7 +19,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from .correo import leer_verificacion
 from .models import Rol, Usuario
-from .reglas import SIN_ADMINISTRADOR, es_el_unico_administrador
+from .reglas import CORREO_PROPIO, SIN_ADMINISTRADOR, es_el_unico_administrador
 
 # Mensaje único para credenciales incorrectas. Es deliberadamente genérico: si
 # dijera «el correo no existe», cualquiera podría averiguar qué cuentas hay
@@ -256,13 +256,27 @@ class UsuarioActualizarSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         """
-        La licorera no puede quedarse sin ningún administrador activo.
+        Dos reglas: nadie se cambia su propio correo, y la licorera no puede
+        quedarse sin ningún administrador activo.
 
-        Son dos caminos distintos hacia el mismo sitio: quitarle el rol a la
+        LA PRIMERA cierra la puerta trasera de este formulario. El correo
+        propio no se toca desde el perfil cuando ya está confirmado, pero
+        quien administra entra a esta pantalla, se edita a sí mismo y el campo
+        está abierto: un dedazo lo deja fuera de su propia cuenta, porque el
+        enlace de confirmación y el de recuperación salen los dos hacia la
+        dirección nueva. Que el aviso llegue a la vieja no lo devuelve adentro.
+
+        LA SEGUNDA tiene dos caminos hacia el mismo sitio: quitarle el rol a la
         única administradora, o desmarcarla como activa desde este formulario.
         El tercero —inactivarla con la acción de baja— lo cierra la vista, que
         es por donde pasa.
         """
+        quien_pide = self.context["request"].user
+        nuevo_correo = attrs.get("correo")
+        if (nuevo_correo and self.instance.pk == quien_pide.pk
+                and nuevo_correo != self.instance.correo):
+            raise serializers.ValidationError({"correo": CORREO_PROPIO})
+
         rol = attrs.get("rol", self.instance.rol)
         activo = attrs.get("activo", self.instance.activo)
         deja_de_administrar = rol.nombre != Rol.ADMINISTRADOR_LICORERA or not activo

@@ -26,7 +26,7 @@ import MargenesPorCategoria from "../componentes/MargenesPorCategoria";
 import Modal from "../componentes/Modal";
 import Paginacion from "../componentes/Paginacion";
 import { pierdeDinero, sinMargen } from "../precios";
-import { ErrorApi, mensajeDeError } from "../api/cliente";
+import { ErrorApi, avisoDeFormulario, mensajeDeError } from "../api/cliente";
 import {
   actualizarProducto,
   consultarCategorias,
@@ -230,8 +230,9 @@ export default function Inventario() {
       return {};
     } catch (error) {
       if (error instanceof ErrorApi && error.codigo === 400) {
-        setAviso({ tipo: "err", texto: "Revisa los datos marcados." });
-        return error.porCampo;
+        const porCampo = error.porCampo;
+        setAviso({ tipo: "err", texto: avisoDeFormulario(error, porCampo) });
+        return porCampo;
       }
       setAviso({ tipo: "err", texto: mensajeDeError(error) });
       return {};

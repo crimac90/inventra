@@ -829,8 +829,8 @@ py manage.py actualizar_estados_suscripciones --fecha 2027-01-01
 ```
 
 `--simular` dice qué cambiaría y no escribe nada. `--fecha` calcula como si hoy fuera esa
-fecha, y existe para poder demostrar el vencimiento en una sustentación sin esperar quince
-días ni cambiar el reloj del equipo.
+fecha, y existe para poder demostrar el vencimiento sin esperar quince días ni cambiar el
+reloj del equipo.
 
 ### 13.2 Programarla para que corra todos los días
 

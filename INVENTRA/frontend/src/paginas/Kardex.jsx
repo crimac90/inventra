@@ -19,7 +19,7 @@ import { Link, useParams } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import Disposicion from "../componentes/Disposicion";
-import { ErrorApi, mensajeDeError } from "../api/cliente";
+import { ErrorApi, avisoDeFormulario, mensajeDeError } from "../api/cliente";
 import {
   ajustarExistencias,
   consultarKardex,
@@ -142,8 +142,9 @@ export default function Kardex() {
           algo que no se pudo interpretar»— encima de unos errores que se
           entendian perfectamente. Es el mismo texto que usa el catalogo.
         */
-        setErrores(error.porCampo);
-        setAviso({ tipo: "err", texto: "Revisa los datos marcados." });
+        const porCampo = error.porCampo;
+        setErrores(porCampo);
+        setAviso({ tipo: "err", texto: avisoDeFormulario(error, porCampo) });
       } else {
         setAviso({ tipo: "err", texto: mensajeDeError(error) });
       }

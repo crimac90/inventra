@@ -91,7 +91,15 @@ export class ErrorApi extends Error {
     const salida = {};
     if (this.datos && typeof this.datos === "object") {
       for (const [campo, valor] of Object.entries(this.datos)) {
-        if (campo === "detalle" || campo === "detail") continue;
+        /*
+          `non_field_errors` es el rechazo que no pertenece a ningun campo: no
+          hay input debajo del cual pintarlo. Colado aqui, la pantalla se creia
+          con campos marcados, avisaba «revisa los datos marcados» y no marcaba
+          ninguno. Ese texto lo recoge `mensaje`.
+        */
+        if (campo === "detalle" || campo === "detail" || campo === "non_field_errors") {
+          continue;
+        }
         salida[campo] = Array.isArray(valor) ? valor.join(" ") : String(valor);
       }
     }
@@ -109,6 +117,19 @@ export class ErrorApi extends Error {
 */
 export function mensajeDeError(error, respaldo = "Ocurrió un error inesperado.") {
   return error instanceof ErrorApi ? error.mensaje : respaldo;
+}
+
+/*
+  El aviso general de un formulario que el servidor rechazo.
+
+  Un rechazo puede venir repartido por campos, llegar sin pertenecer a ninguno,
+  o las dos cosas a la vez. Si hay algo marcado debajo de los inputs, el aviso
+  solo tiene que mandar a mirarlo; si no hay nada marcado, ese aviso es el unico
+  sitio donde la persona puede leer por que no se guardo.
+*/
+export function avisoDeFormulario(error, porCampo) {
+  const hayMarcados = Object.values(porCampo || {}).some((texto) => texto);
+  return hayMarcados ? "Revisa los datos marcados." : mensajeDeError(error);
 }
 
 async function ejecutar(ruta, opciones, conToken) {

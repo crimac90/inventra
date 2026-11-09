@@ -22,8 +22,8 @@ USO
     python manage.py actualizar_estados_suscripciones --simular
     python manage.py actualizar_estados_suscripciones --fecha 2026-12-31
 
-`--fecha` existe para poder demostrar el vencimiento en la sustentación sin
-esperar quince días ni cambiar el reloj del equipo.
+`--fecha` existe para poder demostrar el vencimiento sin esperar quince días
+ni cambiar el reloj del equipo.
 """
 
 from datetime import date

@@ -9,10 +9,10 @@
   esta en ella se le devuelve a su propia pantalla de inicio. Sin lista, la
   pantalla es de cualquiera que tenga sesion, como el perfil.
 
-  Aclaracion importante para la sustentacion: esto NO es la seguridad del
-  sistema, es comodidad de la interfaz. Quien quiera puede saltarse una
-  comprobacion hecha en el navegador. La seguridad real esta en el backend, que
-  exige el token en cada peticion y filtra por licorera en cada consulta.
+  Esta comprobacion es comodidad de la interfaz y no la seguridad del sistema:
+  cualquiera puede saltarse una comprobacion hecha en el navegador. La
+  seguridad esta en el backend, que exige el token en cada peticion y filtra
+  por licorera en cada consulta.
 */
 
 import { Navigate } from "react-router-dom";

@@ -24,7 +24,7 @@ import Campo from "../componentes/Campo";
 import CampoSeleccion from "../componentes/CampoSeleccion";
 import Disposicion from "../componentes/Disposicion";
 import Modal from "../componentes/Modal";
-import { ErrorApi, mensajeDeError } from "../api/cliente";
+import { ErrorApi, avisoDeFormulario, mensajeDeError } from "../api/cliente";
 import {
   actualizarUsuario,
   consultarRoles,
@@ -137,8 +137,9 @@ export default function Usuarios() {
       return {};
     } catch (error) {
       if (error instanceof ErrorApi && error.codigo === 400) {
-        setAviso({ tipo: "err", texto: "Revisa los datos marcados." });
-        return error.porCampo;
+        const porCampo = error.porCampo;
+        setAviso({ tipo: "err", texto: avisoDeFormulario(error, porCampo) });
+        return porCampo;
       }
       setAviso({ tipo: "err", texto: textoDeError(error) });
       return {};

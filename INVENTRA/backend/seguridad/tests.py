@@ -295,6 +295,61 @@ class GestionUsuariosTests(TestCase):
         )
         self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_quien_administra_no_se_cambia_su_propio_correo(self):
+        """
+        La puerta trasera del formulario de usuarios.
+
+        El perfil propio ya cierra el cambio de correo cuando la cuenta está
+        confirmada, pero quien administra puede abrir esta pantalla, editarse
+        a sí mismo y escribir otra dirección. Un dedazo ahí lo deja fuera de
+        su cuenta: el enlace de confirmación y el de recuperación salen los
+        dos hacia la dirección nueva.
+        """
+        respuesta = self.client.patch(
+            reverse("usuario-detail", args=[self.administrador.id]),
+            {"correo": "otra.direccion@aurora.com"},
+            content_type="application/json",
+            headers=self.autenticar(self.administrador),
+        )
+        self.assertEqual(respuesta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("correo", respuesta.json())
+
+        self.administrador.refresh_from_db()
+        self.assertEqual(self.administrador.correo, "admin@aurora.com")
+        self.assertTrue(self.administrador.correo_verificado)
+
+    def test_quien_administra_si_corrige_sus_otros_datos(self):
+        """La guarda es del correo, no de la pantalla: lo demás sigue abierto."""
+        respuesta = self.client.patch(
+            reverse("usuario-detail", args=[self.administrador.id]),
+            {"nombre_completo": "Administradora Corregida", "telefono": "3009998877"},
+            content_type="application/json",
+            headers=self.autenticar(self.administrador),
+        )
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+        self.administrador.refresh_from_db()
+        self.assertEqual(self.administrador.nombre_completo, "Administradora Corregida")
+
+    def test_quien_administra_si_cambia_el_correo_de_otra_cuenta(self):
+        """Lo que la guarda no toca: corregirle el correo a un vendedor."""
+        vendedor = Usuario.objects.create_user(
+            correo="vendedor@aurora.com", nombre_completo="Vendedor", password=self.CLAVE,
+            licorera=self.licorera, rol=Rol.objects.get(nombre=Rol.VENDEDOR),
+            correo_verificado=True,
+        )
+        respuesta = self.client.patch(
+            reverse("usuario-detail", args=[vendedor.id]),
+            {"correo": "vendedor.nuevo@aurora.com"},
+            content_type="application/json",
+            headers=self.autenticar(self.administrador),
+        )
+        self.assertEqual(respuesta.status_code, status.HTTP_200_OK)
+
+        vendedor.refresh_from_db()
+        self.assertEqual(vendedor.correo, "vendedor.nuevo@aurora.com")
+        self.assertFalse(vendedor.correo_verificado)
+
     def test_no_se_puede_modificar_un_usuario_de_otra_licorera(self):
         otra = crear_licorera("Caldas", plan_nombre="Pro")
         ajeno = Usuario.objects.create_user(

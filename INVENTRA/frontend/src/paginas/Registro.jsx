@@ -13,7 +13,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import Campo from "../componentes/Campo";
 import PanelMarca from "../componentes/PanelMarca";
-import { ErrorApi, mensajeDeError } from "../api/cliente";
+import { ErrorApi, avisoDeFormulario, mensajeDeError } from "../api/cliente";
 import { registrarLicorera } from "../api/seguridad";
 import { useSesion } from "../sesion/ContextoSesion";
 
@@ -75,8 +75,9 @@ export default function Registro() {
           dice exactamente cual: correo repetido, contrasena que no cumple la
           politica. Se reparten los mensajes por campo.
         */
-        setErrores(error.porCampo);
-        setAviso("Revisa los datos marcados.");
+        const porCampo = error.porCampo;
+        setErrores(porCampo);
+        setAviso(avisoDeFormulario(error, porCampo));
       } else {
         setAviso(mensajeDeError(error));
       }

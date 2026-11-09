@@ -11,6 +11,12 @@ el otro queda abierto.
 
 from .models import Rol, Usuario
 
+CORREO_PROPIO = (
+    "Tu propio correo no se cambia desde esta pantalla. Se corrige desde Mi "
+    "perfil, y solo mientras siga sin confirmar: una vez confirmado, es el "
+    "identificador con el que entras y con el que se recupera la contraseña."
+)
+
 SIN_ADMINISTRADOR = (
     "Es la única cuenta de administrador activa de esta licorera. Nombra antes a "
     "otro administrador: sin ninguno, el negocio no puede registrar usuarios ni "

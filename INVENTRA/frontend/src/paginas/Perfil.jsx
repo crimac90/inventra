@@ -24,7 +24,7 @@ import { useNavigate } from "react-router-dom";
 
 import Disposicion from "../componentes/Disposicion";
 import Campo from "../componentes/Campo";
-import { ErrorApi, mensajeDeError } from "../api/cliente";
+import { ErrorApi, avisoDeFormulario, mensajeDeError } from "../api/cliente";
 import {
   actualizarPerfil,
   cambiarContrasena,
@@ -127,8 +127,9 @@ function DatosPersonales({ usuario, setUsuario }) {
       setAviso({ tipo: "ok", texto: "Datos actualizados." });
     } catch (error) {
       if (error instanceof ErrorApi && error.codigo === 400) {
-        setErrores(error.porCampo);
-        setAviso({ tipo: "err", texto: "Revisa los datos marcados." });
+        const porCampo = error.porCampo;
+        setErrores(porCampo);
+        setAviso({ tipo: "err", texto: avisoDeFormulario(error, porCampo) });
       } else {
         setAviso({
           tipo: "err",
